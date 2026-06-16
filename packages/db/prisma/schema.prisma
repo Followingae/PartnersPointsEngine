@@ -157,6 +157,14 @@ enum JournalKind {
   @@map("journal_kind")
 }
 
+// Loyalty TYPE a points event came through: online (web/app) or in-store (POS terminal).
+enum LoyaltyChannel {
+  online
+  in_store
+
+  @@map("loyalty_channel")
+}
+
 enum PointState {
   pending
   active
@@ -761,6 +769,7 @@ model Journal {
   createdAt        DateTime    @default(now()) @map("created_at")
   reversesId       String?     @map("reverses_id")
   sourceEvent      String?     @map("source_event") // stable business id (e.g. terminal txn id)
+  channel          LoyaltyChannel? // loyalty TYPE: online (web/app) vs in_store (POS); null = system/internal
   platformId       String      @map("platform_id")
   groupId          String      @map("group_id")
   brandId          String?     @map("brand_id")
@@ -773,6 +782,7 @@ model Journal {
   entries        Entry[]
 
   @@index([brandId])
+  @@index([brandId, channel])
   @@index([groupId])
   @@index([sourceEvent])
   @@map("journal")

@@ -40,6 +40,13 @@ export class ManageReportsController {
     return this.reporting.pointsTrend(ctx);
   }
 
+  @Get('by-type')
+  @RequirePermissions('brand.report.read')
+  @ApiOperation({ summary: 'Points earned/redeemed split by loyalty type (online vs in-store), last 14 days.' })
+  byType(@CurrentTenant() ctx: TenantContext) {
+    return this.reporting.pointsByType(ctx);
+  }
+
   @Get('rfm.csv')
   @RequirePermissions('brand.report.read')
   @Header('Content-Type', 'text/csv')

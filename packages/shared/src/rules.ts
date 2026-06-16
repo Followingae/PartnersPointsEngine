@@ -132,6 +132,8 @@ export const EarnRule = z.object({
   name: z.string(),
   priority: z.number().int().default(0),
   enabled: z.boolean().default(true),
+  // Loyalty TYPE this rule applies to. Omitted = applies to both online and in-store.
+  channel: z.enum(['online', 'in_store']).optional(),
   condition: ConditionSchema.optional(),
   actions: z.array(EarnAction),
 });
@@ -174,6 +176,8 @@ export function evaluateEarn(rules: EarnRule[], ctx: EarnContext): EarnDecision 
   const matchedRuleIds: string[] = [];
 
   for (const rule of [...rules].filter((r) => r.enabled).sort((a, b) => a.priority - b.priority)) {
+    // Type-scoped rules only fire on a matching channel; untyped rules apply to both.
+    if (rule.channel && rule.channel !== ctx.session.channel) continue;
     if (!evaluateCondition(rule.condition, ctx)) continue;
     matchedRuleIds.push(rule.id);
     for (const action of rule.actions) {

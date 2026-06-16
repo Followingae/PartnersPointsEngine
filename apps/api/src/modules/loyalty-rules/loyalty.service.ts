@@ -130,12 +130,13 @@ export class LoyaltyService {
         orderBy: { priority: 'asc' },
       });
       const rules: EarnRule[] = ruleRows.map((r) => {
-        const def = (r.definition ?? {}) as { condition?: unknown; actions?: unknown };
+        const def = (r.definition ?? {}) as { condition?: unknown; actions?: unknown; channel?: 'online' | 'in_store' };
         return EarnRule.parse({
           id: r.id,
           name: r.name,
           priority: r.priority,
           enabled: r.enabled,
+          channel: def.channel,
           condition: def.condition,
           actions: def.actions ?? [],
         });
@@ -158,6 +159,7 @@ export class LoyaltyService {
         points: BigInt(decision.points),
         occurredAt: new Date(),
         sourceEvent: input.sourceEvent,
+        channel: input.channel ?? null,
         idem: { actorId: ctx.actor.id, key: input.idempotencyKey },
         // Default 12-month rolling expiry (configurable per brand in a later pass).
         expiryBucket: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -178,7 +180,7 @@ export class LoyaltyService {
 
   async createEarnRule(ctx: TenantContext, dto: { name: string; priority?: number; enabled?: boolean; definition: Record<string, unknown> }) {
     // Validate the definition against the engine schema before persisting.
-    EarnRule.parse({ id: 'preview', name: dto.name, priority: dto.priority ?? 0, enabled: dto.enabled ?? true, condition: dto.definition.condition, actions: dto.definition.actions ?? [] });
+    EarnRule.parse({ id: 'preview', name: dto.name, priority: dto.priority ?? 0, enabled: dto.enabled ?? true, channel: dto.definition.channel as 'online' | 'in_store' | undefined, condition: dto.definition.condition, actions: dto.definition.actions ?? [] });
     return this.tenants.run(ctx, async (tx) => {
       const rule = await tx.loyaltyEarnRule.create({
         data: {
@@ -223,7 +225,7 @@ export class LoyaltyService {
 
   async updateEarnRule(ctx: TenantContext, id: string, dto: { name?: string; priority?: number; enabled?: boolean; definition?: Record<string, unknown> }) {
     if (dto.definition) {
-      EarnRule.parse({ id: 'preview', name: dto.name ?? 'preview', priority: dto.priority ?? 0, enabled: dto.enabled ?? true, condition: dto.definition.condition, actions: dto.definition.actions ?? [] });
+      EarnRule.parse({ id: 'preview', name: dto.name ?? 'preview', priority: dto.priority ?? 0, enabled: dto.enabled ?? true, channel: dto.definition.channel as 'online' | 'in_store' | undefined, condition: dto.definition.condition, actions: dto.definition.actions ?? [] });
     }
     return this.tenants.run(ctx, async (tx) => {
       const existing = await tx.loyaltyEarnRule.findFirst({ where: { id, brandId: ctx.brandId! }, select: { id: true } });
@@ -596,6 +598,7 @@ export class LoyaltyService {
         points,
         occurredAt: new Date(),
         sourceEvent: `redeem:${catalogItemId}`,
+        channel: 'online' as const, // catalog redemption flows through the online surface
         idem: { actorId: ctx.actor.id, key: idempotencyKey },
       };
 

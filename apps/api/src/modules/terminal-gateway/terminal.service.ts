@@ -82,8 +82,8 @@ export class TerminalService {
     return this.tenants.run(ctx, async (tx) => {
       const ruleRows = await tx.loyaltyEarnRule.findMany({ where: { brandId: ctx.brandId!, enabled: true }, orderBy: { priority: 'asc' } });
       const rules: EarnRule[] = ruleRows.map((r) => {
-        const def = (r.definition ?? {}) as { condition?: unknown; actions?: unknown };
-        return EarnRule.parse({ id: r.id, name: r.name, priority: r.priority, enabled: r.enabled, condition: def.condition, actions: def.actions ?? [] });
+        const def = (r.definition ?? {}) as { condition?: unknown; actions?: unknown; channel?: 'online' | 'in_store' };
+        return EarnRule.parse({ id: r.id, name: r.name, priority: r.priority, enabled: r.enabled, channel: def.channel, condition: def.condition, actions: def.actions ?? [] });
       });
       const decision = evaluateEarn(rules, { session: { amountMinor: dto.amountMinor, isVisit: dto.isVisit, channel: 'in_store' }, items: dto.items });
 
@@ -136,6 +136,7 @@ export class TerminalService {
         points: BigInt(dto.points),
         occurredAt: new Date(),
         sourceEvent: dto.sourceEvent,
+        channel: 'in_store',
         idem: { actorId: ctx.actor.id, key: `term:${dto.idempotencyKey}:auth` },
       }).catch((e) => {
         if (e instanceof ledger.LedgerError && e.code === 'insufficient_balance') throw new BadRequestException('insufficient points');
@@ -167,6 +168,7 @@ export class TerminalService {
         points: t.points,
         occurredAt: new Date(),
         sourceEvent: t.sourceEvent ?? undefined,
+        channel: 'in_store',
         idem: { actorId: ctx.actor.id, key: `term:${t.idempotencyKey}:cap` },
       });
       const updated = await tx.terminalTransaction.update({

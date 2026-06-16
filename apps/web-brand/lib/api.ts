@@ -125,6 +125,14 @@ export const getSummary = () => api<BrandSummary>('/manage/reports/summary');
 export const getRfm = () => api<RfmRow[]>('/manage/reports/rfm');
 export const getTrend = () => api<TrendPoint[]>('/manage/reports/trend');
 
+/** Loyalty TYPE = online (web/app) vs in_store (POS terminal). */
+export type LoyaltyChannel = 'online' | 'in_store';
+export interface PointsByType {
+  days: number;
+  types: Array<{ channel: LoyaltyChannel; earned: string; redeemed: string }>;
+}
+export const getPointsByType = () => api<PointsByType>('/manage/reports/by-type');
+
 // ── analytics suite (W3 → W5) ────────────────────────────────────────────────
 export interface ClvReport {
   summary: { members: number; totalLifetime: string; avgLifetime: number; medianLifetime: number; p90Lifetime: number };

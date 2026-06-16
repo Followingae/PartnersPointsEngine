@@ -195,6 +195,8 @@ interface PostArgs {
   scope: Scope;
   idempotencyKeyId?: string | null;
   legs: Leg[];
+  /** Loyalty type the event came through (online vs in_store); null for system/internal journals. */
+  channel?: 'online' | 'in_store' | null;
   /** When false, entries are recorded but balances are mutated by the caller. */
   applyBalances?: boolean;
 }
@@ -210,6 +212,7 @@ export async function postJournal(tx: Tx, args: PostArgs): Promise<string> {
       kind: args.kind as Prisma.JournalCreateInput['kind'],
       occurredAt: args.occurredAt,
       sourceEvent: args.sourceEvent ?? null,
+      channel: args.channel ?? null,
       reversesId: args.reversesId ?? null,
       platformId: args.scope.platformId,
       groupId: args.scope.groupId,

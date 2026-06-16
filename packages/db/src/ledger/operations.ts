@@ -54,6 +54,8 @@ export interface EarnArgs {
   sourceEvent?: string;
   idem: Idem;
   expiryBucket?: Date | null;
+  /** Loyalty type this earn came through: online (web/app) vs in_store (POS terminal). */
+  channel?: 'online' | 'in_store' | null;
 }
 
 export async function earnPoints(tx: Tx, a: EarnArgs): Promise<{ journalId: string; balance: Balance }> {
@@ -91,6 +93,7 @@ export async function earnPoints(tx: Tx, a: EarnArgs): Promise<{ journalId: stri
     kind: 'earn',
     occurredAt: a.occurredAt,
     sourceEvent: a.sourceEvent,
+    channel: a.channel ?? null,
     scope: a.scope,
     idempotencyKeyId: idem.keyId,
     legs: [
@@ -118,6 +121,8 @@ export interface RedeemArgs {
   occurredAt: Date;
   sourceEvent?: string;
   idem: Idem;
+  /** Loyalty type this redemption came through: online (web/app) vs in_store (POS terminal). */
+  channel?: 'online' | 'in_store' | null;
 }
 
 export async function authorizeRedeem(tx: Tx, a: RedeemArgs): Promise<{ journalId: string }> {
@@ -148,6 +153,7 @@ export async function authorizeRedeem(tx: Tx, a: RedeemArgs): Promise<{ journalI
     kind: 'redeem_auth',
     occurredAt: a.occurredAt,
     sourceEvent: a.sourceEvent,
+    channel: a.channel ?? null,
     scope: a.scope,
     idempotencyKeyId: idem.keyId,
     legs: [],
@@ -195,6 +201,7 @@ export async function captureRedeem(tx: Tx, a: RedeemArgs): Promise<{ journalId:
     kind: 'redeem_capture',
     occurredAt: a.occurredAt,
     sourceEvent: a.sourceEvent,
+    channel: a.channel ?? null,
     scope: a.scope,
     idempotencyKeyId: idem.keyId,
     applyBalances: false,
@@ -232,6 +239,7 @@ export async function voidRedeem(tx: Tx, a: RedeemArgs): Promise<{ journalId: st
     kind: 'void',
     occurredAt: a.occurredAt,
     sourceEvent: a.sourceEvent,
+    channel: a.channel ?? null,
     scope: a.scope,
     idempotencyKeyId: idem.keyId,
     legs: [],

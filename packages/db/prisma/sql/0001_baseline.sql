@@ -44,6 +44,9 @@ CREATE TYPE "entry_direction" AS ENUM ('debit', 'credit');
 CREATE TYPE "journal_kind" AS ENUM ('earn', 'redeem_auth', 'redeem_capture', 'void', 'reverse', 'topup', 'drawdown', 'expiry', 'adjust', 'fee');
 
 -- CreateEnum
+CREATE TYPE "loyalty_channel" AS ENUM ('online', 'in_store');
+
+-- CreateEnum
 CREATE TYPE "point_state" AS ENUM ('pending', 'active', 'redeemed', 'expired', 'reversed', 'adjusted');
 
 -- CreateEnum
@@ -487,6 +490,7 @@ CREATE TABLE "journal" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "reverses_id" TEXT,
     "source_event" TEXT,
+    "channel" "loyalty_channel",
     "platform_id" TEXT NOT NULL,
     "group_id" TEXT NOT NULL,
     "brand_id" TEXT,
@@ -993,6 +997,9 @@ CREATE INDEX "ledger_account_ledger_account_type_idx" ON "ledger_account"("ledge
 
 -- CreateIndex
 CREATE INDEX "journal_brand_id_idx" ON "journal"("brand_id");
+
+-- CreateIndex
+CREATE INDEX "journal_brand_id_channel_idx" ON "journal"("brand_id", "channel");
 
 -- CreateIndex
 CREATE INDEX "journal_group_id_idx" ON "journal"("group_id");

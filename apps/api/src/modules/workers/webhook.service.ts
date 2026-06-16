@@ -21,10 +21,21 @@ export const WEBHOOK_EVENT_TYPES = [
  * into per-endpoint delivery rows; delivery is HMAC-signed, retried with backoff,
  * and dead-lettered after MAX_ATTEMPTS. `fetchImpl` is overridable for testing.
  */
+/**
+ * Minimal fetch signature — only the bits we use. Avoids depending on the ambient
+ * DOM/undici `Response` typings, which resolve inconsistently across build
+ * environments (local vs Vercel/CI) and caused `Property 'ok' does not exist on
+ * type 'Response'` errors.
+ */
+export type FetchLike = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+) => Promise<{ ok: boolean; status: number }>;
+
 @Injectable()
 export class WebhookService {
   private readonly logger = new Logger(WebhookService.name);
-  fetchImpl: typeof fetch = globalThis.fetch;
+  fetchImpl: FetchLike = (globalThis as unknown as { fetch: FetchLike }).fetch;
 
   constructor(
     private readonly tenants: TenantService,

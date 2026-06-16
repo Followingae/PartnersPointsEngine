@@ -176,6 +176,27 @@ export class ReportingService {
     });
   }
 
+  /** Points earned/redeemed split by loyalty TYPE (online vs in-store) over the last N days. */
+  async pointsByType(ctx: TenantContext, days = 14) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.$queryRaw<{ channel: string | null; earned: bigint; redeemed: bigint }[]>`
+        SELECT j.channel AS channel,
+               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'earn'), 0)::bigint AS earned,
+               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'redeem_capture'), 0)::bigint AS redeemed
+          FROM journal j
+          JOIN entry e ON e.journal_id = j.id
+          JOIN ledger_account la ON la.id = e.account_id AND la.account_type = 'points_liability'
+         WHERE j.brand_id = ${ctx.brandId} AND j.occurred_at >= (current_date - ${days}::int)
+         GROUP BY j.channel`;
+      const find = (c: string) => rows.find((r) => r.channel === c);
+      const pack = (c: 'online' | 'in_store') => {
+        const r = find(c);
+        return { channel: c, earned: (r?.earned ?? 0n).toString(), redeemed: (r?.redeemed ?? 0n).toString() };
+      };
+      return { days, types: [pack('online'), pack('in_store')] };
+    });
+  }
+
   /** RFM as CSV for export. */
   async rfmCsv(ctx: TenantContext): Promise<string> {
     const rows = await this.rfm(ctx, 10_000);

@@ -20,6 +20,8 @@ export interface AdminListQuery {
 
 /** Brand modules the superadmin can toggle per brand (core modules are always on). */
 export const TOGGLEABLE_MODULES: Array<{ key: string; label: string }> = [
+  { key: 'loyalty_online', label: 'Online loyalty (website / app)' },
+  { key: 'loyalty_instore', label: 'In-store loyalty (POS terminals)' },
   { key: 'reporting', label: 'Reporting & analytics' },
   { key: 'campaigns', label: 'Campaigns' },
   { key: 'coupons', label: 'Coupons' },

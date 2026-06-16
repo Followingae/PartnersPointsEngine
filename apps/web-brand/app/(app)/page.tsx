@@ -1,14 +1,14 @@
 'use client';
 
-import { ArrowUpRight, Coins, Gift, Layers, Megaphone, Repeat, TrendingUp, Trophy, Users, Wallet } from 'lucide-react';
+import { ArrowUpRight, ChevronLeft, ChevronRight, Gift, Globe, Layers, Megaphone, Repeat, Store, TrendingUp, Trophy, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityChart, SegmentDonut } from '@/components/charts';
 import { Badge, Card, SectionTitle, StatHero } from '@/components/ui';
 import {
-  getCampaigns, getClv, getEarnRules, getEngagement, getModuleAccess, getRewards, getRfm, getSettings, getSummary, getTiers, getTrend, getVisitFrequency,
-  type CampaignRow, type ClvReport, type EarnRuleRow, type RewardRow, type RfmRow, type TierRow, type TrendPoint, type VisitFrequencyReport,
+  getCampaigns, getClv, getEarnRules, getEngagement, getModuleAccess, getPointsByType, getRewards, getRfm, getSettings, getSummary, getTiers, getTrend, getVisitFrequency,
+  type CampaignRow, type ClvReport, type EarnRuleRow, type LoyaltyChannel, type PointsByType, type RewardRow, type RfmRow, type TierRow, type TrendPoint, type VisitFrequencyReport,
 } from '@/lib/api';
 
 const fmt = (v: string | number) => Number(v).toLocaleString();
@@ -16,9 +16,10 @@ const fmt = (v: string | number) => Number(v).toLocaleString();
 type ActMode = 'both' | 'earned' | 'redeemed' | 'net';
 
 interface EarnAction { type?: string; pointsPerUnit?: number; unitMinor?: number; points?: number; factorBps?: number }
-function summarizeRule(def?: Record<string, unknown>): string {
-  const a = (def?.actions as EarnAction[] | undefined)?.[0];
-  if (!a) return 'Not configured';
+interface RuleDef { actions?: EarnAction[]; channel?: LoyaltyChannel }
+function summarizeRule(def?: RuleDef): string {
+  const a = def?.actions?.[0];
+  if (!a) return 'No effect';
   if (a.type === 'perAmount') return `${a.pointsPerUnit ?? 0} pt / ${((a.unitMinor ?? 100) / 100).toLocaleString()} spent`;
   if (a.type === 'perVisit') return `${a.points ?? 0} pts per visit`;
   if (a.type === 'bonus') return `${a.points ?? 0} bonus pts`;
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [tiers, setTiers] = useState<TierRow[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [access, setAccess] = useState<Record<string, boolean>>({});
+  const [byType, setByType] = useState<PointsByType | null>(null);
   const [brandName, setBrandName] = useState('');
   const [actMode, setActMode] = useState<ActMode>('both');
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export default function Dashboard() {
       getTiers({ limit: 100 }).then((x) => setTiers(x.rows)).catch(() => {});
       getCampaigns({ limit: 100 }).then((x) => setCampaigns(x.rows)).catch(() => {});
       getModuleAccess().then((m) => setAccess(m.access)).catch(() => {});
+      getPointsByType().then(setByType).catch(() => {});
       getSettings().then((x) => setBrandName(x.name)).catch(() => {});
     })();
   }, []);
@@ -77,19 +80,39 @@ export default function Dashboard() {
   const earned14 = activity.reduce((s, d) => s + d.earned, 0);
 
   const enabledRules = rules.filter((r) => r.enabled);
-  const primaryRule = enabledRules[0] ?? rules[0];
   const activeRewards = rewards.filter((r) => r.status === 'active');
   const minReward = activeRewards.length ? Math.min(...activeRewards.map((r) => Number(r.pointsCost))) : null;
   const topMultiplier = tiers.length ? Math.max(...tiers.map((t) => t.multiplierBps)) / 10000 : null;
   const liveCampaigns = campaigns.filter((c) => c.enabled);
 
-  const programs = [
-    {
-      href: '/earn-rules', icon: Coins, grad: 'bg-gradient-lime', label: 'Points earning',
-      value: rules.length ? summarizeRule(primaryRule?.definition) : 'Set up',
-      hint: rules.length ? `${enabledRules.length} active rule${enabledRules.length === 1 ? '' : 's'}` : 'No rules yet — configure earning',
-      show: true,
-    },
+  // ── Loyalty TYPES (online vs in-store) — the headline programs ──────────────
+  const earnedFor = (c: LoyaltyChannel) => byType?.types.find((t) => t.channel === c)?.earned ?? null;
+  const rulesFor = (c: LoyaltyChannel) => enabledRules.filter((r) => {
+    const ch = (r.definition as RuleDef | undefined)?.channel;
+    return !ch || ch === c; // untyped rules apply to both types
+  });
+  const typeCard = (c: LoyaltyChannel) => {
+    const list = rulesFor(c);
+    const primary = list[0]; // rules arrive priority-asc
+    const earned = earnedFor(c);
+    return {
+      channel: c,
+      icon: c === 'online' ? Globe : Store,
+      grad: c === 'online' ? 'bg-gradient-teal' : 'bg-gradient-coral',
+      label: c === 'online' ? 'Online loyalty' : 'In-store loyalty',
+      sublabel: c === 'online' ? 'Website & app' : 'POS terminals',
+      headline: list.length ? summarizeRule(primary?.definition as RuleDef) : 'Not configured',
+      rules: list.length,
+      earned: earned != null ? Number(earned) : 0,
+    };
+  };
+  const typePrograms = [
+    access.loyalty_online !== false ? typeCard('online') : null,
+    access.loyalty_instore !== false ? typeCard('in_store') : null,
+  ].filter(Boolean) as ReturnType<typeof typeCard>[];
+
+  // ── Building blocks (shared across types) ───────────────────────────────────
+  const blocks = [
     {
       href: '/rewards', icon: Gift, grad: 'bg-gradient-coral', label: 'Rewards catalog',
       value: activeRewards.length ? `${activeRewards.length} live` : 'Set up',
@@ -126,32 +149,64 @@ export default function Dashboard() {
 
       {error ? <p className="mb-6 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
 
-      {/* KPI board */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatHero gradient="ink" label="Points liability" value={summary ? fmt(summary.pointsLiability) : '—'} unit="pts" icon={<Wallet size={16} />} delta="outstanding" />
-        <StatHero gradient="teal" label="Members" value={summary ? fmt(summary.members) : '—'} icon={<Users size={16} />} delta="enrolled" />
-        <StatHero gradient="lime" label="Earned (14d)" value={fmt(earned14)} unit="pts" icon={<TrendingUp size={16} />} delta="last 14 days" />
-        <StatHero gradient="coral" label="Points redeemed" value={summary ? fmt(summary.pointsRedeemed) : '—'} unit="pts" icon={<Gift size={16} />} delta="lifetime" />
-        <StatHero gradient="teal" label="Avg lifetime value" value={clv ? fmt(clv.summary.avgLifetime) : '—'} unit="pts" icon={<Trophy size={16} />} delta="per member" />
-        <StatHero gradient="lime" label="Repeat rate" value={repeatRate != null ? `${repeatRate}` : '—'} unit="%" icon={<Repeat size={16} />} delta="returning members" />
-      </section>
+      {/* KPI carousel — single row, 3D coverflow */}
+      <KpiCarousel
+        items={[
+          { gradient: 'ink', label: 'Points liability', value: summary ? fmt(summary.pointsLiability) : '—', unit: 'pts', icon: <Wallet size={16} />, delta: 'outstanding' },
+          { gradient: 'teal', label: 'Members', value: summary ? fmt(summary.members) : '—', icon: <Users size={16} />, delta: 'enrolled' },
+          { gradient: 'lime', label: 'Earned (14d)', value: fmt(earned14), unit: 'pts', icon: <TrendingUp size={16} />, delta: 'last 14 days' },
+          { gradient: 'coral', label: 'Points redeemed', value: summary ? fmt(summary.pointsRedeemed) : '—', unit: 'pts', icon: <Gift size={16} />, delta: 'lifetime' },
+          { gradient: 'teal', label: 'Avg lifetime value', value: clv ? fmt(clv.summary.avgLifetime) : '—', unit: 'pts', icon: <Trophy size={16} />, delta: 'per member' },
+          { gradient: 'lime', label: 'Repeat rate', value: repeatRate != null ? `${repeatRate}` : '—', unit: '%', icon: <Repeat size={16} />, delta: 'returning members' },
+        ]}
+      />
 
-      {/* configured loyalty programs */}
+      {/* configured loyalty TYPES */}
       <section className="mt-8">
-        <SectionTitle action={<Link href="/settings" className="text-sm font-semibold text-[#0f6b66] hover:underline">Program settings →</Link>}>Your loyalty programs</SectionTitle>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {programs.map((p) => (
-            <Link key={p.href} href={p.href} className="group flex flex-col rounded-3xl border border-border/70 bg-card p-5 transition hover:shadow-card">
+        <SectionTitle action={<Link href="/earn-rules" className="text-sm font-semibold text-[#0f6b66] hover:underline">Manage earn rules →</Link>}>Your loyalty programs</SectionTitle>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {typePrograms.map((t) => (
+            <Link key={t.channel} href="/earn-rules" className="group flex flex-col rounded-3xl border border-border/70 bg-card p-6 transition hover:shadow-card">
               <div className="flex items-start justify-between">
-                <span className={`grid h-11 w-11 place-items-center rounded-2xl ${p.grad} text-ink`}><p.icon size={20} /></span>
+                <div className="flex items-center gap-3">
+                  <span className={`grid h-12 w-12 place-items-center rounded-2xl ${t.grad} text-ink`}><t.icon size={22} /></span>
+                  <div>
+                    <p className="font-display text-lg font-bold leading-tight">{t.label}</p>
+                    <p className="text-xs text-muted-foreground">{t.sublabel}</p>
+                  </div>
+                </div>
                 <ArrowUpRight size={16} className="text-muted-foreground transition group-hover:text-ink" />
               </div>
-              <p className="mt-4 text-sm font-medium text-muted-foreground">{p.label}</p>
-              <p className="mt-1 font-display text-2xl font-bold leading-tight tracking-tight">{p.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{p.hint}</p>
+              <div className="mt-5 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Award rule</p>
+                  <p className="mt-1 font-display text-2xl font-bold leading-none tracking-tight">{t.headline}</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground">{t.rules} active rule{t.rules === 1 ? '' : 's'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-display text-xl font-bold leading-none">{fmt(t.earned)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">pts earned · 14d</p>
+                </div>
+              </div>
             </Link>
           ))}
         </div>
+
+        {blocks.length ? (
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {blocks.map((p) => (
+              <Link key={p.href} href={p.href} className="group flex flex-col rounded-3xl border border-border/70 bg-card p-5 transition hover:shadow-card">
+                <div className="flex items-start justify-between">
+                  <span className={`grid h-11 w-11 place-items-center rounded-2xl ${p.grad} text-ink`}><p.icon size={20} /></span>
+                  <ArrowUpRight size={16} className="text-muted-foreground transition group-hover:text-ink" />
+                </div>
+                <p className="mt-4 text-sm font-medium text-muted-foreground">{p.label}</p>
+                <p className="mt-1 font-display text-2xl font-bold leading-tight tracking-tight">{p.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{p.hint}</p>
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       {/* activity + segments */}
@@ -198,6 +253,58 @@ export default function Dashboard() {
         </Card>
       </section>
     </div>
+  );
+}
+
+interface KpiItem { gradient: string; label: string; value: string; unit?: string; delta?: string; icon: ReactNode }
+
+/** Single-row 3D coverflow of KPI cards. Click a side card (or the arrows/dots) to rotate it to center. */
+function KpiCarousel({ items }: { items: KpiItem[] }) {
+  const [active, setActive] = useState(0);
+  const n = items.length;
+  const go = (d: number) => setActive((a) => (a + d + n) % n);
+  return (
+    <section className="mt-1">
+      <div className="relative" style={{ perspective: '1600px' }}>
+        <div className="relative mx-auto h-[188px] w-full max-w-3xl [transform-style:preserve-3d]">
+          {items.map((it, i) => {
+            let off = i - active;
+            if (off > n / 2) off -= n;
+            if (off < -n / 2) off += n;
+            const abs = Math.abs(off);
+            const hidden = abs > 2;
+            return (
+              <div
+                key={it.label}
+                onClick={() => off !== 0 && setActive(i)}
+                className={`absolute left-1/2 top-0 w-[300px] transition-all duration-500 ease-out ${off === 0 ? '' : 'cursor-pointer'}`}
+                style={{
+                  transform: `translateX(-50%) translateX(${off * 58}%) translateZ(${-abs * 140}px) rotateY(${off * -32}deg) scale(${off === 0 ? 1 : 0.82})`,
+                  opacity: hidden ? 0 : off === 0 ? 1 : 0.5,
+                  zIndex: 20 - abs,
+                  pointerEvents: hidden ? 'none' : 'auto',
+                }}
+              >
+                <StatHero gradient={it.gradient} label={it.label} value={it.value} unit={it.unit} delta={it.delta} icon={it.icon} />
+              </div>
+            );
+          })}
+        </div>
+
+        <button onClick={() => go(-1)} aria-label="Previous" className="absolute left-0 top-1/2 z-30 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border bg-card/90 shadow-card backdrop-blur transition hover:bg-card">
+          <ChevronLeft size={18} />
+        </button>
+        <button onClick={() => go(1)} aria-label="Next" className="absolute right-0 top-1/2 z-30 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border bg-card/90 shadow-card backdrop-blur transition hover:bg-card">
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      <div className="mt-4 flex justify-center gap-1.5">
+        {items.map((it, i) => (
+          <button key={it.label} onClick={() => setActive(i)} aria-label={`Show ${it.label}`} className={`h-1.5 rounded-full transition-all ${i === active ? 'w-6 bg-ink' : 'w-1.5 bg-border hover:bg-muted-foreground/40'}`} />
+        ))}
+      </div>
+    </section>
   );
 }
 
