@@ -1,6 +1,7 @@
 'use client';
 
-import { Coins, Copy, Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { Coins, Copy, Footprints, Gift, Pencil, Plus, Power, Sparkles, Trash2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, ConfirmDialog, Field, Modal, PageHeader, Select } from '@/components/form';
 import { ActionMenu, Badge, Card, EmptyState, SearchInput, TableSkeleton, Th } from '@/components/ui';
@@ -164,12 +165,14 @@ export default function EarnRulesPage() {
   );
 }
 
-const KINDS = [
-  { value: 'perAmount', label: 'Points per spend' },
-  { value: 'perVisit', label: 'Points per visit' },
-  { value: 'bonus', label: 'Flat bonus' },
-  { value: 'multiplier', label: 'Points multiplier' },
+interface KindMeta { value: Kind; label: string; icon: LucideIcon; desc: string; example: string; valueLabel: string; valueHint?: string }
+const KINDS: KindMeta[] = [
+  { value: 'perAmount', label: 'Points per spend', icon: Coins, desc: 'Award points in proportion to how much the customer spends.', example: 'Example: 1 pt per AED 1 → a 250 AED order earns 250 pts.', valueLabel: 'Points per unit', valueHint: 'Points per "unit" of spend (set the unit below).' },
+  { value: 'perVisit', label: 'Points per visit', icon: Footprints, desc: 'Award a fixed number of points each time the customer transacts, regardless of basket size.', example: 'Example: 10 pts per visit.', valueLabel: 'Points per visit' },
+  { value: 'bonus', label: 'Flat bonus', icon: Gift, desc: 'Add a one-off bonus on top of other earning — pairs well with a minimum spend.', example: 'Example: +100 bonus pts when spend ≥ AED 200.', valueLabel: 'Bonus points' },
+  { value: 'multiplier', label: 'Points multiplier', icon: Sparkles, desc: 'Multiply the points earned by your other rules — great for double-points events.', example: 'Example: 2× points stacks on your base earn rule.', valueLabel: 'Multiplier (×)', valueHint: 'e.g. 2 = double points.' },
 ];
+const kindMeta = (k: Kind): KindMeta => KINDS.find((x) => x.value === k) ?? KINDS[0];
 
 function RuleModal({ rule, types, onClose, onSaved }: { rule: EarnRuleRow | null; types: { online: boolean; inStore: boolean }; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
@@ -229,18 +232,29 @@ function RuleModal({ rule, types, onClose, onSaved }: { rule: EarnRuleRow | null
       <div className="space-y-4">
         <Field label="Name" value={name} onChange={setName} placeholder="e.g. 1 point per AED" required error={errors.name} />
         <Select label="Applies to (loyalty type)" value={channel} onChange={(v) => setChannel(v as RuleChannel)} options={channelOptions} hint="Where this rule earns points — online, in-store, or both." />
-        <Select label="Effect type" value={kind} onChange={(v) => setKind(v as Kind)} options={KINDS} />
+        <Select label="Effect type" value={kind} onChange={(v) => setKind(v as Kind)} options={KINDS.map((k) => ({ value: k.value, label: k.label }))} />
+        {(() => {
+          const m = kindMeta(kind);
+          const Icon = m.icon;
+          return (
+            <div className="flex gap-3 rounded-2xl border border-border/70 bg-muted/40 px-4 py-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-lime text-ink"><Icon size={18} /></span>
+              <div className="text-sm">
+                <p className="font-medium">{m.label}</p>
+                <p className="text-muted-foreground">{m.desc}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{m.example}</p>
+              </div>
+            </div>
+          );
+        })()}
         <div className="grid grid-cols-2 gap-3">
-          <Field
-            label={kind === 'perAmount' ? 'Points per unit' : kind === 'multiplier' ? 'Multiplier (×)' : 'Points'}
-            value={value}
-            onChange={setValue}
-            type="number"
-          />
-          {kind === 'perAmount' ? <Field label="Unit (minor, 100 = 1)" value={unit} onChange={setUnit} type="number" /> : <Field label="Priority" value={priority} onChange={setPriority} type="number" hint="Lower runs first" />}
+          <Field label={kindMeta(kind).valueLabel} value={value} onChange={setValue} type="number" required hint={kindMeta(kind).valueHint} />
+          {kind === 'perAmount'
+            ? <Field label="Spend unit (minor units)" value={unit} onChange={setUnit} type="number" required hint="100 = 1 currency unit (e.g. AED 1)." />
+            : <Field label="Priority" value={priority} onChange={setPriority} type="number" hint="Lower runs first." />}
         </div>
-        {kind === 'perAmount' ? <Field label="Priority" value={priority} onChange={setPriority} type="number" hint="Lower runs first" /> : null}
-        <Field label="Minimum spend to qualify (minor units)" value={minSpend} onChange={setMinSpend} type="number" hint="0 = applies to any transaction" />
+        {kind === 'perAmount' ? <Field label="Priority" value={priority} onChange={setPriority} type="number" hint="Lower runs first." /> : null}
+        <Field label="Minimum spend to qualify (minor units)" value={minSpend} onChange={setMinSpend} type="number" hint="0 = applies to any transaction. 200 AED = 20000." />
         <label className="flex items-center gap-2.5 text-sm font-medium">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-4 w-4 rounded border-input accent-ink" />
           Enabled
