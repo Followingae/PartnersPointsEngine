@@ -46,6 +46,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    document.title = 'Dashboard | Partners Points';
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const [s, r, t] = await Promise.all([getSummary(), getRfm(), getTrend()]);

@@ -182,6 +182,9 @@ export function ConfirmDialog({
 }
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+  useEffect(() => {
+    document.title = `${title} | Partners Points Platform`;
+  }, [title]);
   return (
     <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>

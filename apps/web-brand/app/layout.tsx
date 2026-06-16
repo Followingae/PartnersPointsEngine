@@ -3,8 +3,12 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: 'Partners Points · Brand',
-  description: 'Manage your loyalty program — Partners Points brand console.',
+  title: {
+    default: 'Partners Points Brand Console',
+    template: '%s | Partners Points',
+  },
+  description: 'Run your loyalty program in one place: points, rewards, tiers, campaigns, coupons, and customer insights.',
+  applicationName: 'Partners Points',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

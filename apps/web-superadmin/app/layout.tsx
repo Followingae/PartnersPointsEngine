@@ -3,8 +3,12 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: 'Partners Points · Platform',
-  description: 'Partners Points superadmin — platform operations console.',
+  title: {
+    default: 'Partners Points Platform Console',
+    template: '%s | Partners Points Platform',
+  },
+  description: 'Operate the Partners Points platform: merchants, brands, wallet funding, approvals, and governance.',
+  applicationName: 'Partners Points',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

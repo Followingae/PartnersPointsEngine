@@ -19,7 +19,13 @@ async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(PinoLogger));
   app.use(helmet());
-  app.enableCors({ origin: true, credentials: true });
+  // Lock CORS to the configured console origins in production; reflect any origin
+  // when CORS_ORIGINS is unset (local dev).
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  app.enableCors({ origin: corsOrigins.length ? corsOrigins : true, credentials: true });
 
   // Path-versioned API; health/readiness/docs live outside the version prefix.
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready', 'metrics', 'docs', 'docs-json'] });
