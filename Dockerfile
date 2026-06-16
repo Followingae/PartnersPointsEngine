@@ -14,7 +14,9 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @rfm-loyalty/db db:generate
 RUN pnpm build
 # pnpm deploy produces a node_modules-complete, hoisted directory for one package.
-RUN pnpm --filter @rfm-loyalty/api deploy --prod /out
+# --legacy: pnpm v10+ otherwise refuses non-injected workspaces
+# (ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE).
+RUN pnpm --filter @rfm-loyalty/api deploy --prod --legacy /out
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 FROM base AS runner
