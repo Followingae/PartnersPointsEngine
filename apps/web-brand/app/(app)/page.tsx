@@ -277,9 +277,12 @@ function KpiCarousel({ items }: { items: KpiItem[] }) {
             if (off < -n / 2) off += n;
             const abs = Math.abs(off);
             const center = off === 0;
-            // Only render the center card + its two immediate neighbours; everything
-            // further back is hidden so nothing "shows through" from deep in the stack.
-            const hidden = abs > 1;
+            // Show 5 cards: center + two on each side, fading/blurring with depth so
+            // the far cards read as a stack rather than clutter. Beyond that, hidden.
+            const hidden = abs > 2;
+            const scale = center ? 1 : abs === 1 ? 0.85 : 0.72;
+            const opacity = hidden ? 0 : center ? 1 : abs === 1 ? 0.9 : 0.5;
+            const blur = center ? 0 : abs === 1 ? 2 : 4;
             return (
               <div
                 key={it.label}
@@ -287,9 +290,9 @@ function KpiCarousel({ items }: { items: KpiItem[] }) {
                 aria-hidden={hidden}
                 className={`absolute left-1/2 top-0 w-[300px] transition-all duration-500 ease-out ${center ? '' : 'cursor-pointer'}`}
                 style={{
-                  transform: `translateX(-50%) translateX(${off * 60}%) translateZ(${center ? 0 : -200}px) rotateY(${off * -30}deg) scale(${center ? 1 : 0.84})`,
-                  opacity: hidden ? 0 : center ? 1 : 0.92,
-                  filter: center ? 'none' : 'blur(2.5px) brightness(0.96)',
+                  transform: `translateX(-50%) translateX(${off * 52}%) translateZ(${center ? 0 : -abs * 120 - 30}px) rotateY(${off * -26}deg) scale(${scale})`,
+                  opacity,
+                  filter: blur ? `blur(${blur}px) brightness(${abs === 1 ? 0.97 : 0.9})` : 'none',
                   zIndex: 20 - abs,
                   pointerEvents: hidden ? 'none' : 'auto',
                 }}

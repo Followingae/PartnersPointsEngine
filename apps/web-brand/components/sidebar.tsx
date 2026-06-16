@@ -30,10 +30,12 @@ const NAV = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
+// Labels are always visible on mobile (the drawer is full-width); only hidden on
+// desktop (lg+) when the sidebar is collapsed to icons.
 const labelCls = (collapsed: boolean) =>
-  clsx('whitespace-nowrap text-sm font-medium transition-opacity duration-200', collapsed ? 'pointer-events-none opacity-0' : 'opacity-100');
+  clsx('whitespace-nowrap text-sm font-medium transition-opacity duration-200', collapsed && 'lg:pointer-events-none lg:opacity-0');
 
-export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { collapsed: boolean; onToggle: () => void; mobileOpen: boolean; onMobileClose: () => void }) {
   const path = usePathname();
   const router = useRouter();
   const [access, setAccess] = useState<Record<string, boolean>>({});
@@ -47,16 +49,19 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const items = NAV.filter((item) => !item.module || access[item.module] !== false);
 
   return (
-    <aside className={clsx('fixed left-0 top-0 z-20 flex h-screen flex-col overflow-hidden border-r border-border/70 bg-ink py-4 transition-[width] duration-300 ease-in-out', collapsed ? 'w-[76px]' : 'w-[248px]')}>
-      {/* brand logo */}
+    <aside
+      className={clsx(
+        'fixed left-0 top-0 z-40 flex h-screen w-[248px] flex-col overflow-hidden border-r border-border/70 bg-ink py-4 transition-all duration-300 ease-in-out lg:translate-x-0',
+        collapsed ? 'lg:w-[76px]' : 'lg:w-[248px]',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full',
+      )}
+    >
+      {/* logo: full on mobile + desktop-expanded; square mark on desktop-collapsed */}
       <div className="flex h-11 items-center px-3.5">
-        {collapsed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/partners-points-mark.png" alt="Partners Points" className="h-11 w-11 object-contain" />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/partners-points-light.png" alt="Partners Points" className="h-9 w-auto object-contain" />
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/partners-points-light.png" alt="Partners Points" className={clsx('h-9 w-auto object-contain', collapsed && 'lg:hidden')} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/partners-points-mark.png" alt="Partners Points" className={clsx('hidden h-11 w-11 object-contain', collapsed && 'lg:block')} />
       </div>
 
       <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
@@ -67,6 +72,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             <Link
               key={item.href}
               href={item.href}
+              onClick={onMobileClose}
               title={collapsed ? item.label : undefined}
               className={clsx('flex h-11 items-center rounded-2xl transition', active ? 'bg-white/10 text-lime-400' : 'text-white/55 hover:bg-white/5 hover:text-white')}
             >
@@ -78,7 +84,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       </nav>
 
       <div className="mt-2 flex flex-col gap-1 px-2">
-        <button onClick={onToggle} title={collapsed ? 'Expand' : 'Collapse'} className="flex h-10 items-center rounded-2xl text-white/40 transition hover:bg-white/5 hover:text-white">
+        {/* Collapse toggle is desktop-only (mobile uses the drawer) */}
+        <button onClick={onToggle} title={collapsed ? 'Expand' : 'Collapse'} className="hidden h-10 items-center rounded-2xl text-white/40 transition hover:bg-white/5 hover:text-white lg:flex">
           <span className="grid w-[60px] shrink-0 place-items-center"><ChevronLeft size={18} className={clsx('transition-transform duration-300', collapsed && 'rotate-180')} /></span>
           <span className={labelCls(collapsed)}>Collapse</span>
         </button>
@@ -87,7 +94,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           name={brand?.name ?? 'Your brand'}
           sub="Brand console"
           gradient="bg-gradient-lime"
-          items={[{ label: 'Settings', icon: <Settings size={15} />, onClick: () => router.push('/settings') }]}
+          items={[{ label: 'Settings', icon: <Settings size={15} />, onClick: () => { onMobileClose(); router.push('/settings'); } }]}
           onSignOut={() => { clearToken(); router.push('/login'); }}
         />
       </div>
@@ -134,7 +141,7 @@ export function AccountMenu({
         <span className="grid w-[60px] shrink-0 place-items-center">
           <span className={clsx('grid h-9 w-9 place-items-center rounded-xl text-sm font-bold text-ink', gradient)}>{initial}</span>
         </span>
-        <span className={clsx('flex min-w-0 flex-1 items-center gap-1 pr-2 transition-opacity duration-200', collapsed ? 'pointer-events-none opacity-0' : 'opacity-100')}>
+        <span className={clsx('flex min-w-0 flex-1 items-center gap-1 pr-2 transition-opacity duration-200', collapsed && 'lg:pointer-events-none lg:opacity-0')}>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-white">{name}</span>
             <span className="block truncate text-[11px] text-white/45">{sub}</span>
