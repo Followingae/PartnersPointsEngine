@@ -17,6 +17,15 @@ RUN pnpm build
 # --legacy: pnpm v10+ otherwise refuses non-injected workspaces
 # (ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE).
 RUN pnpm --filter @rfm-loyalty/api deploy --prod --legacy /out
+# pnpm deploy omits Prisma's *generated* client (.prisma/client) because it's a
+# build artifact, not a store package — so the app boots with MODULE_NOT_FOUND.
+# Copy the generated client (Linux engine, generated in this build) into /out at
+# the matching @prisma/client location.
+RUN set -eux; \
+    SRC="$(find /app/node_modules/.pnpm -type d -path '*@prisma+client@*/node_modules/.prisma' | head -n1)"; \
+    DEST="$(find /out/node_modules/.pnpm -type d -path '*@prisma+client@*/node_modules' | head -n1)"; \
+    test -n "$SRC" && test -n "$DEST"; \
+    cp -r "$SRC" "$DEST/"
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 FROM base AS runner

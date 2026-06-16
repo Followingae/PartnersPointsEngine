@@ -272,15 +272,20 @@ function KpiCarousel({ items }: { items: KpiItem[] }) {
             if (off > n / 2) off -= n;
             if (off < -n / 2) off += n;
             const abs = Math.abs(off);
-            const hidden = abs > 2;
+            const center = off === 0;
+            // Only render the center card + its two immediate neighbours; everything
+            // further back is hidden so nothing "shows through" from deep in the stack.
+            const hidden = abs > 1;
             return (
               <div
                 key={it.label}
-                onClick={() => off !== 0 && setActive(i)}
-                className={`absolute left-1/2 top-0 w-[300px] transition-all duration-500 ease-out ${off === 0 ? '' : 'cursor-pointer'}`}
+                onClick={() => !center && setActive(i)}
+                aria-hidden={hidden}
+                className={`absolute left-1/2 top-0 w-[300px] transition-all duration-500 ease-out ${center ? '' : 'cursor-pointer'}`}
                 style={{
-                  transform: `translateX(-50%) translateX(${off * 58}%) translateZ(${-abs * 140}px) rotateY(${off * -32}deg) scale(${off === 0 ? 1 : 0.82})`,
-                  opacity: hidden ? 0 : off === 0 ? 1 : 0.5,
+                  transform: `translateX(-50%) translateX(${off * 60}%) translateZ(${center ? 0 : -200}px) rotateY(${off * -30}deg) scale(${center ? 1 : 0.84})`,
+                  opacity: hidden ? 0 : center ? 1 : 0.92,
+                  filter: center ? 'none' : 'blur(2.5px) brightness(0.96)',
                   zIndex: 20 - abs,
                   pointerEvents: hidden ? 'none' : 'auto',
                 }}
