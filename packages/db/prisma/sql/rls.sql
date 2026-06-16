@@ -53,12 +53,23 @@ BEGIN
 END $$;
 
 -- Fail-closed defaults (applied when a real login connects AS loyalty_app).
-ALTER ROLE loyalty_app SET app.current_platform_id = '';
-ALTER ROLE loyalty_app SET app.current_group_id = '';
-ALTER ROLE loyalty_app SET app.current_brand_id = '';
-ALTER ROLE loyalty_app SET app.current_branch_id = '';
-ALTER ROLE loyalty_app SET app.current_actor_id = '';
-ALTER ROLE loyalty_app SET app.current_surface = '';
+-- Managed Postgres (e.g. Supabase) restricts `ALTER ROLE ... SET <custom guc>`,
+-- so swallow failures: the policies read these with current_setting(..., true)
+-- (missing_ok), and an unset value is NULL → matches nothing → still fail-closed.
+DO $$
+DECLARE k text;
+BEGIN
+  FOREACH k IN ARRAY ARRAY[
+    'app.current_platform_id','app.current_group_id','app.current_brand_id',
+    'app.current_branch_id','app.current_actor_id','app.current_surface'
+  ] LOOP
+    BEGIN
+      EXECUTE format('ALTER ROLE loyalty_app SET %s = %L', k, '');
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'skipping default for % (not permitted on this platform)', k;
+    END;
+  END LOOP;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2) Brand-hierarchy tables (carry brand_id, group_id, platform_id).
