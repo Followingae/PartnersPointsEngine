@@ -1,0 +1,47 @@
+# DigitalOcean App Platform spec for the RFM Loyalty API + worker.
+# Postgres is Supabase (or a DO managed PG); Redis is DO managed Valkey.
+# Frontends deploy separately to Vercel. Fill ${...} secrets in the DO dashboard.
+name: rfm-loyalty
+region: fra
+services:
+  - name: api
+    dockerfile_path: Dockerfile
+    source_dir: /
+    http_port: 3001
+    instance_size_slug: basic-xs
+    instance_count: 2
+    health_check:
+      http_path: /health
+    routes:
+      - path: /
+    envs:
+      - { key: NODE_ENV, value: production }
+      - { key: API_PORT, value: "3001" }
+      - { key: DATABASE_URL, scope: RUN_TIME, type: SECRET }
+      - { key: DIRECT_URL, scope: RUN_TIME, type: SECRET }
+      - { key: APP_DATABASE_URL, scope: RUN_TIME, type: SECRET } # the non-owner loyalty_app role
+      - { key: REDIS_URL, scope: RUN_TIME, type: SECRET }
+      - { key: JWT_ACCESS_SECRET, scope: RUN_TIME, type: SECRET }
+      - { key: JWT_REFRESH_SECRET, scope: RUN_TIME, type: SECRET }
+      - { key: PII_MASTER_KEY_BASE64, scope: RUN_TIME, type: SECRET }
+      - { key: DEFAULT_REGION, value: uae }
+      - { key: DEFAULT_CURRENCY, value: AED }
+
+workers:
+  - name: jobs
+    dockerfile_path: Dockerfile
+    source_dir: /
+    instance_size_slug: basic-xs
+    instance_count: 1
+    # Same image; a worker entrypoint registers the BullMQ processors
+    # (settlement, webhook relay/delivery, point-expiry). REDIS_URL enables it.
+    run_command: node dist/main.js
+    envs:
+      - { key: NODE_ENV, value: production }
+      - { key: ROLE, value: worker }
+      - { key: DATABASE_URL, scope: RUN_TIME, type: SECRET }
+      - { key: APP_DATABASE_URL, scope: RUN_TIME, type: SECRET }
+      - { key: REDIS_URL, scope: RUN_TIME, type: SECRET }
+      - { key: JWT_ACCESS_SECRET, scope: RUN_TIME, type: SECRET }
+      - { key: JWT_REFRESH_SECRET, scope: RUN_TIME, type: SECRET }
+      - { key: PII_MASTER_KEY_BASE64, scope: RUN_TIME, type: SECRET }

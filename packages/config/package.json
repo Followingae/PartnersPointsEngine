@@ -1,0 +1,21 @@
+{
+  "name": "@rfm-loyalty/config",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": ["eslint", "tailwind-preset.cjs"],
+  "exports": {
+    "./eslint/base": "./eslint/base.mjs",
+    "./eslint/nest": "./eslint/nest.mjs",
+    "./tailwind-preset": "./tailwind-preset.cjs"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "typescript-eslint": "^8.20.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "rfm-loyalty",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RFM Loyalty — multi-tenant, closed-loop, B2B2C loyalty engine (platform)",
+  "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,md,json,yaml,yml,css}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,json,yaml,yml,css}\" --ignore-path .gitignore",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:seed": "pnpm --filter @rfm-loyalty/db seed",
+    "db:dev": "pnpm --filter @rfm-loyalty/db dev:db"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "@node-rs/argon2",
+      "@embedded-postgres/windows-x64",
+      "@embedded-postgres/linux-x64",
+      "@embedded-postgres/darwin-arm64"
+    ]
+  }
+}

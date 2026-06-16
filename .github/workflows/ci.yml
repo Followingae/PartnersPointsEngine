@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rfm_loyalty_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rfm_loyalty_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/rfm_loyalty_test
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789
+      JWT_REFRESH_SECRET: ci-refresh-secret-0123456789
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Apply schema + RLS to test database
+        run: pnpm --filter @rfm-loyalty/db db:apply
+
+      - name: Cross-tenant RLS isolation tests
+        run: pnpm --filter @rfm-loyalty/db test
+
+      - name: Rules engine unit tests
+        run: pnpm --filter @rfm-loyalty/shared test
+
+      - name: API integration tests (ledger/loyalty/terminal/engagement/reporting)
+        run: pnpm --filter @rfm-loyalty/api test
+
+      - name: Generate OpenAPI spec (boots module graph)
+        run: pnpm --filter @rfm-loyalty/api openapi:gen
+
+      - name: Verify OpenAPI spec is committed and up to date
+        run: git diff --exit-code -- apps/api/openapi.json
+
+      - name: HTTP smoke test (full request pipeline against the running server)
+        run: |
+          pnpm --filter @rfm-loyalty/db seed
+          node apps/api/dist/main.js & echo $! > /tmp/api.pid
+          for i in $(seq 1 30); do curl -sf http://localhost:3001/health >/dev/null && break; sleep 1; done
+          SMOKE_BASE_URL=http://localhost:3001 node apps/api/scripts/smoke.mjs
+          kill "$(cat /tmp/api.pid)" || true

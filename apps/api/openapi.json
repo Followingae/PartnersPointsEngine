@@ -1,0 +1,1992 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "HealthController_metrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AdminAuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Email + password login; returns tokens or { mfaRequired: true }.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa": {
+      "post": {
+        "operationId": "AdminAuthController_mfa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Verify TOTP after a login that returned mfaRequired.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "operationId": "AdminAuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Rotate a refresh token for a new access+refresh pair.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AdminAuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/enrol": {
+      "post": {
+        "operationId": "AdminAuthController_enrol",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Begin TOTP enrolment; returns the secret + otpauth URI.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/confirm": {
+      "post": {
+        "operationId": "AdminAuthController_confirm",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmMfaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm TOTP enrolment with a code; enables MFA.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/customer/auth/otp": {
+      "post": {
+        "operationId": "CustomerAuthController_request",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Request a one-time code for a phone (dev: logged, not sent).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/customer/auth/verify": {
+      "post": {
+        "operationId": "CustomerAuthController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpVerifyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Verify the code and issue customer tokens for the brand.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/admin/diagnostics/whoami": {
+      "get": {
+        "operationId": "AdminDiagnosticsController_whoami",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/admin/diagnostics/visible-brands": {
+      "get": {
+        "operationId": "AdminDiagnosticsController_visibleBrands",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Counts rows visible under RLS for the caller (isolation proof).",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/customer/diagnostics/whoami": {
+      "get": {
+        "operationId": "CustomerDiagnosticsController_whoami",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/terminal/diagnostics/ping": {
+      "get": {
+        "operationId": "TerminalDiagnosticsController_ping",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/customer/balance": {
+      "get": {
+        "operationId": "CustomerController_balance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Points balance, lifetime, and current tier.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/transactions": {
+      "get": {
+        "operationId": "CustomerController_transactions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Recent points transaction history.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/rewards": {
+      "get": {
+        "operationId": "CustomerController_rewards",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Reward catalog for this brand.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/rewards/{id}/redeem": {
+      "post": {
+        "operationId": "CustomerController_redeem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Redeem points for a reward; issues a voucher.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/vouchers/{code}/redeem": {
+      "post": {
+        "operationId": "CustomerController_redeemVoucher",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Redeem (use) an issued voucher.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/badges": {
+      "get": {
+        "operationId": "CustomerController_badges",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Badges earned by the member.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/leaderboard": {
+      "get": {
+        "operationId": "CustomerController_leaderboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Top members in this brand by lifetime points.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/referral-code": {
+      "get": {
+        "operationId": "CustomerController_referralCode",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Get (or create) the member's referral code.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/referral/redeem": {
+      "post": {
+        "operationId": "CustomerController_redeemReferral",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemReferralDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "customer": []
+          }
+        ],
+        "summary": "Redeem a referral code; rewards both parties.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/manage/earn-rules": {
+      "post": {
+        "operationId": "ManageController_createEarnRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEarnRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create an earn rule (validated against the rules engine).",
+        "tags": [
+          "brand-admin"
+        ]
+      },
+      "get": {
+        "operationId": "ManageController_listEarnRules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/campaigns": {
+      "get": {
+        "operationId": "ManageController_listCampaigns",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      },
+      "post": {
+        "operationId": "ManageController_createCampaign",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a time-boxed campaign (validated against the rules engine).",
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/rewards": {
+      "get": {
+        "operationId": "ManageController_listRewards",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      },
+      "post": {
+        "operationId": "ManageController_createCatalogItem",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add a reward catalog item.",
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/tiers": {
+      "get": {
+        "operationId": "ManageController_listTiers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      },
+      "post": {
+        "operationId": "ManageController_createTier",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTierDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Define a membership tier.",
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/badges": {
+      "get": {
+        "operationId": "ManageController_listBadges",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      },
+      "post": {
+        "operationId": "ManageController_createBadge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBadgeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a badge.",
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/challenges": {
+      "get": {
+        "operationId": "ManageController_listChallenges",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      },
+      "post": {
+        "operationId": "ManageController_createChallenge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChallengeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a lifetime-points challenge (optional badge reward).",
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/members": {
+      "get": {
+        "operationId": "ManageController_listMembers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/customers/earn": {
+      "post": {
+        "operationId": "ManageController_earn",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminEarnDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Trigger an earn for a member (admin/back-office; POS uses the terminal API).",
+        "tags": [
+          "brand-admin"
+        ]
+      }
+    },
+    "/manage/reports/summary": {
+      "get": {
+        "operationId": "ManageReportsController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Brand KPIs: points earned/redeemed, outstanding liability, members.",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/manage/reports/rfm": {
+      "get": {
+        "operationId": "ManageReportsController_rfm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Per-member RFM scores + segments.",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/manage/reports/trend": {
+      "get": {
+        "operationId": "ManageReportsController_trend",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Daily points earned/redeemed (last 14 days).",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/manage/reports/rfm.csv": {
+      "get": {
+        "operationId": "ManageReportsController_rfmCsv",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Export RFM segments as CSV.",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/manage/reports/rollup": {
+      "post": {
+        "operationId": "ManageReportsController_rollup",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Recompute the daily metric rollup for today.",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/manage/reports/rfm-snapshot": {
+      "post": {
+        "operationId": "ManageReportsController_snapshot",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Persist an RFM snapshot (point-in-time).",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/admin/reports/overview": {
+      "get": {
+        "operationId": "AdminReportsController_overview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Platform totals: points liability, wallet balances, volumes.",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/terminal/members/resolve": {
+      "post": {
+        "operationId": "TerminalController_resolve",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Resolve a customer identifier to an opaque member token.",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/quotes": {
+      "post": {
+        "operationId": "TerminalController_quote",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Preview earn/redeem for a cart (no ledger mutation).",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/transactions": {
+      "post": {
+        "operationId": "TerminalController_transaction",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Earn (single-step) or redeem-authorize. Idempotent.",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/transactions/{id}/capture": {
+      "post": {
+        "operationId": "TerminalController_capture",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Capture an authorized redeem.",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/transactions/{id}/void": {
+      "post": {
+        "operationId": "TerminalController_voidTxn",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Void (release) an authorized redeem hold.",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/transactions/{id}": {
+      "get": {
+        "operationId": "TerminalController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Poll a transaction for its definitive state.",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/transactions/batch": {
+      "post": {
+        "operationId": "TerminalController_batch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "terminal-hmac": []
+          }
+        ],
+        "summary": "Replay a batch of queued offline operations (deduped).",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/admin/groups": {
+      "post": {
+        "operationId": "SuperadminController_createGroup",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Onboard a merchant group (creates its prepaid wallet).",
+        "tags": [
+          "superadmin"
+        ]
+      },
+      "get": {
+        "operationId": "SuperadminController_listGroups",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "List merchant groups with brand counts, wallet balance, points liability.",
+        "tags": [
+          "superadmin"
+        ]
+      }
+    },
+    "/admin/groups/{groupId}/brands": {
+      "post": {
+        "operationId": "SuperadminController_createBrand",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBrandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a brand under a group.",
+        "tags": [
+          "superadmin"
+        ]
+      }
+    },
+    "/admin/brands": {
+      "get": {
+        "operationId": "SuperadminController_listBrands",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "tags": [
+          "superadmin"
+        ]
+      }
+    },
+    "/admin/brands/{brandId}/branches": {
+      "post": {
+        "operationId": "SuperadminController_createBranch",
+        "parameters": [
+          {
+            "name": "brandId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a branch under a brand.",
+        "tags": [
+          "superadmin"
+        ]
+      }
+    },
+    "/admin/groups/{groupId}/wallet/topup": {
+      "post": {
+        "operationId": "SuperadminController_topUp",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Credit (top up) a merchant group prepaid wallet.",
+        "tags": [
+          "superadmin"
+        ]
+      }
+    },
+    "/admin/groups/{groupId}/cost-rule": {
+      "post": {
+        "operationId": "SuperadminController_setCostRule",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set the hybrid drawdown cost model for a group.",
+        "tags": [
+          "superadmin"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "RFM Loyalty Engine API",
+    "description": "Multi-tenant, closed-loop, B2B2C loyalty engine. Four surfaces: Superadmin (/v1/admin), Brand Admin (/v1/manage), Customer (/v1/customer), Terminal (/v1/terminal).",
+    "version": "v1",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "system",
+      "description": ""
+    },
+    {
+      "name": "auth",
+      "description": ""
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "admin": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "customer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "terminal-hmac": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization"
+      }
+    },
+    "schemas": {
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "superadmin@rfm-loyalty.dev"
+          },
+          "password": {
+            "type": "string",
+            "example": "ChangeMe123!"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "MfaVerifyDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "code"
+        ]
+      },
+      "RefreshDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "ConfirmMfaDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "OtpRequestDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "example": "+971500000001"
+          },
+          "brandId": {
+            "type": "string",
+            "description": "The brand the customer is signing into (closed-loop)."
+          }
+        },
+        "required": [
+          "phone",
+          "brandId"
+        ]
+      },
+      "OtpVerifyDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "example": "+971500000001"
+          },
+          "code": {
+            "type": "string",
+            "example": "123456"
+          },
+          "brandId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "code",
+          "brandId"
+        ]
+      },
+      "RedeemDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Client-generated idempotency key"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ]
+      },
+      "RedeemReferralDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "CreateEarnRuleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "number",
+            "default": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "definition": {
+            "type": "object",
+            "description": "{ condition?, actions[] } per the rules engine"
+          }
+        },
+        "required": [
+          "name",
+          "definition"
+        ]
+      },
+      "CreateCatalogItemDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "pointsCost": {
+            "type": "number",
+            "description": "Points cost (whole integer)",
+            "example": 500
+          },
+          "kind": {
+            "type": "string",
+            "default": "voucher"
+          }
+        },
+        "required": [
+          "name",
+          "pointsCost"
+        ]
+      },
+      "CreateTierDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "number",
+            "description": "Lifetime points to reach this tier"
+          },
+          "multiplierBps": {
+            "type": "number",
+            "default": 10000,
+            "description": "Earn multiplier in bps (10000 = 1.0x)"
+          }
+        },
+        "required": [
+          "name",
+          "threshold"
+        ]
+      },
+      "CreateCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "object",
+            "description": "{ condition?, actions[] }"
+          }
+        },
+        "required": [
+          "name",
+          "definition"
+        ]
+      },
+      "CreateBadgeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "rewardPoints": {
+            "type": "number",
+            "default": 0
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreateChallengeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "target": {
+            "type": "number",
+            "description": "Lifetime points target"
+          },
+          "rewardPoints": {
+            "type": "number",
+            "default": 0
+          },
+          "badgeId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "target"
+        ]
+      },
+      "AdminEarnDto": {
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "type": "number",
+            "description": "Spend in minor units"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "online",
+              "in_store"
+            ]
+          },
+          "isVisit": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sourceEvent": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "membershipId",
+          "idempotencyKey"
+        ]
+      },
+      "ResolveDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "email",
+              "qr",
+              "nfc",
+              "loyalty_id",
+              "card_token"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "value"
+        ]
+      },
+      "CartItemDto": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "sku",
+          "qty"
+        ]
+      },
+      "QuoteDto": {
+        "type": "object",
+        "properties": {
+          "memberToken": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartItemDto"
+            }
+          },
+          "isVisit": {
+            "type": "boolean"
+          },
+          "redeemPoints": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "memberToken"
+        ]
+      },
+      "TransactionDto": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "enum": [
+              "earn",
+              "redeem"
+            ]
+          },
+          "memberToken": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Client/POS-generated idempotency key"
+          },
+          "amountMinor": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartItemDto"
+            }
+          },
+          "isVisit": {
+            "type": "boolean"
+          },
+          "points": {
+            "type": "number",
+            "description": "Points to redeem (intent=redeem)"
+          },
+          "sourceEvent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "memberToken",
+          "idempotencyKey"
+        ]
+      },
+      "BatchDto": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "description": "Queued offline operations to replay",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionDto"
+            }
+          }
+        },
+        "required": [
+          "operations"
+        ]
+      },
+      "CreateGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Roastery Holdings"
+          },
+          "defaultCurrency": {
+            "type": "string",
+            "example": "AED"
+          },
+          "homeRegion": {
+            "type": "string",
+            "example": "uae"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreateBrandDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "example": "camel-bean"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ]
+      },
+      "CreateBranchDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "TopUpDto": {
+        "type": "object",
+        "properties": {
+          "amountMinor": {
+            "type": "number",
+            "description": "Credit amount in minor units (e.g. fils)"
+          },
+          "currency": {
+            "type": "string",
+            "example": "AED"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Client-generated idempotency key"
+          }
+        },
+        "required": [
+          "amountMinor",
+          "idempotencyKey"
+        ]
+      },
+      "CostRuleDto": {
+        "type": "object",
+        "properties": {
+          "costPerPointMinor": {
+            "type": "number",
+            "description": "Drawdown cost per redeemed point (minor units)"
+          },
+          "platformMarginBps": {
+            "type": "number",
+            "description": "Platform margin in basis points (1000 = 10%)"
+          },
+          "issuanceFeeMinor": {
+            "type": "number",
+            "description": "Issuance fee per point (minor units)"
+          },
+          "breakageOwner": {
+            "type": "string",
+            "enum": [
+              "merchant",
+              "platform",
+              "split"
+            ]
+          }
+        },
+        "required": [
+          "costPerPointMinor"
+        ]
+      }
+    }
+  }
+}

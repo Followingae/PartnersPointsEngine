@@ -1,0 +1,1159 @@
+// RFM Loyalty Engine — Prisma schema (Phase 1: Foundation)
+// Scope: tenancy hierarchy, identity & RBAC, customer identity, and the
+// append-only scaffolding tables (outbox, idempotency, audit). The double-entry
+// ledger, loyalty config, campaigns, gamification, and reporting tables arrive
+// in later phases — but the conventions (tenant scoping, integers, append-only,
+// idempotency) are established here.
+//
+// Conventions:
+//  - UUID v7 primary keys (time-ordered) generated client-side.
+//  - Money is integer minor units; points are whole integers (no floats).
+//  - Tenant scoping columns are denormalized so RLS policies & indexes are flat:
+//      loyalty data carries brand_id (closed-loop); wallet data carries group_id.
+//  - Row-Level Security is added by a separate SQL migration (prisma/sql/rls.sql);
+//    Prisma does not manage RLS.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum EntityStatus {
+  active
+  inactive
+  suspended
+  archived
+
+  @@map("entity_status")
+}
+
+enum ScopeLevel {
+  platform
+  group
+  brand
+  branch
+
+  @@map("scope_level")
+}
+
+enum ActorType {
+  user
+  customer
+  terminal
+  system
+
+  @@map("actor_type")
+}
+
+enum CustomerIdentifierType {
+  phone
+  email
+  qr
+  nfc
+  loyalty_id
+  card_token
+
+  @@map("customer_identifier_type")
+}
+
+enum ApiKeyStatus {
+  active
+  rotating
+  revoked
+
+  @@map("api_key_status")
+}
+
+// ── Governance / maker-checker enums (W2) ─────────────────────────────────────
+
+enum GovernanceMode {
+  autonomous // brand edits its own loyalty directly
+  approval_required // brand edits queue as change requests for superadmin approval
+  superadmin_managed // brand is read-only; can only submit change requests
+
+  @@map("governance_mode")
+}
+
+enum ChangeRequestStatus {
+  pending
+  approved
+  rejected
+  withdrawn
+
+  @@map("change_request_status")
+}
+
+enum ChangeRequestAction {
+  create
+  update
+  delete
+
+  @@map("change_request_action")
+}
+
+// ── W4 breadth enums ──────────────────────────────────────────────────────────
+
+enum CouponStatus {
+  active
+  paused
+  expired
+  archived
+
+  @@map("coupon_status")
+}
+
+enum NotificationChannel {
+  email
+  sms
+  push
+
+  @@map("notification_channel")
+}
+
+// ── Ledger enums (Phase 2) ────────────────────────────────────────────────────
+
+enum LedgerName {
+  points
+  wallet
+
+  @@map("ledger_name")
+}
+
+enum NormalSide {
+  debit
+  credit
+
+  @@map("normal_side")
+}
+
+enum EntryDirection {
+  debit
+  credit
+
+  @@map("entry_direction")
+}
+
+enum JournalKind {
+  earn
+  redeem_auth
+  redeem_capture
+  void
+  reverse
+  topup
+  drawdown
+  expiry
+  adjust
+  fee
+
+  @@map("journal_kind")
+}
+
+enum PointState {
+  pending
+  active
+  redeemed
+  expired
+  reversed
+  adjusted
+
+  @@map("point_state")
+}
+
+enum BreakageOwner {
+  merchant
+  platform
+  split
+
+  @@map("breakage_owner")
+}
+
+enum VoucherStatus {
+  issued
+  redeemed
+  expired
+  void
+
+  @@map("voucher_status")
+}
+
+enum TerminalIntent {
+  earn
+  redeem
+
+  @@map("terminal_intent")
+}
+
+enum TerminalTxnState {
+  pending
+  authorized
+  captured
+  voided
+  expired
+  reversed
+  failed
+
+  @@map("terminal_txn_state")
+}
+
+enum ReferralStatus {
+  pending
+  qualified
+  rewarded
+
+  @@map("referral_status")
+}
+
+enum WebhookDeliveryStatus {
+  pending
+  delivered
+  failed
+  dead
+
+  @@map("webhook_delivery_status")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tenancy: platform → group → brand → branch
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Platform {
+  id        String   @id @default(uuid(7))
+  name      String
+  region    String   @default("uae") // default data-residency home region
+  status    EntityStatus @default(active)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  groups Group[]
+
+  @@map("platform")
+}
+
+model Group {
+  id              String   @id @default(uuid(7))
+  platformId      String   @map("platform_id")
+  name            String
+  homeRegion      String   @default("uae") @map("home_region") // per-tenant region pinning
+  defaultCurrency String   @default("AED") @map("default_currency") // ISO-4217
+  status          EntityStatus @default(active)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Restrict)
+  brands   Brand[]
+
+  @@index([platformId])
+  @@map("tenant_group")
+}
+
+model Brand {
+  id                 String   @id @default(uuid(7))
+  groupId            String   @map("group_id")
+  platformId         String   @map("platform_id") // denormalized for flat RLS/index
+  name               String
+  slug               String
+  pointsCurrencyCode String   @default("PTS") @map("points_currency_code") // brand-scoped points unit label
+  currency           String   @default("AED") // money currency for this brand
+  branding           Json     @default("{}") // white-label theming (logo, palette, name)
+  moduleAccess       Json     @default("{}") @map("module_access") // superadmin-controlled per-brand module entitlements { moduleKey: false } (absent = enabled)
+  status             EntityStatus @default(active)
+  governanceMode     GovernanceMode @default(autonomous) @map("governance_mode") // maker-checker default; per-capability overrides live in governance_config
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  branches Branch[]
+
+  @@unique([groupId, slug])
+  @@index([groupId])
+  @@index([platformId])
+  @@map("brand")
+}
+
+model Branch {
+  id         String   @id @default(uuid(7))
+  brandId    String   @map("brand_id")
+  groupId    String   @map("group_id") // denormalized
+  platformId String   @map("platform_id") // denormalized
+  name       String
+  code       String?
+  timezone   String   @default("Asia/Dubai")
+  status     EntityStatus @default(active)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  brand     Brand      @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  terminals Terminal[]
+
+  @@index([brandId])
+  @@index([groupId])
+  @@map("branch")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity & RBAC (admin users + machine credentials)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UserAccount {
+  id            String   @id @default(uuid(7))
+  platformId    String   @map("platform_id")
+  email         String
+  emailLower    String   @map("email_lower") // unique dedupe key
+  passwordHash  String   @map("password_hash") // argon2id
+  fullName      String?  @map("full_name")
+  totpSecretEnc Bytes?   @map("totp_secret_enc") // envelope-encrypted TOTP secret
+  totpEnabled   Boolean  @default(false) @map("totp_enabled")
+  status        EntityStatus @default(active)
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  roleAssignments      RoleAssignment[]
+  refreshTokens        RefreshToken[]
+  impersonationsMade   ImpersonationSession[] @relation("ImpersonationActor")
+
+  @@unique([platformId, emailLower])
+  @@index([platformId])
+  @@map("user_account")
+}
+
+model Role {
+  id          String   @id @default(uuid(7))
+  platformId  String?  @map("platform_id") // null = built-in/global role
+  key         String // e.g. brand_admin
+  name        String
+  description String?
+  isBuiltIn   Boolean  @default(false) @map("is_built_in")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  permissions     RolePermission[]
+  roleAssignments RoleAssignment[]
+
+  @@unique([platformId, key])
+  @@map("rbac_role")
+}
+
+model Permission {
+  id          String   @id @default(uuid(7))
+  key         String   @unique // e.g. brand.campaign.write
+  description String?
+
+  roles RolePermission[]
+
+  @@map("rbac_permission")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("rbac_role_permission")
+}
+
+// A user holds a role bound to a node in the tenant tree (the scope node),
+// with denormalized ancestor ids so the app-layer guard / RLS can use them flat.
+model RoleAssignment {
+  id         String     @id @default(uuid(7))
+  userId     String     @map("user_id")
+  roleId     String     @map("role_id")
+  scopeLevel ScopeLevel @map("scope_level")
+  scopeId    String     @map("scope_id") // the bound node's id
+  platformId String     @map("platform_id")
+  groupId    String?    @map("group_id")
+  brandId    String?    @map("brand_id")
+  branchId   String?    @map("branch_id")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  user UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId, scopeLevel, scopeId])
+  @@index([userId])
+  @@index([platformId])
+  @@index([groupId])
+  @@index([brandId])
+  @@map("role_assignment")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid(7))
+  userId      String   @map("user_id")
+  platformId  String   @map("platform_id") // scope key for RLS during refresh
+  tokenHash   String   @unique @map("token_hash") // sha256 of the opaque refresh token
+  expiresAt   DateTime @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  replacedBy  String?  @map("replaced_by") // token_hash of the rotated successor
+  userAgent   String?  @map("user_agent")
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([platformId])
+  @@map("refresh_token")
+}
+
+model ImpersonationSession {
+  id           String    @id @default(uuid(7))
+  actorUserId  String    @map("actor_user_id") // the superadmin impersonating
+  targetType   String    @map("target_type") // 'group' | 'brand' | 'user'
+  targetId     String    @map("target_id")
+  reason       String
+  startedAt    DateTime  @default(now()) @map("started_at")
+  endedAt      DateTime? @map("ended_at")
+
+  actor UserAccount @relation("ImpersonationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId])
+  @@map("impersonation_session")
+}
+
+// Machine credential for the first-party terminal fleet / integrations.
+model ApiKey {
+  id             String       @id @default(uuid(7))
+  publishableId  String       @unique @map("publishable_id") // public key id sent by the device
+  secretHash     String       @map("secret_hash") // hash of the secret (for verification fallback)
+  secretEnc      Bytes?       @map("secret_enc") // envelope-encrypted HMAC signing secret (Phase 4)
+  prevSecretHash String?      @map("prev_secret_hash") // overlapping rotation window
+  rotatedAt      DateTime?    @map("rotated_at")
+  status         ApiKeyStatus @default(active)
+  platformId     String       @map("platform_id")
+  groupId        String       @map("group_id")
+  brandId        String       @map("brand_id")
+  branchId       String?      @map("branch_id")
+  terminalId     String?      @map("terminal_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  terminal Terminal? @relation(fields: [terminalId], references: [id], onDelete: SetNull)
+
+  @@index([brandId])
+  @@index([groupId])
+  @@map("api_key")
+}
+
+model Terminal {
+  id         String       @id @default(uuid(7))
+  branchId   String       @map("branch_id")
+  brandId    String       @map("brand_id")
+  groupId    String       @map("group_id")
+  platformId String       @map("platform_id")
+  label      String
+  status     EntityStatus @default(active)
+  pairedAt   DateTime?    @map("paired_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  branch  Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  apiKeys ApiKey[]
+
+  @@index([branchId])
+  @@index([brandId])
+  @@map("terminal")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer identity: global person + per-brand membership (closed-loop)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Person {
+  id         String   @id @default(uuid(7))
+  platformId String   @map("platform_id")
+  phoneHash  String?  @unique @map("phone_hash") // sha256(E.164) for dedupe/lookup
+  phoneEnc   Bytes?   @map("phone_enc") // envelope-encrypted phone (PII)
+  emailHash  String?  @unique @map("email_hash")
+  emailEnc   Bytes?   @map("email_enc")
+  status     EntityStatus @default(active)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  memberships CustomerMembership[]
+
+  @@index([platformId])
+  @@map("person")
+}
+
+model CustomerMembership {
+  id         String   @id @default(uuid(7))
+  personId   String   @map("person_id")
+  brandId    String   @map("brand_id") // closed-loop isolation key
+  groupId    String   @map("group_id") // denormalized
+  platformId String   @map("platform_id") // denormalized
+  loyaltyId  String   @map("loyalty_id") // human-facing per-brand member id
+  status     EntityStatus @default(active)
+  joinedAt   DateTime @default(now()) @map("joined_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  person      Person               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  identifiers CustomerIdentifier[]
+
+  @@unique([personId, brandId])
+  @@unique([brandId, loyaltyId])
+  @@index([brandId])
+  @@index([groupId])
+  @@map("customer_membership")
+}
+
+model CustomerIdentifier {
+  id           String                 @id @default(uuid(7))
+  membershipId String                 @map("membership_id")
+  brandId      String                 @map("brand_id")
+  groupId      String                 @map("group_id") // denormalized for flat RLS
+  platformId   String                 @map("platform_id") // denormalized for flat RLS
+  type         CustomerIdentifierType
+  valueHash    String                 @map("value_hash") // hashed identifier (qr/nfc/phone/loyalty_id)
+  createdAt    DateTime               @default(now()) @map("created_at")
+
+  membership CustomerMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, type, valueHash])
+  @@index([membershipId])
+  @@map("customer_identifier")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Append-only scaffolding (created now; exercised in later phases)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Transactional outbox: written in the same tx as a domain change; a relay
+// worker publishes unpublished rows. APPEND-ONLY (no UPDATE except published_at).
+model Outbox {
+  id          String    @id @default(uuid(7))
+  aggregate   String // 'points' | 'wallet' | 'membership' | ...
+  eventType   String    @map("event_type")
+  payload     Json
+  platformId  String    @map("platform_id")
+  groupId     String    @map("group_id")
+  brandId     String?   @map("brand_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+  attempts    Int       @default(0)
+
+  @@index([publishedAt])
+  @@index([brandId])
+  @@map("outbox")
+}
+
+// Idempotency keys for every mutating op. Keyed on (actor_id, key).
+model IdempotencyKey {
+  id          String   @id @default(uuid(7))
+  actorId     String   @map("actor_id")
+  key         String
+  requestHash String   @map("request_hash")
+  status      String   @default("processing") // processing | done
+  response    Json?
+  platformId  String   @map("platform_id")
+  groupId     String?  @map("group_id")
+  brandId     String?  @map("brand_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  journals Journal[]
+
+  @@unique([actorId, key])
+  @@index([brandId])
+  @@map("idempotency_key")
+}
+
+// Tamper-evident, append-only audit log (hash-chained per scope).
+model AuditLog {
+  id         String   @id @default(uuid(7))
+  actorType  ActorType @map("actor_type")
+  actorId    String   @map("actor_id")
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  platformId String   @map("platform_id")
+  groupId    String?  @map("group_id")
+  brandId    String?  @map("brand_id")
+  branchId   String?  @map("branch_id")
+  data       Json     @default("{}")
+  governanceContextId String? @map("governance_context_id") // links a change-request decision into the chain
+  prevHash   String?  @map("prev_hash")
+  hash       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([platformId])
+  @@index([brandId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ── Governance / maker-checker (W2) ───────────────────────────────────────────
+
+/** Per-capability governance override for a brand (entityType-specific). The
+    brand-level default lives on brand.governanceMode. */
+model GovernanceConfig {
+  id         String   @id @default(uuid(7))
+  platformId String   @map("platform_id")
+  groupId    String   @map("group_id")
+  brandId    String   @map("brand_id")
+  entityType String   @map("entity_type") // earn_rule | reward | tier | campaign | badge | challenge | …
+  mode       GovernanceMode
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([brandId, entityType])
+  @@index([brandId])
+  @@map("governance_config")
+}
+
+/** A proposed brand mutation awaiting superadmin decision. Captures the intended
+    action, the proposed payload, a snapshot of current state, and a field-level diff. */
+model ChangeRequest {
+  id              String              @id @default(uuid(7))
+  platformId      String              @map("platform_id")
+  groupId         String              @map("group_id")
+  brandId         String              @map("brand_id")
+  entityType      String              @map("entity_type")
+  entityId        String?             @map("entity_id") // null for create
+  action          ChangeRequestAction
+  proposedPayload Json                @map("proposed_payload")
+  currentSnapshot Json?               @map("current_snapshot")
+  diff            Json                @default("[]") // [{ path, old, new }]
+  status          ChangeRequestStatus @default(pending)
+  reason          String? // requester's note
+  requesterId     String              @map("requester_id")
+  reviewerId      String?             @map("reviewer_id")
+  decisionReason  String?             @map("decision_reason")
+  appliedEntityId String?             @map("applied_entity_id") // id of the entity created/updated on approval
+  requestedAt     DateTime            @default(now()) @map("requested_at")
+  reviewedAt      DateTime?           @map("reviewed_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([brandId, status])
+  @@index([platformId, status])
+  @@index([requesterId])
+  @@map("change_request")
+}
+
+// ── W4 breadth: coupons, segments, messaging templates ────────────────────────
+
+/** Promo / discount code (single or bulk-generated). Inputs at the POS, unlike
+    vouchers which are reward outputs. */
+model Coupon {
+  id               String       @id @default(uuid(7))
+  brandId          String       @map("brand_id")
+  groupId          String       @map("group_id")
+  platformId       String       @map("platform_id")
+  code             String
+  batchId          String?      @map("batch_id") // groups bulk-generated codes
+  campaignName     String?      @map("campaign_name")
+  kind             String       @default("discount") // discount | percent_discount | bonus_points | free_item
+  valueMinor       BigInt       @default(0) @map("value_minor") // fixed discount / bonus points
+  percentOff       Int?         @map("percent_off") // for percent_discount
+  maxRedemptions   Int          @default(1) @map("max_redemptions") // per code
+  perCustomerLimit Int          @default(1) @map("per_customer_limit")
+  redeemedCount    Int          @default(0) @map("redeemed_count")
+  status           CouponStatus @default(active)
+  startsAt         DateTime?    @map("starts_at")
+  expiresAt        DateTime?    @map("expires_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  redemptions CouponRedemption[]
+
+  @@unique([brandId, code])
+  @@index([brandId, batchId])
+  @@index([brandId, status])
+  @@map("coupon")
+}
+
+model CouponRedemption {
+  id           String   @id @default(uuid(7))
+  couponId     String   @map("coupon_id")
+  brandId      String   @map("brand_id")
+  groupId      String   @map("group_id")
+  platformId   String   @map("platform_id")
+  membershipId String?  @map("membership_id")
+  redeemedAt   DateTime @default(now()) @map("redeemed_at")
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([brandId, membershipId])
+  @@map("coupon_redemption")
+}
+
+/** Saved audience — a rule set over member attributes, evaluated for targeting. */
+model Segment {
+  id          String       @id @default(uuid(7))
+  brandId     String       @map("brand_id")
+  groupId     String       @map("group_id")
+  platformId  String       @map("platform_id")
+  name        String
+  description String?
+  definition  Json         @default("{}") // { match: 'all'|'any', rules: [{field, op, value}] }
+  status      EntityStatus @default(active)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@unique([brandId, name])
+  @@index([brandId])
+  @@map("segment")
+}
+
+/** Messaging template (transactional/marketing) with variable interpolation. */
+model NotificationTemplate {
+  id         String              @id @default(uuid(7))
+  brandId    String              @map("brand_id")
+  groupId    String              @map("group_id")
+  platformId String              @map("platform_id")
+  name       String
+  channel    NotificationChannel @default(email)
+  event      String? // trigger key, e.g. earn | redeem | tier_up | points_expiring
+  subject    String?
+  body       String              @default("")
+  locale     String              @default("en")
+  enabled    Boolean             @default(true)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  @@index([brandId])
+  @@map("notification_template")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ledger & Wallet (Phase 2) — double-entry, append-only, integer (BigInt) amounts.
+// One engine, two ledgers: points (per customer-per-brand) and wallet (per group).
+// Append-only + balanced-journal + no-negative constraints are added in ledger.sql.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LedgerAccount {
+  id          String     @id @default(uuid(7))
+  ledger      LedgerName
+  accountType String     @map("account_type") // liability/expense/revenue/breakage/clearing/fee/cost
+  normalSide  NormalSide @map("normal_side")
+  assetCode   String     @map("asset_code") // 'PTS:<brandId>' or ISO-4217 (e.g. 'AED')
+  platformId  String     @map("platform_id")
+  groupId     String     @map("group_id")
+  brandId     String?    @map("brand_id") // null for group-scoped wallet accounts
+  customerId  String?    @map("customer_id") // null for non-member accounts
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  entries Entry[]
+  balance AccountBalance?
+
+  @@index([brandId])
+  @@index([groupId])
+  @@index([ledger, accountType])
+  @@map("ledger_account")
+}
+
+model Journal {
+  id               String      @id @default(uuid(7)) // uuid v7 = time-ordered
+  ledger           LedgerName
+  kind             JournalKind
+  occurredAt       DateTime    @map("occurred_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  reversesId       String?     @map("reverses_id")
+  sourceEvent      String?     @map("source_event") // stable business id (e.g. terminal txn id)
+  platformId       String      @map("platform_id")
+  groupId          String      @map("group_id")
+  brandId          String?     @map("brand_id")
+  branchId         String?     @map("branch_id")
+  idempotencyKeyId String?     @map("idempotency_key_id")
+
+  reverses       Journal?        @relation("JournalReversal", fields: [reversesId], references: [id])
+  reversedBy     Journal[]       @relation("JournalReversal")
+  idempotencyKey IdempotencyKey? @relation(fields: [idempotencyKeyId], references: [id])
+  entries        Entry[]
+
+  @@index([brandId])
+  @@index([groupId])
+  @@index([sourceEvent])
+  @@map("journal")
+}
+
+model Entry {
+  id           String         @id @default(uuid(7))
+  journalId    String         @map("journal_id")
+  accountId    String         @map("account_id")
+  direction    EntryDirection
+  amountMinor  BigInt         @map("amount_minor") // > 0, integer minor units / whole points
+  assetCode    String         @map("asset_code")
+  pointState   PointState?    @map("point_state")
+  expiryBucket DateTime?      @map("expiry_bucket") @db.Date
+  platformId   String         @map("platform_id")
+  groupId      String         @map("group_id")
+  brandId      String?        @map("brand_id")
+
+  journal Journal       @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  account LedgerAccount @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([journalId])
+  @@index([brandId])
+  @@map("entry")
+}
+
+model AccountBalance {
+  accountId      String     @id @map("account_id")
+  postedDebits   BigInt     @default(0) @map("posted_debits")
+  postedCredits  BigInt     @default(0) @map("posted_credits")
+  pendingDebits  BigInt     @default(0) @map("pending_debits") // holds (redeem authorizations)
+  pendingCredits BigInt     @default(0) @map("pending_credits")
+  normalSide     NormalSide @map("normal_side")
+  lockVersion    BigInt     @default(0) @map("lock_version") // optimistic concurrency
+  platformId     String     @map("platform_id")
+  groupId        String     @map("group_id")
+  brandId        String?    @map("brand_id")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  account LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@index([groupId])
+  @@map("account_balance")
+}
+
+// Group prepaid wallet config (the balance itself lives in the wallet ledger).
+model GroupWallet {
+  id                  String       @id @default(uuid(7))
+  groupId             String       @unique @map("group_id")
+  platformId          String       @map("platform_id")
+  currency            String       @default("AED")
+  lowBalanceThreshold BigInt       @default(0) @map("low_balance_threshold") // minor units
+  status              EntityStatus @default(active)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  @@index([platformId])
+  @@map("group_wallet")
+}
+
+// Superadmin-configurable cost model for the hybrid drawdown (effective-dated).
+model CostRule {
+  id                String        @id @default(uuid(7))
+  groupId           String        @map("group_id")
+  platformId        String        @map("platform_id")
+  issuanceFeeMinor  BigInt        @default(0) @map("issuance_fee_minor") // per point issued
+  costPerPointMinor BigInt        @default(0) @map("cost_per_point_minor") // per point redeemed
+  platformMarginBps Int           @default(0) @map("platform_margin_bps") // basis points
+  breakageOwner     BreakageOwner @default(merchant) @map("breakage_owner")
+  effectiveFrom     DateTime      @default(now()) @map("effective_from")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  @@index([groupId, effectiveFrom])
+  @@map("cost_rule")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Loyalty config (Phase 3) — brand-scoped earn rules, tiers, catalog, vouchers.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LoyaltyEarnRule {
+  id         String   @id @default(uuid(7))
+  brandId    String   @map("brand_id")
+  groupId    String   @map("group_id")
+  platformId String   @map("platform_id")
+  name       String
+  priority   Int      @default(0)
+  enabled    Boolean  @default(true)
+  definition Json // { condition?, actions[] } — matches @rfm-loyalty/shared EarnRule
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([brandId, priority])
+  @@map("earn_rule")
+}
+
+model Tier {
+  id         String   @id @default(uuid(7))
+  brandId    String   @map("brand_id")
+  groupId    String   @map("group_id")
+  platformId String   @map("platform_id")
+  name       String
+  threshold  BigInt   @default(0) // lifetime points to reach this tier
+  multiplierBps Int   @default(10000) @map("multiplier_bps") // earn multiplier (10000 = 1.0x)
+  benefits   Json     @default("{}")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([brandId, name])
+  @@index([brandId, threshold])
+  @@map("tier")
+}
+
+model RewardCatalogItem {
+  id          String       @id @default(uuid(7))
+  brandId     String       @map("brand_id")
+  groupId     String       @map("group_id")
+  platformId  String       @map("platform_id")
+  name        String
+  description String?
+  pointsCost  BigInt       @map("points_cost")
+  kind        String       @default("voucher") // voucher | discount | free_item
+  payload     Json         @default("{}")
+  status      EntityStatus @default(active)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  vouchers Voucher[]
+
+  @@index([brandId])
+  @@map("reward_catalog_item")
+}
+
+model Voucher {
+  id              String        @id @default(uuid(7))
+  brandId         String        @map("brand_id")
+  groupId         String        @map("group_id")
+  platformId      String        @map("platform_id")
+  catalogItemId   String?       @map("catalog_item_id")
+  membershipId    String        @map("membership_id")
+  code            String        @unique
+  status          VoucherStatus @default(issued)
+  pointsSpent     BigInt        @map("points_spent")
+  redeemJournalId String?       @map("redeem_journal_id")
+  expiresAt       DateTime?     @map("expires_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  redeemedAt      DateTime?     @map("redeemed_at")
+
+  catalogItem RewardCatalogItem? @relation(fields: [catalogItemId], references: [id])
+
+  @@index([brandId])
+  @@index([membershipId])
+  @@map("voucher")
+}
+
+// Terminal/POS transaction state machine (Phase 4): authorize → capture/void.
+model TerminalTransaction {
+  id                String           @id @default(uuid(7))
+  brandId           String           @map("brand_id")
+  groupId           String           @map("group_id")
+  platformId        String           @map("platform_id")
+  branchId          String?          @map("branch_id")
+  terminalId        String?          @map("terminal_id")
+  membershipId      String?          @map("membership_id")
+  actorId           String           @map("actor_id") // the device/key actor (idempotency scope)
+  intent            TerminalIntent
+  state             TerminalTxnState @default(pending)
+  amountMinor       BigInt?          @map("amount_minor") // spend (earn)
+  points            BigInt? // points earned or redeemed
+  currency          String?
+  idempotencyKey    String           @map("idempotency_key")
+  authJournalId     String?          @map("auth_journal_id")
+  captureJournalId  String?          @map("capture_journal_id")
+  drawdownJournalId String?          @map("drawdown_journal_id")
+  settledAt         DateTime?        @map("settled_at") // group-wallet drawdown settlement
+  sourceEvent       String?          @map("source_event")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@unique([actorId, idempotencyKey])
+  @@index([brandId])
+  @@index([membershipId])
+  @@map("terminal_transaction")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Engagement (Phase 5) — campaigns, gamification, referrals, webhooks.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id         String    @id @default(uuid(7))
+  brandId    String    @map("brand_id")
+  groupId    String    @map("group_id")
+  platformId String    @map("platform_id")
+  name       String
+  startsAt   DateTime? @map("starts_at")
+  endsAt     DateTime? @map("ends_at")
+  enabled    Boolean   @default(true)
+  definition Json // { condition?, actions[] } — evaluated alongside earn rules when active
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([brandId, enabled])
+  @@map("campaign")
+}
+
+model Badge {
+  id           String   @id @default(uuid(7))
+  brandId      String   @map("brand_id")
+  groupId      String   @map("group_id")
+  platformId   String   @map("platform_id")
+  name         String
+  description  String?
+  icon         String?
+  rewardPoints BigInt   @default(0) @map("reward_points")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  awards BadgeAward[]
+
+  @@unique([brandId, name])
+  @@index([brandId])
+  @@map("badge")
+}
+
+model BadgeAward {
+  id           String   @id @default(uuid(7))
+  brandId      String   @map("brand_id")
+  groupId      String   @map("group_id")
+  platformId   String   @map("platform_id")
+  badgeId      String   @map("badge_id")
+  membershipId String   @map("membership_id")
+  journalId    String?  @map("journal_id") // bonus points journal, if any
+  awardedAt    DateTime @default(now()) @map("awarded_at")
+
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([badgeId, membershipId])
+  @@index([brandId])
+  @@index([membershipId])
+  @@map("badge_award")
+}
+
+model Challenge {
+  id           String    @id @default(uuid(7))
+  brandId      String    @map("brand_id")
+  groupId      String    @map("group_id")
+  platformId   String    @map("platform_id")
+  name         String
+  kind         String    @default("lifetime_points") // lifetime_points | visits | spend
+  target       BigInt
+  rewardPoints BigInt    @default(0) @map("reward_points")
+  badgeId      String?   @map("badge_id")
+  enabled      Boolean   @default(true)
+  startsAt     DateTime? @map("starts_at")
+  endsAt       DateTime? @map("ends_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  progress ChallengeProgress[]
+
+  @@index([brandId, enabled])
+  @@map("challenge")
+}
+
+model ChallengeProgress {
+  id           String    @id @default(uuid(7))
+  brandId      String    @map("brand_id")
+  groupId      String    @map("group_id")
+  platformId   String    @map("platform_id")
+  challengeId  String    @map("challenge_id")
+  membershipId String    @map("membership_id")
+  progress     BigInt    @default(0)
+  completedAt  DateTime? @map("completed_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, membershipId])
+  @@index([brandId])
+  @@index([membershipId])
+  @@map("challenge_progress")
+}
+
+model Referral {
+  id                  String         @id @default(uuid(7))
+  brandId             String         @map("brand_id")
+  groupId             String         @map("group_id")
+  platformId          String         @map("platform_id")
+  referrerMembershipId String        @map("referrer_membership_id")
+  code                String         @unique
+  refereeMembershipId String?        @map("referee_membership_id")
+  status              ReferralStatus @default(pending)
+  referrerRewardPoints BigInt        @default(0) @map("referrer_reward_points")
+  refereeRewardPoints  BigInt        @default(0) @map("referee_reward_points")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  qualifiedAt         DateTime?      @map("qualified_at")
+
+  @@index([brandId])
+  @@index([referrerMembershipId])
+  @@map("referral")
+}
+
+model WebhookEndpoint {
+  id         String   @id @default(uuid(7))
+  brandId    String   @map("brand_id")
+  groupId    String   @map("group_id")
+  platformId String   @map("platform_id")
+  url        String
+  secretEnc  Bytes    @map("secret_enc") // envelope-encrypted signing secret
+  events     String[] // event types this endpoint subscribes to ('*' = all)
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  deliveries WebhookDelivery[]
+
+  @@index([brandId])
+  @@map("webhook_endpoint")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reporting read models (Phase 6) — pre-aggregated rollups (rebuildable from the ledger).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BrandDailyMetric {
+  id              String   @id @default(uuid(7))
+  brandId         String   @map("brand_id")
+  groupId         String   @map("group_id")
+  platformId      String   @map("platform_id")
+  date            DateTime @db.Date
+  pointsEarned    BigInt   @default(0) @map("points_earned")
+  pointsRedeemed  BigInt   @default(0) @map("points_redeemed")
+  pointsExpired   BigInt   @default(0) @map("points_expired")
+  txnCount        Int      @default(0) @map("txn_count")
+  activeCustomers Int      @default(0) @map("active_customers")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([brandId, date])
+  @@index([brandId, date])
+  @@map("brand_daily_metric")
+}
+
+model RfmSnapshot {
+  id           String   @id @default(uuid(7))
+  brandId      String   @map("brand_id")
+  groupId      String   @map("group_id")
+  platformId   String   @map("platform_id")
+  membershipId String   @map("membership_id")
+  asOf         DateTime @map("as_of") @db.Date
+  recencyDays  Int      @map("recency_days")
+  frequency    Int
+  monetary     BigInt
+  rScore       Int      @map("r_score")
+  fScore       Int      @map("f_score")
+  mScore       Int      @map("m_score")
+  segment      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([brandId, membershipId, asOf])
+  @@index([brandId, asOf])
+  @@index([brandId, segment])
+  @@map("rfm_snapshot")
+}
+
+model WebhookDelivery {
+  id         String                @id @default(uuid(7))
+  brandId    String                @map("brand_id")
+  groupId    String                @map("group_id")
+  platformId String                @map("platform_id")
+  endpointId String                @map("endpoint_id")
+  eventId    String                @map("event_id") // stable dedupe id (outbox id)
+  eventType  String                @map("event_type")
+  payload    Json
+  status     WebhookDeliveryStatus @default(pending)
+  attempts   Int                   @default(0)
+  lastError  String?               @map("last_error")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  deliveredAt DateTime?            @map("delivered_at")
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@index([status])
+  @@map("webhook_delivery")
+}
