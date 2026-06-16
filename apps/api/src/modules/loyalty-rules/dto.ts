@@ -356,6 +356,23 @@ export class UpdateSettingsDto {
   branding?: Record<string, unknown>;
 }
 
+export class UpdateCustomerProfileDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @ApiProperty({ required: false, description: 'e.g. male / female / other / undisclosed' })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiProperty({ required: false, description: 'ISO date (YYYY-MM-DD); empty string clears it' })
+  @IsOptional()
+  @IsString()
+  birthdate?: string | null;
+}
+
 export class AdminEarnDto {
   @ApiProperty()
   @IsString()

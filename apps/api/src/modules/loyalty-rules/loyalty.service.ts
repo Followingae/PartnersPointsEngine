@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ledger, Prisma } from '@rfm-loyalty/db';
 import { EarnRule, evaluateEarn, pointsAsset, type EarnContext, type TenantContext } from '@rfm-loyalty/shared';
+import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { CampaignService } from './campaign.service';
@@ -27,7 +28,14 @@ export class LoyaltyService {
     private readonly campaigns: CampaignService,
     private readonly gamification: GamificationService,
     private readonly audit: AuditService,
+    private readonly crypto: EnvelopeCryptoService,
   ) {}
+
+  /** Safely decrypt an optional envelope-encrypted PII blob to a string (or null). */
+  private reveal(blob: Uint8Array | null | undefined): string | null {
+    if (!blob) return null;
+    try { return this.crypto.decrypt(blob); } catch { return null; }
+  }
 
   /** Resolve the calling customer's membership id for the current brand. */
   async resolveCustomerMembership(ctx: TenantContext): Promise<string> {
@@ -503,7 +511,10 @@ export class LoyaltyService {
     return this.tenants.run(ctx, async (tx) => {
       const m = await tx.customerMembership.findFirst({
         where: { id: membershipId, brandId: ctx.brandId! },
-        include: { identifiers: { select: { type: true, createdAt: true } } },
+        include: {
+          identifiers: { select: { type: true, createdAt: true } },
+          person: { select: { fullName: true, gender: true, birthdate: true, phoneEnc: true, emailEnc: true } },
+        },
       });
       if (!m) throw new NotFoundException('member not found');
 
@@ -535,6 +546,13 @@ export class LoyaltyService {
         loyaltyId: m.loyaltyId,
         status: m.status,
         joinedAt: m.joinedAt,
+        contact: {
+          fullName: m.person?.fullName ?? null,
+          phone: this.reveal(m.person?.phoneEnc),
+          email: this.reveal(m.person?.emailEnc),
+          gender: m.person?.gender ?? null,
+          birthdate: m.person?.birthdate ? m.person.birthdate.toISOString().slice(0, 10) : null,
+        },
         balance: { available: bal.available.toString(), pending: bal.pending.toString(), lifetime: lifetime.toString() },
         tier: tier ? { id: tier.id, name: tier.name } : null,
         nextTier: nextTier ? { name: nextTier.name, threshold: nextTier.threshold.toString() } : null,
@@ -544,6 +562,24 @@ export class LoyaltyService {
         badges: badges.map((a) => ({ name: a.badge.name, icon: a.badge.icon, awardedAt: a.awardedAt })),
         referrals: { made: referralsMade, qualified: referralsQualified },
       };
+    });
+  }
+
+  /** Edit a customer's profile attributes the merchant maintains (name, gender, birthdate). */
+  async updateCustomerProfile(ctx: TenantContext, membershipId: string, dto: { fullName?: string; gender?: string; birthdate?: string | null }) {
+    return this.tenants.run(ctx, async (tx) => {
+      const m = await tx.customerMembership.findFirst({ where: { id: membershipId, brandId: ctx.brandId! }, select: { personId: true } });
+      if (!m) throw new NotFoundException('member not found');
+      await tx.person.update({
+        where: { id: m.personId },
+        data: {
+          ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() || null } : {}),
+          ...(dto.gender !== undefined ? { gender: dto.gender || null } : {}),
+          ...(dto.birthdate !== undefined ? { birthdate: dto.birthdate ? new Date(dto.birthdate) : null } : {}),
+        },
+      });
+      await this.audit.record(tx, ctx, { action: 'customer.profile.update', targetType: 'customer', targetId: membershipId, data: { fields: Object.keys(dto) } });
+      return { membershipId, updated: true };
     });
   }
 

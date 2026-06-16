@@ -483,6 +483,11 @@ model Person {
   phoneEnc   Bytes?   @map("phone_enc") // envelope-encrypted phone (PII)
   emailHash  String?  @unique @map("email_hash")
   emailEnc   Bytes?   @map("email_enc")
+  // Profile attributes merchants use for segmentation (birthday rewards, gender
+  // offers). Stored queryable (not envelope-encrypted) so they can drive segments.
+  fullName   String?  @map("full_name")
+  gender     String?
+  birthdate  DateTime? @db.Date
   status     EntityStatus @default(active)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

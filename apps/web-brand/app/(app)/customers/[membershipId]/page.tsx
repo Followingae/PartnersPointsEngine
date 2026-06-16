@@ -3,11 +3,11 @@
 import { ArrowDownRight, ArrowUpRight, Award, Coins, Download, Fingerprint, Gift, Trash2, Users2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Button, ConfirmDialog } from '@/components/form';
+import { Button, ConfirmDialog, Field, Modal, Select } from '@/components/form';
 import { BackLink, DetailHeader, TabBar, type TabDef } from '@/components/detail-shell';
 import { Badge, Card, EmptyState, SectionTitle, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { downloadJson, eraseCustomer, getCustomerProfile, type CustomerProfile } from '@/lib/api';
+import { downloadJson, eraseCustomer, getCustomerProfile, updateCustomerProfile, type CustomerProfile } from '@/lib/api';
 
 const fmt = (v: string) => Number(v).toLocaleString();
 
@@ -20,13 +20,36 @@ export default function CustomerProfilePage() {
   const [tab, setTab] = useState('overview');
   const [erasing, setErasing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ fullName: '', gender: '', birthdate: '' });
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const reload = () =>
     getCustomerProfile(membershipId)
       .then(setP)
       .catch((e) => toast('error', e instanceof Error ? e.message : 'Failed'))
       .finally(() => setLoading(false));
-  }, [membershipId, toast]);
+
+  useEffect(() => { reload(); }, [membershipId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function openEdit() {
+    if (!p) return;
+    setForm({ fullName: p.contact.fullName ?? '', gender: p.contact.gender ?? '', birthdate: p.contact.birthdate ?? '' });
+    setEditing(true);
+  }
+  async function saveProfile() {
+    setSaving(true);
+    try {
+      await updateCustomerProfile(membershipId, { fullName: form.fullName, gender: form.gender, birthdate: form.birthdate || null });
+      toast('success', 'Customer details updated');
+      setEditing(false);
+      await reload();
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function onErase() {
     setBusy(true);
@@ -57,7 +80,7 @@ export default function CustomerProfilePage() {
         <>
           <DetailHeader
             subtitle="Customer 360"
-            title={p.loyaltyId}
+            title={p.contact.fullName || p.loyaltyId}
             badge={<Badge tone={p.status === 'active' ? 'lime' : 'neutral'}>{p.status}</Badge>}
             actions={
               <>
@@ -82,7 +105,19 @@ export default function CustomerProfilePage() {
           <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
           {tab === 'overview' ? (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="space-y-6">
+              <Card className="p-6">
+                <SectionTitle action={<Button size="sm" variant="outline" onClick={openEdit}>Edit details</Button>}>Customer details</SectionTitle>
+                <dl className="grid grid-cols-1 gap-x-10 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                  <Row k="Name" v={p.contact.fullName ?? <span className="text-muted-foreground">Not set</span>} />
+                  <Row k="Mobile" v={p.contact.phone ? <a href={`tel:${p.contact.phone}`} className="font-medium text-[#0f6b66] hover:underline">{p.contact.phone}</a> : <span className="text-muted-foreground">—</span>} />
+                  <Row k="Email" v={p.contact.email ? <a href={`mailto:${p.contact.email}`} className="font-medium text-[#0f6b66] hover:underline">{p.contact.email}</a> : <span className="text-muted-foreground">—</span>} />
+                  <Row k="Gender" v={p.contact.gender ? <span className="capitalize">{p.contact.gender}</span> : <span className="text-muted-foreground">—</span>} />
+                  <Row k="Birthdate" v={p.contact.birthdate ? new Date(p.contact.birthdate).toLocaleDateString() : <span className="text-muted-foreground">—</span>} />
+                </dl>
+              </Card>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <Card className="p-6 lg:col-span-2">
                 <SectionTitle>Tier progress</SectionTitle>
                 <div className="flex items-center gap-3">
@@ -108,6 +143,7 @@ export default function CustomerProfilePage() {
                   <Row k="Referrals" v={<span className="inline-flex items-center gap-1"><Users2 size={13} /> {p.referrals.made} ({p.referrals.qualified} qualified)</span>} />
                 </dl>
               </Card>
+              </div>
             </div>
           ) : tab === 'transactions' ? (
             <Card className="p-6">
@@ -156,6 +192,20 @@ export default function CustomerProfilePage() {
           )}
         </>
       )}
+
+      {editing ? (
+        <Modal open onClose={() => setEditing(false)} title="Edit customer details" subtitle="Profile data your team maintains">
+          <div className="space-y-4">
+            <Field label="Full name" value={form.fullName} onChange={(v) => setForm((f) => ({ ...f, fullName: v }))} placeholder="e.g. Sara Al Maktoum" />
+            <Select label="Gender" value={form.gender} onChange={(v) => setForm((f) => ({ ...f, gender: v }))} options={[{ value: '', label: 'Undisclosed' }, { value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'other', label: 'Other' }]} />
+            <Field label="Birthdate" type="date" value={form.birthdate} onChange={(v) => setForm((f) => ({ ...f, birthdate: v }))} hint="Used for birthday rewards and age segments." />
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button onClick={saveProfile} loading={saving}>Save</Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       <ConfirmDialog
         open={erasing}

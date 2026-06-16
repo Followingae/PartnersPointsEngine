@@ -20,6 +20,7 @@ import {
   UpdateCampaignDto,
   UpdateCatalogItemDto,
   UpdateChallengeDto,
+  UpdateCustomerProfileDto,
   UpdateEarnRuleDto,
   UpdateSettingsDto,
   UpdateTierDto,
@@ -281,6 +282,13 @@ export class ManageController {
   @ApiOperation({ summary: 'Customer 360 — balance, tier, transactions, badges, referrals.' })
   customerProfile(@CurrentTenant() ctx: TenantContext, @Param('id') id: string) {
     return this.loyalty.customerProfile(ctx, id);
+  }
+
+  @Patch('customers/:id/profile')
+  @RequirePermissions('brand.manage')
+  @ApiOperation({ summary: 'Update a customer profile (name, gender, birthdate).' })
+  updateCustomerProfile(@CurrentTenant() ctx: TenantContext, @Param('id') id: string, @Body() dto: UpdateCustomerProfileDto) {
+    return this.loyalty.updateCustomerProfile(ctx, id, dto);
   }
 
   @Get('customers/:id/export')

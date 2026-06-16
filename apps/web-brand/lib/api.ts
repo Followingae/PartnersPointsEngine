@@ -186,11 +186,19 @@ export interface BadgeRow { id: string; name: string; description: string | null
 export interface ChallengeRow { id: string; name: string; kind?: string; target: string; rewardPoints: string; badgeId: string | null; enabled: boolean }
 export interface AuditRow { id: string; actorType: string; actorId: string; action: string; targetType: string | null; targetId: string | null; data: Record<string, unknown>; createdAt: string }
 
+export interface CustomerContact {
+  fullName: string | null;
+  phone: string | null;
+  email: string | null;
+  gender: string | null;
+  birthdate: string | null;
+}
 export interface CustomerProfile {
   membershipId: string;
   loyaltyId: string;
   status: string;
   joinedAt: string;
+  contact: CustomerContact;
   balance: { available: string; pending: string; lifetime: string };
   tier: { id: string; name: string } | null;
   nextTier: { name: string; threshold: string } | null;
@@ -242,6 +250,8 @@ export const cloneCampaign = (id: string) => api(`/manage/campaigns/${id}/clone`
 // members + customer 360
 export const getMembers = (p?: ListParams) => api<ListResult<MemberRow>>(`/manage/members${qs(p)}`);
 export const getCustomerProfile = (id: string) => api<CustomerProfile>(`/manage/customers/${id}/profile`);
+export const updateCustomerProfile = (id: string, body: Partial<{ fullName: string; gender: string; birthdate: string | null }>) =>
+  api(`/manage/customers/${id}/profile`, { method: 'PATCH', body: JSON.stringify(body) });
 
 // badges
 export const getBadges = (p?: ListParams) => api<ListResult<BadgeRow>>(`/manage/badges${qs(p)}`);
