@@ -5,8 +5,14 @@ name: rfm-loyalty
 region: fra
 services:
   - name: api
+    # IMPORTANT: this MUST be a Docker "Service", not a Functions component.
+    # `dockerfile_path` forces App Platform to build the image from the Dockerfile.
     dockerfile_path: Dockerfile
     source_dir: /
+    github:
+      repo: Followingae/PartnersPointsEngine
+      branch: main
+      deploy_on_push: true
     http_port: 3001
     instance_size_slug: basic-xs
     instance_count: 2
@@ -31,6 +37,10 @@ workers:
   - name: jobs
     dockerfile_path: Dockerfile
     source_dir: /
+    github:
+      repo: Followingae/PartnersPointsEngine
+      branch: main
+      deploy_on_push: true
     instance_size_slug: basic-xs
     instance_count: 1
     # Same image; a worker entrypoint registers the BullMQ processors
