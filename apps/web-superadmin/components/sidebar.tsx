@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Building2, ChevronLeft, ChevronsUpDown, GitPullRequestArrow, History, LayoutDashboard, LineChart, LogOut, Scale, Settings, Store, Users, Wallet } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronsUpDown, GitPullRequestArrow, History, LayoutDashboard, LineChart, LogOut, Scale, Search, Settings, Store, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -42,7 +42,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { co
         <img src="/partners-points-mark.png" alt="Partners Points" className={clsx('hidden h-11 w-11 object-contain', collapsed && 'lg:block')} />
       </div>
 
-      <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
+      <button
+        onClick={() => { onMobileClose(); window.dispatchEvent(new Event('open-search')); }}
+        title="Search (⌘K)"
+        className="mx-2 mt-4 flex h-10 items-center rounded-2xl bg-white/5 text-white/55 transition hover:bg-white/10 hover:text-white"
+      >
+        <span className="grid w-[60px] shrink-0 place-items-center"><Search size={18} /></span>
+        <span className={labelCls(collapsed)}>Search</span>
+        <kbd className={clsx('mr-3 ml-auto rounded border border-white/20 px-1.5 py-0.5 text-[10px] text-white/40', collapsed && 'lg:hidden')}>⌘K</kbd>
+      </button>
+
+      <nav className="mt-3 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
         {NAV.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
           const Icon = item.icon;

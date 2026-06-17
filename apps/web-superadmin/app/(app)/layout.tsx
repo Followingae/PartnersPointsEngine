@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { getToken } from '@/lib/api';
+import { CommandPalette } from '@/components/command-palette';
 import { Sidebar } from '@/components/sidebar';
 import { ToastProvider } from '@/components/toast';
 
@@ -32,6 +33,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <ToastProvider>
+      <CommandPalette />
       <Sidebar collapsed={collapsed} onToggle={toggle} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
       {mobileOpen ? <div className="fixed inset-0 z-30 bg-ink/40 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} /> : null}

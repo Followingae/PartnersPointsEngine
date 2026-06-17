@@ -94,6 +94,13 @@ export class SuperadminController {
     return this.superadmin.listBrands(ctx, groupId);
   }
 
+  @Get('search')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'Global search across merchants, brands, and customers.' })
+  search(@CurrentTenant() ctx: TenantContext, @Query('q') q: string) {
+    return this.superadmin.search(ctx, q ?? '');
+  }
+
   @Get('settings')
   @RequirePermissions('platform.report.read')
   @ApiOperation({ summary: 'Platform-wide settings & defaults.' })

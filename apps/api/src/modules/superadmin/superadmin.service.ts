@@ -427,6 +427,34 @@ export class SuperadminService {
     });
   }
 
+  // ── Global search ────────────────────────────────────────────────────────────
+
+  async search(ctx: TenantContext, q: string) {
+    const term = (q ?? '').trim();
+    if (term.length < 2) return { groups: [], brands: [], customers: [] };
+    return this.tenants.run(ctx, async (tx) => {
+      const like = { contains: term, mode: 'insensitive' as const };
+      const [groups, brands, customers] = await Promise.all([
+        tx.group.findMany({ where: { platformId: ctx.platformId, name: like }, select: { id: true, name: true }, take: 8 }),
+        tx.brand.findMany({ where: { platformId: ctx.platformId, name: like }, select: { id: true, name: true, groupId: true }, take: 8 }),
+        tx.customerMembership.findMany({
+          where: { platformId: ctx.platformId, OR: [{ loyaltyId: like }, { person: { fullName: like } }] },
+          select: { id: true, loyaltyId: true, brandId: true, person: { select: { fullName: true } } },
+          take: 8,
+        }),
+      ]);
+      const brandIds = [...new Set(customers.map((c) => c.brandId))];
+      const brandNames = new Map(
+        (brandIds.length ? await tx.brand.findMany({ where: { id: { in: brandIds } }, select: { id: true, name: true } }) : []).map((b) => [b.id, b.name]),
+      );
+      return {
+        groups: groups.map((g) => ({ id: g.id, name: g.name })),
+        brands: brands.map((b) => ({ id: b.id, name: b.name, groupId: b.groupId })),
+        customers: customers.map((c) => ({ membershipId: c.id, loyaltyId: c.loyaltyId, name: c.person?.fullName ?? null, brandId: c.brandId, brandName: brandNames.get(c.brandId) ?? '' })),
+      };
+    });
+  }
+
   // ── per-brand module entitlements (W7) ───────────────────────────────────
 
   /** Brand modules the superadmin can switch on/off (core modules are always on). */

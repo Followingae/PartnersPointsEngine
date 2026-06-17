@@ -119,6 +119,13 @@ export const createTerminal = (brandId: string, body: { branchId: string; label:
 export const setTerminalStatus = (terminalId: string, status: string) =>
   api(`/admin/terminals/${terminalId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 
+export interface SearchResults {
+  groups: Array<{ id: string; name: string }>;
+  brands: Array<{ id: string; name: string; groupId: string }>;
+  customers: Array<{ membershipId: string; loyaltyId: string; name: string | null; brandId: string; brandName: string }>;
+}
+export const globalSearch = (q: string) => api<SearchResults>(`/admin/search?q=${encodeURIComponent(q)}`);
+
 export interface PlatformSettings { id: string; name: string; region: string; settings: Record<string, unknown> }
 export const getPlatformSettings = () => api<PlatformSettings>('/admin/settings');
 export const setPlatformSettings = (body: { name?: string; region?: string; settings?: Record<string, unknown> }) =>
