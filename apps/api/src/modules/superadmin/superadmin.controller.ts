@@ -15,6 +15,7 @@ import {
   EntityStatusDto,
   GroupStatusDto,
   InviteTeamDto,
+  PlatformSettingsDto,
   SetModulesDto,
   TeamRoleDto,
   TopUpDto,
@@ -91,6 +92,20 @@ export class SuperadminController {
   @RequirePermissions('platform.report.read')
   listBrands(@CurrentTenant() ctx: TenantContext, @Query('groupId') groupId?: string) {
     return this.superadmin.listBrands(ctx, groupId);
+  }
+
+  @Get('settings')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'Platform-wide settings & defaults.' })
+  getPlatformSettings(@CurrentTenant() ctx: TenantContext) {
+    return this.superadmin.getPlatformSettings(ctx);
+  }
+
+  @Patch('settings')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Update platform-wide settings & defaults.' })
+  setPlatformSettings(@CurrentTenant() ctx: TenantContext, @Body() dto: PlatformSettingsDto) {
+    return this.superadmin.setPlatformSettings(ctx, dto);
   }
 
   @Patch('brands/:brandId')

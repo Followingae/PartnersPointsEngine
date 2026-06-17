@@ -398,6 +398,35 @@ export class SuperadminService {
     });
   }
 
+  // ── Platform settings ────────────────────────────────────────────────────────
+
+  async getPlatformSettings(ctx: TenantContext) {
+    return this.tenants.run(ctx, async (tx) => {
+      const p = await tx.platform.findUnique({ where: { id: ctx.platformId }, select: { id: true, name: true, region: true, settings: true } });
+      if (!p) throw new NotFoundException('platform not found');
+      return { id: p.id, name: p.name, region: p.region, settings: (p.settings ?? {}) as Record<string, unknown> };
+    });
+  }
+
+  async setPlatformSettings(ctx: TenantContext, dto: { name?: string; region?: string; settings?: Record<string, unknown> }) {
+    return this.tenants.run(ctx, async (tx) => {
+      const p = await tx.platform.findUnique({ where: { id: ctx.platformId }, select: { settings: true } });
+      if (!p) throw new NotFoundException('platform not found');
+      const merged = { ...((p.settings ?? {}) as Record<string, unknown>), ...(dto.settings ?? {}) };
+      const updated = await tx.platform.update({
+        where: { id: ctx.platformId },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name } : {}),
+          ...(dto.region !== undefined ? { region: dto.region } : {}),
+          settings: merged as Prisma.InputJsonValue,
+        },
+        select: { id: true, name: true, region: true, settings: true },
+      });
+      await this.audit.record(tx, ctx, { action: 'platform.settings.set', targetType: 'platform', targetId: ctx.platformId, data: { fields: Object.keys(dto) } });
+      return { id: updated.id, name: updated.name, region: updated.region, settings: (updated.settings ?? {}) as Record<string, unknown> };
+    });
+  }
+
   // ── per-brand module entitlements (W7) ───────────────────────────────────
 
   /** Brand modules the superadmin can switch on/off (core modules are always on). */

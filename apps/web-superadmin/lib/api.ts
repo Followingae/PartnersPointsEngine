@@ -119,6 +119,11 @@ export const createTerminal = (brandId: string, body: { branchId: string; label:
 export const setTerminalStatus = (terminalId: string, status: string) =>
   api(`/admin/terminals/${terminalId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 
+export interface PlatformSettings { id: string; name: string; region: string; settings: Record<string, unknown> }
+export const getPlatformSettings = () => api<PlatformSettings>('/admin/settings');
+export const setPlatformSettings = (body: { name?: string; region?: string; settings?: Record<string, unknown> }) =>
+  api('/admin/settings', { method: 'PATCH', body: JSON.stringify(body) });
+
 const uuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 export { uuid };
 

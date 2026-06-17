@@ -105,6 +105,23 @@ export class CreateTerminalDto {
   label!: string;
 }
 
+export class PlatformSettingsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiPropertyOptional({ description: 'Platform-wide defaults (currency, governance, expiry, support email).' })
+  @IsOptional()
+  @IsObject()
+  settings?: Record<string, unknown>;
+}
+
 export class UpdateBrandDto {
   @ApiPropertyOptional()
   @IsOptional()

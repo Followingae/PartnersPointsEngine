@@ -72,6 +72,7 @@ CREATE TABLE "platform" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "region" TEXT NOT NULL DEFAULT 'uae',
+    "settings" JSONB NOT NULL DEFAULT '{}',
     "status" "entity_status" NOT NULL DEFAULT 'active',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
