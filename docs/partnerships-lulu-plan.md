@@ -232,6 +232,103 @@ A dedicated **`LuluConnector`** service (mirrors our `WebhookService`/HMAC patte
 
 ---
 
+## 13b. Frontend changes — Superadmin & Brand consoles (exact)
+
+> Customer mobile app is covered in `mobile-app-spec.md`. This section is the web
+> consoles only. "NEW" = new file, "CHANGE" = edit existing.
+
+### Superadmin console (`apps/web-superadmin`)
+
+**Navigation & shell**
+- CHANGE `components/sidebar.tsx`: add nav item **`{ href:'/partnerships', label:'Partnerships', icon: Handshake }`**.
+- CHANGE `lib/api.ts`: add the partner/allowance/conversion API client fns (below).
+
+**NEW page `app/(app)/partnerships/page.tsx` — Partners list**
+- Cards/table of partners (Lulu first): logo, status, **# enabled merchants**, **total
+  allowance outstanding**, **conversions (30d)**, **API-health badge**.
+- "Configure Lulu" CTA if connector not set up. Row → partner detail.
+
+**NEW page `app/(app)/partnerships/[partnerId]/page.tsx` — Partner detail (Lulu)**
+- **Connector config** card: API base URL, credentials (masked + "rotate"),
+  sandbox/prod toggle, **Health check** button + last-sync status.
+- **Global defaults** card: default conversion ratio, cost-per-point, min/max, daily
+  cap, currency name.
+- **Enabled merchants** table: brand, ratio, **allowance balance**, status
+  (active/paused), conversions 30d → actions (manage, pause/resume). **"Enable a
+  merchant"** → `EnableMerchantModal`.
+- **Reports** section: conversion volume/value (TrendChart), **allowance burn-down**
+  (CategoryBars), **reconciliation list** (pending/failed conversions), API error rate.
+
+**CHANGE `app/(app)/brands/page.tsx` (Brands directory)**
+- Add a **Lulu status chip** per brand row (Enabled / Paused / —).
+- The **Modules & access** modal we built already renders `partnerships` automatically
+  once it's added to `TOGGLEABLE_MODULES` (backend) — no UI change needed there beyond
+  that.
+- Optional: add a **"Lulu"** quick action that opens the allowance/enablement modal.
+
+**CHANGE `components/merchant-detail.tsx` (Merchant 360)**
+- Add a **Partnerships** section per brand: Lulu status, allowance balance + **Fund
+  allowance** (reuses the wallet top-up modal pattern), pause/resume, link to reports.
+
+**NEW components**
+- `components/partner-card.tsx`, `EnableMerchantModal` (pick brand → ratio, allowance
+  threshold, daily caps, governance), `AllowanceWalletPanel` (balance, fund, threshold,
+  burn-down), `ConversionsTable`, `ReconciliationList`, `ApiHealthBadge`,
+  `FundAllowanceModal`.
+
+**lib/api (superadmin) additions**
+`getPartners()`, `getPartner(id)`, `updatePartnerConnector(id, cfg)`,
+`partnerHealthCheck(id)`, `getPartnerMerchants(id)`, `enablePartnerMerchant(body)`,
+`updatePartnerMerchant(id, {ratio,caps,status})`, `getAllowance(brandId)`,
+`fundAllowance(brandId, amount)`, `setAllowanceThreshold(brandId, threshold)`,
+`getConversions(params)`, `getReconciliation()`.
+
+### Brand console (`apps/web-brand`)
+
+**Navigation (entitlement-gated)**
+- CHANGE `components/sidebar.tsx`: add **`{ href:'/lulu', label:'Lulu Happiness', icon: Sparkles, module:'partnerships' }`** — uses the existing `module` gating so it only
+  shows when superadmin enabled `partnerships` for the brand.
+
+**NEW page `app/(app)/lulu/page.tsx`**
+- **Status card**: enabled/paused, conversion ratio, currency name, governance note.
+- **Allowance wallet card**: balance, low-balance threshold, **Request top-up**,
+  **burn-down chart**, threshold reminder settings.
+- **Conversion reports**: volume, value, daily-cap usage, top converting customers.
+- **Conversion activity** table: customer (loyaltyId), merchant pts in, Lulu pts out,
+  status, reference, time.
+- All edit controls respect **governance**: when `superadmin_managed`, fields are
+  read-only and edits route through change-requests — reuse the existing
+  `governanceOutcome()` / "managed by platform" toast already in `lib/api.ts`.
+
+**CHANGE `app/(app)/page.tsx` (Dashboard)**
+- When entitled, add a **"Lulu conversions"** snapshot to the program area (conversions
+  + allowance balance), consistent with the existing program cards.
+
+**lib/api (brand) additions**
+`getLuluStatus()`, `getAllowance()`, `requestAllowanceTopup(amount)`,
+`setAllowanceThreshold(threshold)`, `getConversionReports()`, `getConversionActivity()`.
+
+### Cross-cutting (both consoles)
+- Reuse existing UI: `Card`, `StatHero`, charts (`TrendChart`/`CategoryBars` for
+  burn-down), `Modal`, `Field`, `Select`, `Badge`, `ActionMenu`, tables, `ConfirmDialog`,
+  `Skeleton`.
+- **Entitlement gating**: `partnerships` added to `TOGGLEABLE_MODULES` so superadmin's
+  **Modules & access** screen toggles it, and the brand nav/page hide when off.
+- **Governance**: brand-side writes flow through the governance interceptor; the
+  console already handles pending/managed outcomes.
+- **Audit**: every enablement, ratio change, top-up, pause shows in the existing Audit
+  log screens.
+
+### Build order (frontend, tracks the phased rollout)
+1. Superadmin: Partnerships nav + partners list + partner detail (connector + defaults)
+   + EnableMerchantModal + AllowanceWalletPanel/FundAllowance. (Phase 1)
+2. Brand: `/lulu` page (status + allowance + reports, read-mostly). (Phase 1)
+3. Both: conversions table + reconciliation + burn-down once the connector/flow lands.
+   (Phase 2)
+4. Dashboard snapshots + reports polish. (Phase 3)
+
+---
+
 ## 13. Module/entitlement & governance summary
 
 - New entitlement key: **`partnerships`** (or `lulu`) on `Brand.moduleAccess`,
