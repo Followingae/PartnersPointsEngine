@@ -35,8 +35,9 @@ export default function BrandsDirectoryPage() {
 
   return (
     <div>
-      <PageHeader subtitle="Platform" title="Brands directory" action={<Badge tone="teal">{rows.length} brands</Badge>} />
+      <PageHeader subtitle="Platform" title="Brands" action={<Badge tone="teal">{rows.length} brands</Badge>} />
       <Card className="p-5">
+        <p className="mb-4 text-sm text-muted-foreground">Brands are the individual loyalty programs. Each belongs to a <span className="font-medium text-foreground">Merchant</span> (the account that owns the wallet &amp; billing). Manage a brand’s access, locations, and Lulu partnership here.</p>
         <div className="mb-4"><SearchInput value={q} onChange={setQ} placeholder="Search brands or merchants…" /></div>
         {loading ? (
           <TableSkeleton rows={6} cols={5} />
@@ -46,7 +47,7 @@ export default function BrandsDirectoryPage() {
           <div className="overflow-hidden rounded-2xl border border-border/70">
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-4 py-3 font-semibold">Brand</th><th className="px-4 py-3 font-semibold">Merchant</th><th className="px-4 py-3 font-semibold">Members</th><th className="px-4 py-3 font-semibold">Liability</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3" /></tr>
+                <tr><th className="px-4 py-3 font-semibold">Brand</th><th className="px-4 py-3 font-semibold">Merchant</th><th className="px-4 py-3 font-semibold">Members</th><th className="px-4 py-3 font-semibold">Liability</th><th className="px-4 py-3 font-semibold">Lulu</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3" /></tr>
               </thead>
               <tbody className="divide-y divide-border/70">
                 {filtered.map((b) => (
@@ -55,6 +56,7 @@ export default function BrandsDirectoryPage() {
                     <td className="px-4 py-3 text-muted-foreground">{b.merchant}</td>
                     <td className="px-4 py-3">{fmt(b.members)}</td>
                     <td className="px-4 py-3 font-display font-semibold">{fmt(b.liability)} pts</td>
+                    <td className="px-4 py-3">{b.luluEnabled ? <a href="/partnerships" onClick={(e) => e.stopPropagation()}><Badge tone="coral">Lulu on</Badge></a> : <span className="text-xs text-muted-foreground">—</span>}</td>
                     <td className="px-4 py-3"><Badge tone={b.status === 'active' ? 'lime' : 'neutral'}>{b.status}</Badge></td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">

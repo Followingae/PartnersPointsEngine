@@ -233,7 +233,7 @@ export interface PlatformAnalytics {
   totals: { merchants: number; brands: number; members: number; liability: string; walletFunding: string; pointsIssued: string; pointsRedeemed: string };
   merchants: Array<{ id: string; name: string; status: string; currency: string; brands: number; members: number; liability: string; wallet: string }>;
 }
-export interface BrandDirectoryRow { id: string; name: string; slug: string; status: string; currency: string; merchant: string; members: number; liability: string }
+export interface BrandDirectoryRow { id: string; name: string; slug: string; status: string; currency: string; merchant: string; members: number; liability: string; luluEnabled: boolean }
 export interface LowBalanceAlert { groupId: string; name: string; currency: string; threshold: string; available: string }
 export interface PlatformAuditRow { id: string; actorType: string; actorId: string; action: string; targetType: string | null; targetId: string | null; brandId: string | null; groupId: string | null; data: Record<string, unknown>; createdAt: string }
 export interface PlatformTeamMember { userId: string; email: string; fullName: string | null; status: string; lastLoginAt: string | null; mfa: boolean; roleKey: string; roleName: string }

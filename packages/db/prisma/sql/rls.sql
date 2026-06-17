@@ -119,21 +119,29 @@ CREATE POLICY tenant_isolation ON public.platform FOR ALL TO loyalty_app
 USING (id = nullif(current_setting('app.current_platform_id', true), ''))
 WITH CHECK (id = nullif(current_setting('app.current_platform_id', true), ''));
 
--- Partner-level tables keyed by platform_id only (partner config + customer links).
-DO $$
-DECLARE t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['partner','partner_customer_link'] LOOP
-    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON public.%I', t);
-    EXECUTE format(
-      'CREATE POLICY tenant_isolation ON public.%I FOR ALL TO loyalty_app USING (%s) WITH CHECK (%s)',
-      t,
-      'platform_id = nullif(current_setting(''app.current_platform_id'', true), '''')',
-      'platform_id = nullif(current_setting(''app.current_platform_id'', true), '''')'
-    );
-  END LOOP;
-END $$;
+-- partner: readable by a platform principal OR a brand principal that is enabled
+-- for the partner (so the brand console + customer convert can read partner config).
+ALTER TABLE public.partner ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.partner;
+CREATE POLICY tenant_isolation ON public.partner FOR ALL TO loyalty_app
+USING (
+  platform_id = nullif(current_setting('app.current_platform_id', true), '')
+  OR EXISTS (SELECT 1 FROM public.partner_merchant pm WHERE pm.partner_id = partner.id AND pm.brand_id = nullif(current_setting('app.current_brand_id', true), ''))
+)
+WITH CHECK (platform_id = nullif(current_setting('app.current_platform_id', true), ''));
+
+-- partner_customer_link: a platform principal OR the owning customer (actor = person).
+ALTER TABLE public.partner_customer_link ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.partner_customer_link;
+CREATE POLICY tenant_isolation ON public.partner_customer_link FOR ALL TO loyalty_app
+USING (
+  platform_id = nullif(current_setting('app.current_platform_id', true), '')
+  OR person_id = nullif(current_setting('app.current_actor_id', true), '')
+)
+WITH CHECK (
+  platform_id = nullif(current_setting('app.current_platform_id', true), '')
+  OR person_id = nullif(current_setting('app.current_actor_id', true), '')
+);
 
 -- tenant_group: own group, or platform sees all groups.
 ALTER TABLE public.tenant_group ENABLE ROW LEVEL SECURITY;

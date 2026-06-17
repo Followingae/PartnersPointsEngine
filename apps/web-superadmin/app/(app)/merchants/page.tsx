@@ -39,6 +39,7 @@ export default function MerchantsPage() {
       />
 
       <Card className="p-5">
+        <p className="mb-4 text-sm text-muted-foreground">A <span className="font-medium text-foreground">Merchant</span> is the top-level account you onboard — it owns the prepaid wallet, billing &amp; cost rules, and runs one or more <span className="font-medium text-foreground">Brands</span> (loyalty programs). Open a merchant to manage its wallet and brands.</p>
         <div className="mb-4"><SearchInput value={q} onChange={setQ} placeholder="Search merchants…" /></div>
 
         {loading ? (

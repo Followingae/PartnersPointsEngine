@@ -551,13 +551,14 @@ export class SuperadminService {
   /** Cross-merchant brands directory with member counts + liability. */
   async brandsDirectory(ctx: TenantContext) {
     return this.tenants.run(ctx, async (tx) => {
-      const rows = await tx.$queryRaw<{ id: string; name: string; slug: string; status: string; currency: string; merchant: string; members: number; liability: bigint }[]>`
+      const rows = await tx.$queryRaw<{ id: string; name: string; slug: string; status: string; currency: string; merchant: string; members: number; liability: bigint; lulu_enabled: boolean }[]>`
         SELECT b.id, b.name, b.slug, b.status::text AS status, b.currency, g.name AS merchant,
                (SELECT count(*) FROM customer_membership m WHERE m.brand_id = b.id)::int AS members,
-               coalesce((SELECT sum(ab.posted_credits - ab.posted_debits - ab.pending_debits) FROM account_balance ab JOIN ledger_account la ON la.id = ab.account_id WHERE la.brand_id = b.id AND la.account_type = 'points_liability'), 0)::bigint AS liability
+               coalesce((SELECT sum(ab.posted_credits - ab.posted_debits - ab.pending_debits) FROM account_balance ab JOIN ledger_account la ON la.id = ab.account_id WHERE la.brand_id = b.id AND la.account_type = 'points_liability'), 0)::bigint AS liability,
+               EXISTS (SELECT 1 FROM partner_merchant pm WHERE pm.brand_id = b.id AND pm.enabled = true AND pm.status = 'active') AS lulu_enabled
           FROM brand b JOIN tenant_group g ON g.id = b.group_id
          WHERE b.platform_id = ${ctx.platformId} ORDER BY members DESC`;
-      return rows.map((r) => ({ id: r.id, name: r.name, slug: r.slug, status: r.status, currency: r.currency, merchant: r.merchant, members: r.members, liability: r.liability.toString() }));
+      return rows.map((r) => ({ id: r.id, name: r.name, slug: r.slug, status: r.status, currency: r.currency, merchant: r.merchant, members: r.members, liability: r.liability.toString(), luluEnabled: r.lulu_enabled }));
     });
   }
 
