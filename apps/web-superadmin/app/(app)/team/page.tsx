@@ -3,9 +3,9 @@
 import { Copy, ShieldCheck, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, ConfirmDialog, Field, Modal, PageHeader, Select } from '@/components/form';
-import { Badge, Card, EmptyState, TableSkeleton } from '@/components/ui';
+import { Badge, Card, EmptyState, Skeleton, TableSkeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { getPlatformTeam, getPlatformTeamRoles, invitePlatformMember, revokePlatformMember, updatePlatformMemberRole, type PlatformTeamMember } from '@/lib/api';
+import { getPlatformTeam, getPlatformTeamRoles, getRolesCatalog, invitePlatformMember, revokePlatformMember, updatePlatformMemberRole, type PlatformTeamMember, type RolesCatalog } from '@/lib/api';
 
 export default function PlatformTeamPage() {
   const toast = useToast();
@@ -69,8 +69,9 @@ export default function PlatformTeamPage() {
             </table>
           </div>
         )}
-        <p className="mt-4 text-xs text-muted-foreground">Roles: <span className="font-medium">platform superadmin</span> (full control), <span className="font-medium">platform support</span> (manage merchants/brands, no wallet), <span className="font-medium">analyst readonly</span> (reports only).</p>
       </Card>
+
+      <RolesCatalogCard />
 
       {inviting ? <InviteModal roles={roles} onClose={() => setInviting(false)} onDone={() => { setInviting(false); load(); }} /> : null}
       <ConfirmDialog open={toRevoke !== null} onClose={() => setToRevoke(null)} onConfirm={onRevoke} loading={busy} title="Revoke access?" message={`${toRevoke?.email} will lose platform access.`} confirmLabel="Revoke" />
@@ -124,5 +125,35 @@ function InviteModal({ roles, onClose, onDone }: { roles: Array<{ key: string; n
         </div>
       </div>
     </Modal>
+  );
+}
+
+function RolesCatalogCard() {
+  const toast = useToast();
+  const [data, setData] = useState<RolesCatalog | null>(null);
+  useEffect(() => { getRolesCatalog().then(setData).catch((e) => toast('error', e instanceof Error ? e.message : 'Failed')); }, [toast]);
+  return (
+    <Card className="mt-6 p-5">
+      <div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} /><h2 className="font-display text-lg font-semibold">Roles &amp; permissions</h2></div>
+      {!data ? (
+        <div className="space-y-2"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {data.roles.map((r) => (
+            <div key={r.key} className="rounded-2xl border border-border/70 p-4">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold">{r.name}</p>
+                <Badge tone="teal">{r.scope}</Badge>
+              </div>
+              <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{r.key}</p>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {r.permissions.map((p) => <span key={p} className="rounded-lg bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">{p}</span>)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mt-4 text-xs text-muted-foreground">Built-in roles cover platform, merchant, brand, and branch scopes. Assign them when inviting members above.</p>
+    </Card>
   );
 }

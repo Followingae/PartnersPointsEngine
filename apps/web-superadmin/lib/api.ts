@@ -126,6 +126,12 @@ export interface SearchResults {
 }
 export const globalSearch = (q: string) => api<SearchResults>(`/admin/search?q=${encodeURIComponent(q)}`);
 
+export interface RolesCatalog {
+  roles: Array<{ key: string; name: string; scope: string; builtIn: boolean; permissions: string[] }>;
+  permissions: Array<{ key: string; description: string }>;
+}
+export const getRolesCatalog = () => api<RolesCatalog>('/admin/roles');
+
 export interface PlatformSettings { id: string; name: string; region: string; settings: Record<string, unknown> }
 export const getPlatformSettings = () => api<PlatformSettings>('/admin/settings');
 export const setPlatformSettings = (body: { name?: string; region?: string; settings?: Record<string, unknown> }) =>

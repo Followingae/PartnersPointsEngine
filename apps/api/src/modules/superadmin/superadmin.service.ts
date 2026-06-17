@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
+import { ROLE_PERMISSIONS } from '../../auth/authz/authz.service';
 import { PasswordService } from '../../auth/crypto/password.service';
 import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
@@ -425,6 +426,39 @@ export class SuperadminService {
       await this.audit.record(tx, ctx, { action: 'platform.settings.set', targetType: 'platform', targetId: ctx.platformId, data: { fields: Object.keys(dto) } });
       return { id: updated.id, name: updated.name, region: updated.region, settings: (updated.settings ?? {}) as Record<string, unknown> };
     });
+  }
+
+  // ── Roles & permissions catalog ───────────────────────────────────────────────
+
+  rolesCatalog() {
+    const ROLE_META: Record<string, { name: string; scope: string }> = {
+      platform_superadmin: { name: 'Platform superadmin', scope: 'Platform' },
+      platform_support: { name: 'Platform support', scope: 'Platform' },
+      group_admin: { name: 'Merchant admin', scope: 'Merchant' },
+      brand_admin: { name: 'Brand admin', scope: 'Brand' },
+      branch_manager: { name: 'Branch manager', scope: 'Branch' },
+      analyst_readonly: { name: 'Analyst (read-only)', scope: 'Any' },
+    };
+    const PERMISSION_META: Record<string, string> = {
+      'platform.manage': 'Manage the platform, merchants, and brands',
+      'platform.report.read': 'View platform-wide analytics & reports',
+      'group.manage': 'Manage a merchant group',
+      'group.wallet.manage': 'Fund and manage the prepaid wallet',
+      'brand.manage': 'Manage a brand’s settings & loyalty config',
+      'brand.campaign.write': 'Create / edit earn rules, rewards, campaigns',
+      'brand.customer.read': 'View customer profiles & 360',
+      'brand.report.read': 'View brand analytics & reports',
+      'branch.manage': 'Manage branches & terminals',
+    };
+    const roles = Object.entries(ROLE_PERMISSIONS).map(([key, permissions]) => ({
+      key,
+      name: ROLE_META[key]?.name ?? key,
+      scope: ROLE_META[key]?.scope ?? '',
+      builtIn: true,
+      permissions,
+    }));
+    const permissions = [...new Set(Object.values(ROLE_PERMISSIONS).flat())].sort().map((k) => ({ key: k, description: PERMISSION_META[k] ?? '' }));
+    return { roles, permissions };
   }
 
   // ── Global search ────────────────────────────────────────────────────────────

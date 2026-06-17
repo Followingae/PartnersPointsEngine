@@ -101,6 +101,13 @@ export class SuperadminController {
     return this.superadmin.search(ctx, q ?? '');
   }
 
+  @Get('roles')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'Roles & permissions catalog (built-in RBAC roles and what they grant).' })
+  rolesCatalog() {
+    return this.superadmin.rolesCatalog();
+  }
+
   @Get('settings')
   @RequirePermissions('platform.report.read')
   @ApiOperation({ summary: 'Platform-wide settings & defaults.' })
