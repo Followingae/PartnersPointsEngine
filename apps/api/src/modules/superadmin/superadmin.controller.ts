@@ -11,6 +11,8 @@ import {
   CreateBranchDto,
   CreateBrandDto,
   CreateGroupDto,
+  CreateTerminalDto,
+  EntityStatusDto,
   GroupStatusDto,
   InviteTeamDto,
   SetModulesDto,
@@ -103,6 +105,41 @@ export class SuperadminController {
   @ApiOperation({ summary: 'Create a branch under a brand.' })
   createBranch(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string, @Body() dto: CreateBranchDto) {
     return this.superadmin.createBranch(ctx, { brandId, ...dto });
+  }
+
+  @Get('brands/:brandId/branches')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'List a brand’s branches with terminal counts.' })
+  listBranches(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string) {
+    return this.superadmin.listBranches(ctx, brandId);
+  }
+
+  @Patch('branches/:branchId/status')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Enable / disable a branch.' })
+  setBranchStatus(@CurrentTenant() ctx: TenantContext, @Param('branchId') branchId: string, @Body() dto: EntityStatusDto) {
+    return this.superadmin.setBranchStatus(ctx, branchId, dto.status);
+  }
+
+  @Get('brands/:brandId/terminals')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'List a brand’s POS terminals.' })
+  listTerminals(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string) {
+    return this.superadmin.listTerminals(ctx, brandId);
+  }
+
+  @Post('brands/:brandId/terminals')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Register a POS terminal under a branch.' })
+  createTerminal(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string, @Body() dto: CreateTerminalDto) {
+    return this.superadmin.createTerminal(ctx, { brandId, branchId: dto.branchId, label: dto.label });
+  }
+
+  @Patch('terminals/:terminalId/status')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Enable / disable a POS terminal.' })
+  setTerminalStatus(@CurrentTenant() ctx: TenantContext, @Param('terminalId') terminalId: string, @Body() dto: EntityStatusDto) {
+    return this.superadmin.setTerminalStatus(ctx, terminalId, dto.status);
   }
 
   @Post('groups/:groupId/wallet/topup')

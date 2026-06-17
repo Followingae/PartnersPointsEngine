@@ -343,6 +343,61 @@ export class SuperadminService {
     });
   }
 
+  async listBranches(ctx: TenantContext, brandId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.branch.findMany({
+        where: { brandId, platformId: ctx.platformId },
+        select: { id: true, name: true, code: true, status: true, timezone: true, _count: { select: { terminals: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      return rows.map((b) => ({ id: b.id, name: b.name, code: b.code, status: b.status, timezone: b.timezone, terminals: b._count.terminals }));
+    });
+  }
+
+  async setBranchStatus(ctx: TenantContext, branchId: string, status: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const existing = await tx.branch.findFirst({ where: { id: branchId, platformId: ctx.platformId }, select: { id: true } });
+      if (!existing) throw new NotFoundException('branch not found');
+      const b = await tx.branch.update({ where: { id: branchId }, data: { status: status as never }, select: { id: true, status: true } });
+      await this.audit.record(tx, ctx, { action: 'branch.status', targetType: 'branch', targetId: branchId, data: { status } });
+      return b;
+    });
+  }
+
+  async listTerminals(ctx: TenantContext, brandId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.terminal.findMany({
+        where: { brandId, platformId: ctx.platformId },
+        select: { id: true, label: true, status: true, pairedAt: true, branch: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      return rows.map((t) => ({ id: t.id, label: t.label, status: t.status, pairedAt: t.pairedAt, branchId: t.branch.id, branchName: t.branch.name }));
+    });
+  }
+
+  async createTerminal(ctx: TenantContext, dto: { brandId: string; branchId: string; label: string }) {
+    return this.tenants.run(ctx, async (tx) => {
+      const branch = await tx.branch.findFirst({ where: { id: dto.branchId, brandId: dto.brandId, platformId: ctx.platformId }, select: { groupId: true } });
+      if (!branch) throw new NotFoundException('branch not found');
+      const t = await tx.terminal.create({
+        data: { branchId: dto.branchId, brandId: dto.brandId, groupId: branch.groupId, platformId: ctx.platformId, label: dto.label },
+        select: { id: true, label: true, status: true },
+      });
+      await this.audit.record(tx, ctx, { action: 'terminal.create', targetType: 'terminal', targetId: t.id, data: { label: t.label, branchId: dto.branchId } });
+      return t;
+    });
+  }
+
+  async setTerminalStatus(ctx: TenantContext, terminalId: string, status: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const existing = await tx.terminal.findFirst({ where: { id: terminalId, platformId: ctx.platformId }, select: { id: true } });
+      if (!existing) throw new NotFoundException('terminal not found');
+      const t = await tx.terminal.update({ where: { id: terminalId }, data: { status: status as never }, select: { id: true, status: true } });
+      await this.audit.record(tx, ctx, { action: 'terminal.status', targetType: 'terminal', targetId: terminalId, data: { status } });
+      return t;
+    });
+  }
+
   // ── per-brand module entitlements (W7) ───────────────────────────────────
 
   /** Brand modules the superadmin can switch on/off (core modules are always on). */

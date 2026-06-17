@@ -108,6 +108,17 @@ export const updateBrand = (brandId: string, body: Partial<{ name: string; curre
 export const createBranch = (brandId: string, body: { name: string; code?: string }) =>
   api(`/admin/brands/${brandId}/branches`, { method: 'POST', body: JSON.stringify(body) });
 
+export interface AdminBranch { id: string; name: string; code: string | null; status: string; timezone: string; terminals: number }
+export interface AdminTerminal { id: string; label: string; status: string; pairedAt: string | null; branchId: string; branchName: string }
+export const getBranches = (brandId: string) => api<AdminBranch[]>(`/admin/brands/${brandId}/branches`);
+export const setBranchStatus = (branchId: string, status: string) =>
+  api(`/admin/branches/${branchId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const getTerminals = (brandId: string) => api<AdminTerminal[]>(`/admin/brands/${brandId}/terminals`);
+export const createTerminal = (brandId: string, body: { branchId: string; label: string }) =>
+  api(`/admin/brands/${brandId}/terminals`, { method: 'POST', body: JSON.stringify(body) });
+export const setTerminalStatus = (terminalId: string, status: string) =>
+  api(`/admin/terminals/${terminalId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+
 const uuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 export { uuid };
 

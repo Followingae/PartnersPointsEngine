@@ -89,6 +89,22 @@ export class GroupStatusDto {
   status!: 'active' | 'suspended';
 }
 
+export class EntityStatusDto {
+  @ApiProperty({ enum: ['active', 'inactive', 'suspended'] })
+  @IsIn(['active', 'inactive', 'suspended'])
+  status!: 'active' | 'inactive' | 'suspended';
+}
+
+export class CreateTerminalDto {
+  @ApiProperty()
+  @IsString()
+  branchId!: string;
+
+  @ApiProperty()
+  @IsString()
+  label!: string;
+}
+
 export class UpdateBrandDto {
   @ApiPropertyOptional()
   @IsOptional()
