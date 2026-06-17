@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { BarChart3, ChevronLeft, ChevronsUpDown, Coins, Gift, GitPullRequestArrow, History, KeyRound, Layers, LayoutDashboard, LineChart, LogOut, Mail, Megaphone, Settings, Target, Ticket, Trophy, Users, UsersRound, Webhook } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronsUpDown, Coins, Gift, GitPullRequestArrow, History, KeyRound, Layers, LayoutDashboard, LineChart, LogOut, Mail, Megaphone, Settings, Sparkles, Target, Ticket, Trophy, Users, UsersRound, Webhook } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +21,7 @@ const NAV = [
   { href: '/coupons', label: 'Coupons', icon: Ticket, module: 'coupons' },
   { href: '/segments', label: 'Segments', icon: Target, module: 'segments' },
   { href: '/gamification', label: 'Gamification', icon: Trophy, module: 'gamification' },
+  { href: '/lulu', label: 'Lulu Happiness', icon: Sparkles, module: 'partnerships' },
   { href: '/messaging', label: 'Messaging', icon: Mail, module: 'messaging' },
   { href: '/webhooks', label: 'Webhooks', icon: Webhook, module: 'webhooks' },
   { href: '/api-keys', label: 'API keys', icon: KeyRound, module: 'api-keys' },

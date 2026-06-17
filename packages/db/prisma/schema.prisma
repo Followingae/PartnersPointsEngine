@@ -1173,3 +1173,137 @@ model WebhookDelivery {
   @@index([status])
   @@map("webhook_delivery")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Partnerships (open-loop) — convert merchant points → a partner currency
+// (e.g. Lulu Happiness Points), funded by a per-merchant prepaid allowance.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PartnerConnectorMode {
+  stub // no external calls (build/demo)
+  sandbox
+  live
+
+  @@map("partner_connector_mode")
+}
+
+enum ConversionStatus {
+  pending
+  completed
+  failed
+  reversed
+
+  @@map("conversion_status")
+}
+
+model Partner {
+  id                       String               @id @default(uuid(7))
+  platformId               String               @map("platform_id")
+  key                      String // 'lulu'
+  name                     String
+  currencyName             String               @map("currency_name") // 'Lulu Happiness Points'
+  status                   EntityStatus         @default(active)
+  connectorMode            PartnerConnectorMode @default(stub) @map("connector_mode")
+  connectorConfigEnc       Bytes?               @map("connector_config_enc")
+  defaultRatioBps          Int                  @default(10000) @map("default_ratio_bps") // 10000 = 1 merchant pt → 1 partner pt
+  costPerPartnerPointMinor BigInt               @default(0) @map("cost_per_partner_point_minor")
+  createdAt                DateTime             @default(now()) @map("created_at")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
+
+  merchants PartnerMerchant[]
+
+  @@unique([platformId, key])
+  @@map("partner")
+}
+
+model PartnerMerchant {
+  id                  String       @id @default(uuid(7))
+  partnerId           String       @map("partner_id")
+  brandId             String       @map("brand_id")
+  groupId             String       @map("group_id")
+  platformId          String       @map("platform_id")
+  enabled             Boolean      @default(true)
+  status              EntityStatus @default(active) // active = live; inactive = paused
+  ratioBps            Int          @default(10000) @map("ratio_bps")
+  minConversion       Int          @default(0) @map("min_conversion")
+  maxConversionPerDay Int          @default(0) @map("max_conversion_per_day") // 0 = no cap
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, brandId])
+  @@index([brandId])
+  @@map("partner_merchant")
+}
+
+model AllowanceWallet {
+  id                       String   @id @default(uuid(7))
+  partnerId                String   @map("partner_id")
+  brandId                  String   @map("brand_id")
+  groupId                  String   @map("group_id")
+  platformId               String   @map("platform_id")
+  balanceMinor             BigInt   @default(0) @map("balance_minor")
+  lowBalanceThresholdMinor BigInt   @default(0) @map("low_balance_threshold_minor")
+  currency                 String   @default("AED")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@unique([partnerId, brandId])
+  @@index([brandId])
+  @@map("allowance_wallet")
+}
+
+model AllowanceTxn {
+  id           String         @id @default(uuid(7))
+  walletId     String         @map("wallet_id")
+  brandId      String         @map("brand_id")
+  groupId      String         @map("group_id")
+  platformId   String         @map("platform_id")
+  direction    EntryDirection // credit = top-up, debit = conversion/spend
+  amountMinor  BigInt         @map("amount_minor")
+  reason       String // 'topup' | 'conversion' | 'reversal'
+  conversionId String?        @map("conversion_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@index([walletId])
+  @@index([brandId])
+  @@map("allowance_txn")
+}
+
+model PartnerCustomerLink {
+  id               String       @id @default(uuid(7))
+  partnerId        String       @map("partner_id")
+  personId         String       @map("person_id")
+  platformId       String       @map("platform_id")
+  partnerMemberRef String       @map("partner_member_ref")
+  status           EntityStatus @default(active)
+  linkedAt         DateTime     @default(now()) @map("linked_at")
+
+  @@unique([partnerId, personId])
+  @@map("partner_customer_link")
+}
+
+model Conversion {
+  id                 String           @id @default(uuid(7))
+  partnerId          String           @map("partner_id")
+  brandId            String           @map("brand_id")
+  groupId            String           @map("group_id")
+  platformId         String           @map("platform_id")
+  membershipId       String           @map("membership_id")
+  sourcePoints       BigInt           @map("source_points")
+  partnerPoints      BigInt           @map("partner_points")
+  ratioBps           Int              @map("ratio_bps")
+  allowanceCostMinor BigInt           @map("allowance_cost_minor")
+  status             ConversionStatus @default(pending)
+  partnerTxnRef      String?          @map("partner_txn_ref")
+  failureReason      String?          @map("failure_reason")
+  idempotencyKey     String           @map("idempotency_key")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  completedAt        DateTime?        @map("completed_at")
+
+  @@unique([brandId, idempotencyKey])
+  @@index([brandId, createdAt])
+  @@index([partnerId, createdAt])
+  @@map("conversion")
+}

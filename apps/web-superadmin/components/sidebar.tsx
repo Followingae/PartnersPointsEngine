@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Building2, ChevronLeft, ChevronsUpDown, GitPullRequestArrow, History, LayoutDashboard, LineChart, LogOut, Scale, Search, Settings, Store, Users, Wallet } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronsUpDown, GitPullRequestArrow, Handshake, History, LayoutDashboard, LineChart, LogOut, Scale, Search, Settings, Store, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -16,6 +16,7 @@ const NAV = [
   { href: '/billing', label: 'Wallet & billing', icon: Wallet },
   { href: '/approvals', label: 'Approvals', icon: GitPullRequestArrow },
   { href: '/governance', label: 'Governance', icon: Scale },
+  { href: '/partnerships', label: 'Partnerships', icon: Handshake },
   { href: '/team', label: 'Team & roles', icon: Users },
   { href: '/audit', label: 'Audit log', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },

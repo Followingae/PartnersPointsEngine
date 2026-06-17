@@ -126,6 +126,45 @@ export interface SearchResults {
 }
 export const globalSearch = (q: string) => api<SearchResults>(`/admin/search?q=${encodeURIComponent(q)}`);
 
+// ── Partnerships (Lulu) ───────────────────────────────────────────────────────
+export interface PartnerSummary {
+  id: string; key: string; name: string; currencyName: string; status: string;
+  connectorMode: 'stub' | 'sandbox' | 'live'; defaultRatioBps: number; costPerPartnerPointMinor: string;
+  enabledMerchants: number; conversions30d: number; allowanceOutstanding: string;
+}
+export interface PartnerMerchantRow {
+  id: string; brandId: string; brandName: string; enabled: boolean; status: string;
+  ratioBps: number; minConversion: number; maxConversionPerDay: number;
+  allowanceBalance: string; lowBalanceThreshold: string; conversions: number;
+}
+export interface PartnerOverview {
+  days: number; conversions: number; sourceBurned: string; partnerIssued: string;
+  allowanceSpent: string; failed: number; successRate: number; activeMerchants: number; allowanceOutstanding: string;
+}
+export interface PartnerTrendPoint { date: string; conversions: number; issued: string; spent: string }
+export interface ConversionRow {
+  id: string; brandId: string; membershipId: string; sourcePoints: string; partnerPoints: string;
+  allowanceCostMinor: string; status: string; partnerTxnRef: string | null; failureReason: string | null; createdAt: string;
+}
+
+export const ensureLulu = () => api<{ id: string }>('/admin/partners/lulu/ensure', { method: 'POST' });
+export const getPartners = () => api<PartnerSummary[]>('/admin/partners');
+export const updatePartner = (id: string, body: Partial<{ name: string; currencyName: string; connectorMode: string; defaultRatioBps: number; costPerPartnerPointMinor: number; connectorConfig: Record<string, unknown> }>) =>
+  api(`/admin/partners/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const partnerHealth = (id: string) => api<{ mode: string; healthy: boolean; detail: string }>(`/admin/partners/${id}/health`);
+export const getPartnerMerchants = (partnerId: string) => api<PartnerMerchantRow[]>(`/admin/partners/${partnerId}/merchants`);
+export const enableMerchant = (partnerId: string, body: { brandId: string; ratioBps?: number; minConversion?: number; maxConversionPerDay?: number; lowBalanceThresholdMinor?: number }) =>
+  api(`/admin/partners/${partnerId}/merchants`, { method: 'POST', body: JSON.stringify(body) });
+export const updatePartnerMerchant = (id: string, body: Partial<{ ratioBps: number; status: string; minConversion: number; maxConversionPerDay: number; enabled: boolean }>) =>
+  api(`/admin/partners/merchants/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const fundAllowance = (partnerId: string, body: { brandId: string; amountMinor: number }) =>
+  api(`/admin/partners/${partnerId}/allowance/fund`, { method: 'POST', body: JSON.stringify(body) });
+export const setAllowanceThreshold = (partnerId: string, body: { brandId: string; thresholdMinor: number }) =>
+  api(`/admin/partners/${partnerId}/allowance/threshold`, { method: 'POST', body: JSON.stringify(body) });
+export const getPartnerOverview = (partnerId: string, days = 30) => api<PartnerOverview>(`/admin/partners/${partnerId}/overview?days=${days}`);
+export const getPartnerTrend = (partnerId: string, days = 30) => api<PartnerTrendPoint[]>(`/admin/partners/${partnerId}/trend?days=${days}`);
+export const getPartnerConversions = (partnerId: string, status?: string) => api<ConversionRow[]>(`/admin/partners/${partnerId}/conversions${status ? `?status=${status}` : ''}`);
+
 export interface RolesCatalog {
   roles: Array<{ key: string; name: string; scope: string; builtIn: boolean; permissions: string[] }>;
   permissions: Array<{ key: string; description: string }>;

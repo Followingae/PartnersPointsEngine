@@ -67,6 +67,12 @@ CREATE TYPE "referral_status" AS ENUM ('pending', 'qualified', 'rewarded');
 -- CreateEnum
 CREATE TYPE "webhook_delivery_status" AS ENUM ('pending', 'delivered', 'failed', 'dead');
 
+-- CreateEnum
+CREATE TYPE "partner_connector_mode" AS ENUM ('stub', 'sandbox', 'live');
+
+-- CreateEnum
+CREATE TYPE "conversion_status" AS ENUM ('pending', 'completed', 'failed', 'reversed');
+
 -- CreateTable
 CREATE TABLE "platform" (
     "id" TEXT NOT NULL,
@@ -831,6 +837,109 @@ CREATE TABLE "webhook_delivery" (
     CONSTRAINT "webhook_delivery_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "partner" (
+    "id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "currency_name" TEXT NOT NULL,
+    "status" "entity_status" NOT NULL DEFAULT 'active',
+    "connector_mode" "partner_connector_mode" NOT NULL DEFAULT 'stub',
+    "connector_config_enc" BYTEA,
+    "default_ratio_bps" INTEGER NOT NULL DEFAULT 10000,
+    "cost_per_partner_point_minor" BIGINT NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "partner_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "partner_merchant" (
+    "id" TEXT NOT NULL,
+    "partner_id" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "status" "entity_status" NOT NULL DEFAULT 'active',
+    "ratio_bps" INTEGER NOT NULL DEFAULT 10000,
+    "min_conversion" INTEGER NOT NULL DEFAULT 0,
+    "max_conversion_per_day" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "partner_merchant_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "allowance_wallet" (
+    "id" TEXT NOT NULL,
+    "partner_id" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "balance_minor" BIGINT NOT NULL DEFAULT 0,
+    "low_balance_threshold_minor" BIGINT NOT NULL DEFAULT 0,
+    "currency" TEXT NOT NULL DEFAULT 'AED',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "allowance_wallet_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "allowance_txn" (
+    "id" TEXT NOT NULL,
+    "wallet_id" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "direction" "entry_direction" NOT NULL,
+    "amount_minor" BIGINT NOT NULL,
+    "reason" TEXT NOT NULL,
+    "conversion_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "allowance_txn_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "partner_customer_link" (
+    "id" TEXT NOT NULL,
+    "partner_id" TEXT NOT NULL,
+    "person_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "partner_member_ref" TEXT NOT NULL,
+    "status" "entity_status" NOT NULL DEFAULT 'active',
+    "linked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "partner_customer_link_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "conversion" (
+    "id" TEXT NOT NULL,
+    "partner_id" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "membership_id" TEXT NOT NULL,
+    "source_points" BIGINT NOT NULL,
+    "partner_points" BIGINT NOT NULL,
+    "ratio_bps" INTEGER NOT NULL,
+    "allowance_cost_minor" BIGINT NOT NULL,
+    "status" "conversion_status" NOT NULL DEFAULT 'pending',
+    "partner_txn_ref" TEXT,
+    "failure_reason" TEXT,
+    "idempotency_key" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completed_at" TIMESTAMP(3),
+
+    CONSTRAINT "conversion_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "tenant_group_platform_id_idx" ON "tenant_group"("platform_id");
 
@@ -1128,6 +1237,39 @@ CREATE INDEX "webhook_delivery_brand_id_idx" ON "webhook_delivery"("brand_id");
 -- CreateIndex
 CREATE INDEX "webhook_delivery_status_idx" ON "webhook_delivery"("status");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "partner_platform_id_key_key" ON "partner"("platform_id", "key");
+
+-- CreateIndex
+CREATE INDEX "partner_merchant_brand_id_idx" ON "partner_merchant"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "partner_merchant_partner_id_brand_id_key" ON "partner_merchant"("partner_id", "brand_id");
+
+-- CreateIndex
+CREATE INDEX "allowance_wallet_brand_id_idx" ON "allowance_wallet"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "allowance_wallet_partner_id_brand_id_key" ON "allowance_wallet"("partner_id", "brand_id");
+
+-- CreateIndex
+CREATE INDEX "allowance_txn_wallet_id_idx" ON "allowance_txn"("wallet_id");
+
+-- CreateIndex
+CREATE INDEX "allowance_txn_brand_id_idx" ON "allowance_txn"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "partner_customer_link_partner_id_person_id_key" ON "partner_customer_link"("partner_id", "person_id");
+
+-- CreateIndex
+CREATE INDEX "conversion_brand_id_created_at_idx" ON "conversion"("brand_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "conversion_partner_id_created_at_idx" ON "conversion"("partner_id", "created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "conversion_brand_id_idempotency_key_key" ON "conversion"("brand_id", "idempotency_key");
+
 -- AddForeignKey
 ALTER TABLE "tenant_group" ADD CONSTRAINT "tenant_group_platform_id_fkey" FOREIGN KEY ("platform_id") REFERENCES "platform"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -1196,4 +1338,7 @@ ALTER TABLE "challenge_progress" ADD CONSTRAINT "challenge_progress_challenge_id
 
 -- AddForeignKey
 ALTER TABLE "webhook_delivery" ADD CONSTRAINT "webhook_delivery_endpoint_id_fkey" FOREIGN KEY ("endpoint_id") REFERENCES "webhook_endpoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "partner_merchant" ADD CONSTRAINT "partner_merchant_partner_id_fkey" FOREIGN KEY ("partner_id") REFERENCES "partner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

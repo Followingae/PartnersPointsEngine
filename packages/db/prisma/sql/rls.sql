@@ -96,7 +96,8 @@ BEGIN
     'referral','webhook_endpoint','webhook_delivery',
     'brand_daily_metric','rfm_snapshot',
     'governance_config','change_request',
-    'coupon','coupon_redemption','segment','notification_template'
+    'coupon','coupon_redemption','segment','notification_template',
+    'partner_merchant','allowance_wallet','allowance_txn','conversion'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON public.%I', t);
@@ -117,6 +118,22 @@ DROP POLICY IF EXISTS tenant_isolation ON public.platform;
 CREATE POLICY tenant_isolation ON public.platform FOR ALL TO loyalty_app
 USING (id = nullif(current_setting('app.current_platform_id', true), ''))
 WITH CHECK (id = nullif(current_setting('app.current_platform_id', true), ''));
+
+-- Partner-level tables keyed by platform_id only (partner config + customer links).
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['partner','partner_customer_link'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON public.%I', t);
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON public.%I FOR ALL TO loyalty_app USING (%s) WITH CHECK (%s)',
+      t,
+      'platform_id = nullif(current_setting(''app.current_platform_id'', true), '''')',
+      'platform_id = nullif(current_setting(''app.current_platform_id'', true), '''')'
+    );
+  END LOOP;
+END $$;
 
 -- tenant_group: own group, or platform sees all groups.
 ALTER TABLE public.tenant_group ENABLE ROW LEVEL SECURITY;

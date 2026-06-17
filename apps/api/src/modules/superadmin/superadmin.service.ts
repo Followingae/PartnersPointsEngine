@@ -33,6 +33,7 @@ export const TOGGLEABLE_MODULES: Array<{ key: string; label: string }> = [
   { key: 'webhooks', label: 'Webhooks' },
   { key: 'api-keys', label: 'API keys' },
   { key: 'team', label: 'Team & access' },
+  { key: 'partnerships', label: 'Lulu Happiness (partnerships)' },
 ];
 
 /**

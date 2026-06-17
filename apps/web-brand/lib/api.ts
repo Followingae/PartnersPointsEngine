@@ -380,6 +380,27 @@ export const submitChangeRequest = (body: { entityType: string; action: 'create'
   api<{ id: string }>('/manage/change-requests', { method: 'POST', body: JSON.stringify(body) });
 export const withdrawChangeRequest = (id: string) => api(`/manage/change-requests/${id}`, { method: 'DELETE' });
 
+// ── Lulu partnership (brand-facing) ──────────────────────────────────────────
+export interface LuluStatus {
+  enabled: boolean;
+  status?: string;
+  partner?: { key: string; name: string; currencyName: string };
+  ratioBps?: number;
+  minConversion?: number;
+  maxConversionPerDay?: number;
+  allowanceBalance?: string;
+  lowBalanceThreshold?: string;
+}
+export interface LuluReports {
+  conversions: number; sourceBurned: string; partnerIssued: string;
+  trend: Array<{ date: string; conversions: number; issued: string }>;
+}
+export interface LuluActivityRow { id: string; membershipId: string; sourcePoints: string; partnerPoints: string; status: string; partnerTxnRef: string | null; createdAt: string }
+export const getLuluStatus = () => api<LuluStatus>('/manage/lulu/status');
+export const getLuluReports = (days = 30) => api<LuluReports>(`/manage/lulu/reports?days=${days}`);
+export const getLuluActivity = () => api<LuluActivityRow[]>('/manage/lulu/activity');
+export const requestAllowanceTopup = (amountMinor: number) => api('/manage/lulu/topup-request', { method: 'POST', body: JSON.stringify({ amountMinor }) });
+
 // settings
 export const getModuleAccess = () => api<{ access: Record<string, boolean> }>('/manage/modules');
 

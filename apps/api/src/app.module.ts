@@ -24,6 +24,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { TeamModule } from './modules/team/team.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
+import { PartnershipsModule } from './modules/partnerships/partnerships.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
     WebhooksModule,
     TeamModule,
     ApiKeysModule,
+    PartnershipsModule,
   ],
 })
 export class AppModule {}
