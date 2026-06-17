@@ -4,7 +4,7 @@ import { ledger, type Prisma } from '@rfm-loyalty/db';
 import { EarnRule, evaluateEarn, type CustomerIdentifierType, type TenantContext } from '@rfm-loyalty/shared';
 import { TokenService, type MemberTokenClaims } from '../../auth/tokens/token.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
-import { LoyaltyService } from '../loyalty-rules/loyalty.service';
+import { LoyaltyService, scheduleContext } from '../loyalty-rules/loyalty.service';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
@@ -85,7 +85,7 @@ export class TerminalService {
         const def = (r.definition ?? {}) as { condition?: unknown; actions?: unknown; channel?: 'online' | 'in_store' };
         return EarnRule.parse({ id: r.id, name: r.name, priority: r.priority, enabled: r.enabled, channel: def.channel, condition: def.condition, actions: def.actions ?? [] });
       });
-      const decision = evaluateEarn(rules, { session: { amountMinor: dto.amountMinor, isVisit: dto.isVisit, channel: 'in_store' }, items: dto.items });
+      const decision = evaluateEarn(rules, { session: { amountMinor: dto.amountMinor, isVisit: dto.isVisit, channel: 'in_store', ...scheduleContext() }, items: dto.items });
 
       let redeem: { points: number; affordable: boolean } | undefined;
       if (dto.redeemPoints && dto.redeemPoints > 0) {

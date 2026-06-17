@@ -21,6 +21,14 @@ export interface EarnInput {
 
 const POINTS_LIABILITY = 'points_liability';
 
+/** Default brand timezone for time-windowed (happy-hour) campaign evaluation. */
+const BRAND_TZ = 'Asia/Dubai';
+/** Local day-of-week (0=Sun) + minute-of-day for the rules engine's schedule conditions. */
+export function scheduleContext(now: Date = new Date()): { dayOfWeek: number; hourOfDay: number; minuteOfDay: number } {
+  const local = new Date(now.toLocaleString('en-US', { timeZone: BRAND_TZ }));
+  return { dayOfWeek: local.getDay(), hourOfDay: local.getHours(), minuteOfDay: local.getHours() * 60 + local.getMinutes() };
+}
+
 @Injectable()
 export class LoyaltyService {
   constructor(
@@ -154,7 +162,7 @@ export class LoyaltyService {
 
       const { tier } = await this.lifetimeAndTier(tx, ctx, input.membershipId);
       const evalCtx: EarnContext = {
-        session: { amountMinor: input.amountMinor, isVisit: input.isVisit, channel: input.channel },
+        session: { amountMinor: input.amountMinor, isVisit: input.isVisit, channel: input.channel, ...scheduleContext() },
         profile: { tier: tier?.name },
         items: input.items,
       };
