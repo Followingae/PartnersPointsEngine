@@ -97,7 +97,8 @@ BEGIN
     'brand_daily_metric','rfm_snapshot',
     'governance_config','change_request',
     'coupon','coupon_redemption','segment','notification_template',
-    'partner_merchant','allowance_wallet','allowance_txn','conversion'
+    'partner_merchant','allowance_wallet','allowance_txn','conversion',
+    'allowance_topup_request'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON public.%I', t);

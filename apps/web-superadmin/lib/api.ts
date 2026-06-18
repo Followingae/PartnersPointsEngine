@@ -165,6 +165,44 @@ export const getPartnerOverview = (partnerId: string, days = 30) => api<PartnerO
 export const getPartnerTrend = (partnerId: string, days = 30) => api<PartnerTrendPoint[]>(`/admin/partners/${partnerId}/trend?days=${days}`);
 export const getPartnerConversions = (partnerId: string, status?: string) => api<ConversionRow[]>(`/admin/partners/${partnerId}/conversions${status ? `?status=${status}` : ''}`);
 
+export interface AllowanceTxnRow { id: string; direction: string; amountMinor: string; reason: string; createdAt: string }
+export interface ConversionDetail {
+  id: string; status: string; membershipId: string;
+  customer: { loyaltyId: string | null; name: string | null };
+  brand: { id: string; name: string };
+  partner: { name: string; currencyName: string };
+  sourcePoints: string; partnerPoints: string; ratioBps: number; allowanceCostMinor: string;
+  partnerTxnRef: string | null; failureReason: string | null; idempotencyKey: string;
+  createdAt: string; completedAt: string | null;
+  allowanceTxns: AllowanceTxnRow[];
+}
+export const getAdminConversion = (id: string) => api<ConversionDetail>(`/admin/partners/conversions/${id}`);
+
+export interface TopupRequest {
+  id: string; brandId: string; brandName: string; amountMinor: string; currency: string;
+  status: 'pending' | 'invoiced' | 'confirmed' | 'rejected';
+  note: string | null; invoiceRef: string | null; reviewNote: string | null;
+  createdAt: string; invoicedAt: string | null; confirmedAt: string | null;
+}
+export const getTopupRequests = (status?: string) => api<TopupRequest[]>(`/admin/partners/topup-requests${status ? `?status=${status}` : ''}`);
+export const invoiceTopup = (id: string, invoiceRef?: string) => api<TopupRequest>(`/admin/partners/topup-requests/${id}/invoice`, { method: 'POST', body: JSON.stringify({ invoiceRef }) });
+export const confirmTopup = (id: string) => api<TopupRequest>(`/admin/partners/topup-requests/${id}/confirm`, { method: 'POST' });
+export const rejectTopup = (id: string, reason?: string) => api<TopupRequest>(`/admin/partners/topup-requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+
+/** Stream a CSV export to the browser as a download (bearer-authenticated). */
+export async function downloadCsv(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+export const downloadPartnerConversionsCsv = (partnerId: string) => downloadCsv(`/admin/partners/${partnerId}/conversions.csv`, 'lulu-conversions.csv');
+
 export interface RolesCatalog {
   roles: Array<{ key: string; name: string; scope: string; builtIn: boolean; permissions: string[] }>;
   permissions: Array<{ key: string; description: string }>;

@@ -252,10 +252,161 @@ export class PartnershipService {
     });
   }
 
-  async requestTopup(ctx: TenantContext, amountMinor: number) {
+  /** Merchant initiates a prepaid top-up (like a checkout). Creates a pending
+      request the superadmin then invoices and confirms. */
+  async requestTopup(ctx: TenantContext, amountMinor: number, note?: string) {
+    if (amountMinor <= 0) throw new BadRequestException('amount must be positive');
     return this.tenants.run(ctx, async (tx) => {
-      await this.audit.record(tx, ctx, { action: 'partner.allowance.topup_request', targetType: 'brand', targetId: ctx.brandId!, data: { amountMinor } });
-      return { requested: true };
+      const pm = await tx.partnerMerchant.findFirst({ where: { brandId: ctx.brandId! }, select: { partnerId: true } });
+      if (!pm) throw new BadRequestException('Lulu is not enabled for this brand');
+      const w = await tx.allowanceWallet.findFirst({ where: { brandId: ctx.brandId!, partnerId: pm.partnerId } });
+      if (!w) throw new NotFoundException('allowance wallet not found');
+      const req = await tx.allowanceTopupRequest.create({
+        data: {
+          partnerId: pm.partnerId, walletId: w.id, brandId: ctx.brandId!, groupId: w.groupId, platformId: ctx.platformId,
+          amountMinor: BigInt(amountMinor), currency: w.currency, status: 'pending', note: note ?? null, requestedByActorId: ctx.actor.id,
+        },
+      });
+      await this.audit.record(tx, ctx, { action: 'partner.allowance.topup_request', targetType: 'allowance_topup_request', targetId: req.id, data: { amountMinor } });
+      return { id: req.id, status: req.status, amountMinor: req.amountMinor.toString() };
     });
   }
+
+  /** The brand's own top-up requests (newest first). */
+  async myTopupRequests(ctx: TenantContext) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.allowanceTopupRequest.findMany({ where: { brandId: ctx.brandId! }, orderBy: { createdAt: 'desc' }, take: 50 });
+      return rows.map((r) => this.shapeTopup(r));
+    });
+  }
+
+  // ── Top-up requests (superadmin) ──────────────────────────────────────────
+
+  async listTopupRequests(ctx: TenantContext, status?: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.allowanceTopupRequest.findMany({
+        where: { platformId: ctx.platformId, ...(status ? { status: status as never } : {}) },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], take: 200,
+      });
+      const brandIds = [...new Set(rows.map((r) => r.brandId))];
+      const brands = brandIds.length ? await tx.brand.findMany({ where: { id: { in: brandIds } }, select: { id: true, name: true } }) : [];
+      const bn = new Map(brands.map((b) => [b.id, b.name]));
+      return rows.map((r) => ({ ...this.shapeTopup(r), brandName: bn.get(r.brandId) ?? '' }));
+    });
+  }
+
+  async markTopupInvoiced(ctx: TenantContext, id: string, invoiceRef?: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const r = await tx.allowanceTopupRequest.findFirst({ where: { id, platformId: ctx.platformId } });
+      if (!r) throw new NotFoundException('request not found');
+      if (r.status !== 'pending') throw new BadRequestException(`request is already ${r.status}`);
+      const updated = await tx.allowanceTopupRequest.update({ where: { id }, data: { status: 'invoiced', invoiceRef: invoiceRef ?? null, reviewedByActorId: ctx.actor.id, invoicedAt: new Date() } });
+      await this.audit.record(tx, ctx, { action: 'partner.allowance.topup_invoiced', targetType: 'allowance_topup_request', targetId: id, data: { invoiceRef } });
+      return this.shapeTopup(updated);
+    });
+  }
+
+  /** Payment received → credit the wallet, record the txn, mark confirmed. */
+  async confirmTopup(ctx: TenantContext, id: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const r = await tx.allowanceTopupRequest.findFirst({ where: { id, platformId: ctx.platformId } });
+      if (!r) throw new NotFoundException('request not found');
+      if (r.status === 'confirmed') throw new BadRequestException('already confirmed');
+      if (r.status === 'rejected') throw new BadRequestException('request was rejected');
+      const w = await tx.allowanceWallet.findFirst({ where: { id: r.walletId } });
+      if (!w) throw new NotFoundException('allowance wallet not found');
+      await tx.allowanceWallet.update({ where: { id: w.id }, data: { balanceMinor: { increment: r.amountMinor } } });
+      const txn = await tx.allowanceTxn.create({ data: { walletId: w.id, brandId: r.brandId, groupId: w.groupId, platformId: ctx.platformId, direction: 'credit', amountMinor: r.amountMinor, reason: 'topup' } });
+      const updated = await tx.allowanceTopupRequest.update({ where: { id }, data: { status: 'confirmed', reviewedByActorId: ctx.actor.id, allowanceTxnId: txn.id, confirmedAt: new Date() } });
+      await this.audit.record(tx, ctx, { action: 'partner.allowance.topup_confirmed', targetType: 'allowance_topup_request', targetId: id, data: { amountMinor: r.amountMinor.toString() } });
+      return this.shapeTopup(updated);
+    });
+  }
+
+  async rejectTopup(ctx: TenantContext, id: string, reason?: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const r = await tx.allowanceTopupRequest.findFirst({ where: { id, platformId: ctx.platformId } });
+      if (!r) throw new NotFoundException('request not found');
+      if (r.status === 'confirmed') throw new BadRequestException('cannot reject a confirmed top-up');
+      const updated = await tx.allowanceTopupRequest.update({ where: { id }, data: { status: 'rejected', reviewNote: reason ?? null, reviewedByActorId: ctx.actor.id } });
+      await this.audit.record(tx, ctx, { action: 'partner.allowance.topup_rejected', targetType: 'allowance_topup_request', targetId: id, data: { reason } });
+      return this.shapeTopup(updated);
+    });
+  }
+
+  private shapeTopup(r: { id: string; brandId: string; amountMinor: bigint; currency: string; status: string; note: string | null; invoiceRef: string | null; reviewNote: string | null; createdAt: Date; invoicedAt: Date | null; confirmedAt: Date | null }) {
+    return { id: r.id, brandId: r.brandId, amountMinor: r.amountMinor.toString(), currency: r.currency, status: r.status, note: r.note, invoiceRef: r.invoiceRef, reviewNote: r.reviewNote, createdAt: r.createdAt, invoicedAt: r.invoicedAt, confirmedAt: r.confirmedAt };
+  }
+
+  // ── Allowance ledger + conversion detail + CSV ────────────────────────────
+
+  /** Full top-up/spend ledger for a brand's allowance wallet (newest first). */
+  async allowanceLedger(ctx: TenantContext, limit = 100) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.allowanceTxn.findMany({ where: { brandId: ctx.brandId! }, orderBy: { createdAt: 'desc' }, take: Math.min(limit, 500) });
+      return rows.map((t) => ({ id: t.id, direction: t.direction, amountMinor: t.amountMinor.toString(), reason: t.reason, conversionId: t.conversionId, createdAt: t.createdAt }));
+    });
+  }
+
+  /** A single conversion with the customer + merchant context behind it.
+      Works for a brand principal (own brand, via RLS) or a superadmin (platform). */
+  async getConversion(ctx: TenantContext, id: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const c = await tx.conversion.findFirst({ where: { id } });
+      if (!c) throw new NotFoundException('conversion not found');
+      const [membership, brand, partner, txns] = await Promise.all([
+        tx.customerMembership.findFirst({ where: { id: c.membershipId }, select: { id: true, loyaltyId: true, person: { select: { fullName: true } } } }),
+        tx.brand.findFirst({ where: { id: c.brandId }, select: { name: true } }),
+        tx.partner.findFirst({ where: { id: c.partnerId }, select: { name: true, currencyName: true } }),
+        tx.allowanceTxn.findMany({ where: { conversionId: c.id }, orderBy: { createdAt: 'asc' } }),
+      ]);
+      return {
+        id: c.id, status: c.status,
+        membershipId: c.membershipId,
+        customer: { loyaltyId: membership?.loyaltyId ?? null, name: membership?.person?.fullName ?? null },
+        brand: { id: c.brandId, name: brand?.name ?? '' },
+        partner: { name: partner?.name ?? '', currencyName: partner?.currencyName ?? '' },
+        sourcePoints: c.sourcePoints.toString(),
+        partnerPoints: c.partnerPoints.toString(),
+        ratioBps: c.ratioBps,
+        allowanceCostMinor: c.allowanceCostMinor.toString(),
+        partnerTxnRef: c.partnerTxnRef,
+        failureReason: c.failureReason,
+        idempotencyKey: c.idempotencyKey,
+        createdAt: c.createdAt,
+        completedAt: c.completedAt,
+        allowanceTxns: txns.map((t) => ({ id: t.id, direction: t.direction, amountMinor: t.amountMinor.toString(), reason: t.reason, createdAt: t.createdAt })),
+      };
+    });
+  }
+
+  /** CSV of conversions for a partner (superadmin) — all statuses, newest first. */
+  async exportPartnerConversionsCsv(ctx: TenantContext, partnerId: string): Promise<string> {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.conversion.findMany({ where: { partnerId, platformId: ctx.platformId }, orderBy: { createdAt: 'desc' }, take: 5000 });
+      const header = ['created_at', 'brand_id', 'membership_id', 'source_points', 'partner_points', 'ratio_bps', 'allowance_cost_minor', 'status', 'partner_txn_ref', 'failure_reason'];
+      const lines = rows.map((c) => csvRow([c.createdAt.toISOString(), c.brandId, c.membershipId, c.sourcePoints, c.partnerPoints, c.ratioBps, c.allowanceCostMinor, c.status, c.partnerTxnRef ?? '', c.failureReason ?? '']));
+      return [header.join(','), ...lines].join('\n');
+    });
+  }
+
+  /** CSV of this brand's conversions (brand console). */
+  async exportBrandConversionsCsv(ctx: TenantContext): Promise<string> {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.conversion.findMany({ where: { brandId: ctx.brandId! }, orderBy: { createdAt: 'desc' }, take: 5000 });
+      const header = ['created_at', 'membership_id', 'source_points', 'partner_points', 'allowance_cost_minor', 'status', 'partner_txn_ref'];
+      const lines = rows.map((c) => csvRow([c.createdAt.toISOString(), c.membershipId, c.sourcePoints, c.partnerPoints, c.allowanceCostMinor, c.status, c.partnerTxnRef ?? '']));
+      return [header.join(','), ...lines].join('\n');
+    });
+  }
+}
+
+/** Minimal RFC-4180 CSV row: quote fields containing comma/quote/newline. */
+function csvRow(values: Array<string | number | bigint>): string {
+  return values
+    .map((v) => {
+      const s = typeof v === 'bigint' ? v.toString() : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    })
+    .join(',');
 }

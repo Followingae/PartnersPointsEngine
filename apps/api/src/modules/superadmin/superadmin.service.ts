@@ -125,6 +125,11 @@ export class SuperadminService {
       branchId: null,
       roles: ['brand_admin'],
       actorType: 'user',
+      // Platform owner override: edits to this brand apply directly even when the
+      // brand is governance-locked (view-only / superadmin_managed). Every change
+      // is still audited, and onBehalfOf records who acted.
+      elevated: true,
+      onBehalfOf: ctx.actor.id,
     });
     return { token, brandId: brand.id, brandName: brand.name };
   }

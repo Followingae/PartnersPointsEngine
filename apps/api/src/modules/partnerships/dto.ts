@@ -37,7 +37,16 @@ export class ThresholdDto {
 }
 
 export class TopupRequestDto {
-  @ApiProperty() @IsInt() @Min(1) amountMinor!: number;
+  @ApiProperty({ description: 'Minor units (e.g. fils). 10000 = AED 100.' }) @IsInt() @Min(1) amountMinor!: number;
+  @ApiPropertyOptional({ description: 'Optional note for the platform team.' }) @IsOptional() @IsString() note?: string;
+}
+
+export class InvoiceTopupDto {
+  @ApiPropertyOptional({ description: 'Invoice reference / number.' }) @IsOptional() @IsString() invoiceRef?: string;
+}
+
+export class RejectTopupDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() reason?: string;
 }
 
 export class LinkAccountDto {

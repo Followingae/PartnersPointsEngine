@@ -17,6 +17,13 @@ export const TenantContext = z.object({
   /** The narrowest level this principal is scoped to. */
   scopeLevel: ScopeLevel,
   surface: ApiSurface,
+  /**
+   * True when a platform superadmin is acting *as* a brand (via "Manage").
+   * The principal is brand-scoped for data isolation, but governance locks
+   * (approval_required / superadmin_managed) are bypassed — the platform owner
+   * has full override. Always paired with `actor.onBehalfOf` for the audit trail.
+   */
+  elevated: z.boolean().optional(),
   actor: z.object({
     type: z.enum(['user', 'customer', 'terminal', 'system']),
     id: z.string().uuid(),

@@ -8,18 +8,28 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { clearToken } from '@/lib/api';
 
-const NAV = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/analytics', label: 'Analytics', icon: LineChart },
-  { href: '/merchants', label: 'Merchants', icon: Building2 },
-  { href: '/brands', label: 'Brands', icon: Store },
-  { href: '/billing', label: 'Wallet & billing', icon: Wallet },
-  { href: '/approvals', label: 'Approvals', icon: GitPullRequestArrow },
-  { href: '/governance', label: 'Governance', icon: Scale },
-  { href: '/partnerships', label: 'Partnerships', icon: Handshake },
-  { href: '/team', label: 'Team & roles', icon: Users },
-  { href: '/audit', label: 'Audit log', icon: History },
-  { href: '/settings', label: 'Settings', icon: Settings },
+const NAV_GROUPS: { heading: string; items: { href: string; label: string; icon: typeof LayoutDashboard }[] }[] = [
+  { heading: 'Overview', items: [
+    { href: '/', label: 'Overview', icon: LayoutDashboard },
+    { href: '/analytics', label: 'Analytics', icon: LineChart },
+  ] },
+  { heading: 'Merchants & brands', items: [
+    { href: '/merchants', label: 'Merchants', icon: Building2 },
+    { href: '/brands', label: 'Brands', icon: Store },
+    { href: '/billing', label: 'Wallet & billing', icon: Wallet },
+  ] },
+  { heading: 'Partnerships', items: [
+    { href: '/partnerships', label: 'Partnerships', icon: Handshake },
+  ] },
+  { heading: 'Governance', items: [
+    { href: '/approvals', label: 'Approvals', icon: GitPullRequestArrow },
+    { href: '/governance', label: 'Governance', icon: Scale },
+    { href: '/audit', label: 'Audit log', icon: History },
+  ] },
+  { heading: 'Platform', items: [
+    { href: '/team', label: 'Team & roles', icon: Users },
+    { href: '/settings', label: 'Settings', icon: Settings },
+  ] },
 ];
 
 const labelCls = (collapsed: boolean) =>
@@ -53,23 +63,30 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { co
         <kbd className={clsx('mr-3 ml-auto rounded border border-white/20 px-1.5 py-0.5 text-[10px] text-white/40', collapsed && 'lg:hidden')}>⌘K</kbd>
       </button>
 
-      <nav className="mt-3 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
-        {NAV.map((item) => {
-          const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onMobileClose}
-              title={collapsed ? item.label : undefined}
-              className={clsx('flex h-11 items-center rounded-2xl transition', active ? 'bg-white/10 text-lime-400' : 'text-white/55 hover:bg-white/5 hover:text-white')}
-            >
-              <span className="grid w-[60px] shrink-0 place-items-center"><Icon size={20} /></span>
-              <span className={labelCls(collapsed)}>{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2">
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={group.heading} className={clsx(gi > 0 && 'mt-3')}>
+            <p className={clsx('px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30 transition-opacity duration-200', collapsed ? 'lg:h-0 lg:overflow-hidden lg:opacity-0' : 'h-auto')}>{group.heading}</p>
+            <div className="flex flex-col gap-1">
+              {group.items.map((item) => {
+                const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onMobileClose}
+                    title={collapsed ? item.label : undefined}
+                    className={clsx('flex h-11 items-center rounded-2xl transition', active ? 'bg-white/10 text-lime-400' : 'text-white/55 hover:bg-white/5 hover:text-white')}
+                  >
+                    <span className="grid w-[60px] shrink-0 place-items-center"><Icon size={20} /></span>
+                    <span className={labelCls(collapsed)}>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="mt-2 flex flex-col gap-1 px-2">

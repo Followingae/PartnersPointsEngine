@@ -73,6 +73,9 @@ CREATE TYPE "partner_connector_mode" AS ENUM ('stub', 'sandbox', 'live');
 -- CreateEnum
 CREATE TYPE "conversion_status" AS ENUM ('pending', 'completed', 'failed', 'reversed');
 
+-- CreateEnum
+CREATE TYPE "topup_request_status" AS ENUM ('pending', 'invoiced', 'confirmed', 'rejected');
+
 -- CreateTable
 CREATE TABLE "platform" (
     "id" TEXT NOT NULL,
@@ -940,6 +943,31 @@ CREATE TABLE "conversion" (
     CONSTRAINT "conversion_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "allowance_topup_request" (
+    "id" TEXT NOT NULL,
+    "partner_id" TEXT NOT NULL,
+    "wallet_id" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "amount_minor" BIGINT NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'AED',
+    "status" "topup_request_status" NOT NULL DEFAULT 'pending',
+    "note" TEXT,
+    "invoice_ref" TEXT,
+    "review_note" TEXT,
+    "requested_by_actor_id" TEXT NOT NULL,
+    "reviewed_by_actor_id" TEXT,
+    "allowance_txn_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "invoiced_at" TIMESTAMP(3),
+    "confirmed_at" TIMESTAMP(3),
+
+    CONSTRAINT "allowance_topup_request_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "tenant_group_platform_id_idx" ON "tenant_group"("platform_id");
 
@@ -1269,6 +1297,12 @@ CREATE INDEX "conversion_partner_id_created_at_idx" ON "conversion"("partner_id"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "conversion_brand_id_idempotency_key_key" ON "conversion"("brand_id", "idempotency_key");
+
+-- CreateIndex
+CREATE INDEX "allowance_topup_request_brand_id_created_at_idx" ON "allowance_topup_request"("brand_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "allowance_topup_request_partner_id_status_idx" ON "allowance_topup_request"("partner_id", "status");
 
 -- AddForeignKey
 ALTER TABLE "tenant_group" ADD CONSTRAINT "tenant_group_platform_id_fkey" FOREIGN KEY ("platform_id") REFERENCES "platform"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -1196,6 +1196,15 @@ enum ConversionStatus {
   @@map("conversion_status")
 }
 
+enum TopupRequestStatus {
+  pending // merchant submitted, awaiting superadmin
+  invoiced // superadmin issued an invoice, awaiting payment
+  confirmed // payment received, wallet credited
+  rejected // declined by superadmin
+
+  @@map("topup_request_status")
+}
+
 model Partner {
   id                       String               @id @default(uuid(7))
   platformId               String               @map("platform_id")
@@ -1306,4 +1315,33 @@ model Conversion {
   @@index([brandId, createdAt])
   @@index([partnerId, createdAt])
   @@map("conversion")
+}
+
+/// Merchant-initiated prepaid allowance top-up. The merchant submits an amount
+/// (like a checkout); the superadmin sees it, issues an invoice, and on payment
+/// confirms it — which credits the AllowanceWallet and records an AllowanceTxn.
+model AllowanceTopupRequest {
+  id                 String             @id @default(uuid(7))
+  partnerId          String             @map("partner_id")
+  walletId           String             @map("wallet_id")
+  brandId            String             @map("brand_id")
+  groupId            String             @map("group_id")
+  platformId         String             @map("platform_id")
+  amountMinor        BigInt             @map("amount_minor")
+  currency           String             @default("AED")
+  status             TopupRequestStatus @default(pending)
+  note               String? // merchant note at request time
+  invoiceRef         String?            @map("invoice_ref") // superadmin invoice reference
+  reviewNote         String?            @map("review_note") // superadmin note / rejection reason
+  requestedByActorId String             @map("requested_by_actor_id")
+  reviewedByActorId  String?            @map("reviewed_by_actor_id")
+  allowanceTxnId     String?            @map("allowance_txn_id") // the credit txn, set on confirm
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  invoicedAt         DateTime?          @map("invoiced_at")
+  confirmedAt        DateTime?          @map("confirmed_at")
+
+  @@index([brandId, createdAt])
+  @@index([partnerId, status])
+  @@map("allowance_topup_request")
 }

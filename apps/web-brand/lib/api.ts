@@ -396,10 +396,30 @@ export interface LuluReports {
   trend: Array<{ date: string; conversions: number; issued: string }>;
 }
 export interface LuluActivityRow { id: string; membershipId: string; sourcePoints: string; partnerPoints: string; status: string; partnerTxnRef: string | null; createdAt: string }
+export interface LuluLedgerRow { id: string; direction: 'credit' | 'debit'; amountMinor: string; reason: string; conversionId: string | null; createdAt: string }
+export interface LuluTopupRow {
+  id: string; brandId: string; amountMinor: string; currency: string;
+  status: 'pending' | 'invoiced' | 'confirmed' | 'rejected';
+  note: string | null; invoiceRef: string | null; reviewNote: string | null;
+  createdAt: string; invoicedAt: string | null; confirmedAt: string | null;
+}
+export interface LuluConversionDetail {
+  id: string; status: string; membershipId: string;
+  customer: { loyaltyId: string | null; name: string | null };
+  brand: { id: string; name: string };
+  partner: { name: string; currencyName: string };
+  sourcePoints: string; partnerPoints: string; ratioBps: number; allowanceCostMinor: string;
+  partnerTxnRef: string | null; failureReason: string | null; idempotencyKey: string;
+  createdAt: string; completedAt: string | null;
+  allowanceTxns: Array<{ id: string; direction: 'credit' | 'debit'; amountMinor: string; reason: string; createdAt: string }>;
+}
 export const getLuluStatus = () => api<LuluStatus>('/manage/lulu/status');
 export const getLuluReports = (days = 30) => api<LuluReports>(`/manage/lulu/reports?days=${days}`);
 export const getLuluActivity = () => api<LuluActivityRow[]>('/manage/lulu/activity');
-export const requestAllowanceTopup = (amountMinor: number) => api('/manage/lulu/topup-request', { method: 'POST', body: JSON.stringify({ amountMinor }) });
+export const getLuluLedger = () => api<LuluLedgerRow[]>('/manage/lulu/ledger');
+export const getLuluTopups = () => api<LuluTopupRow[]>('/manage/lulu/topups');
+export const getLuluConversion = (id: string) => api<LuluConversionDetail>(`/manage/lulu/conversions/${id}`);
+export const requestAllowanceTopup = (amountMinor: number, note?: string) => api<{ id: string; status: string; amountMinor: string }>('/manage/lulu/topup-request', { method: 'POST', body: JSON.stringify({ amountMinor, ...(note ? { note } : {}) }) });
 
 // settings
 export const getModuleAccess = () => api<{ access: Record<string, boolean> }>('/manage/modules');

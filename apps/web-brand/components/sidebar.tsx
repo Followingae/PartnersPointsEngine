@@ -9,26 +9,45 @@ import { createPortal } from 'react-dom';
 import { clearToken, getModuleAccess, getSettings } from '@/lib/api';
 
 // `module` = the entitlement key the superadmin toggles; undefined = always-on core module.
-const NAV = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/reporting', label: 'Reporting & analytics', icon: LineChart, module: 'reporting' },
-  { href: '/customers', label: 'Customers (RFM)', icon: BarChart3 },
-  { href: '/members', label: 'Members', icon: Users },
-  { href: '/earn-rules', label: 'Earn rules', icon: Coins },
-  { href: '/rewards', label: 'Rewards', icon: Gift },
-  { href: '/tiers', label: 'Tiers', icon: Layers, module: 'tiers' },
-  { href: '/campaigns', label: 'Campaigns', icon: Megaphone, module: 'campaigns' },
-  { href: '/coupons', label: 'Coupons', icon: Ticket, module: 'coupons' },
-  { href: '/segments', label: 'Segments', icon: Target, module: 'segments' },
-  { href: '/gamification', label: 'Gamification', icon: Trophy, module: 'gamification' },
-  { href: '/lulu', label: 'Lulu Happiness', icon: Sparkles, module: 'partnerships' },
-  { href: '/messaging', label: 'Messaging', icon: Mail, module: 'messaging' },
-  { href: '/webhooks', label: 'Webhooks', icon: Webhook, module: 'webhooks' },
-  { href: '/api-keys', label: 'API keys', icon: KeyRound, module: 'api-keys' },
-  { href: '/change-requests', label: 'Change requests', icon: GitPullRequestArrow },
-  { href: '/activity', label: 'Activity log', icon: History },
-  { href: '/team', label: 'Team & access', icon: UsersRound, module: 'team' },
-  { href: '/settings', label: 'Settings', icon: Settings },
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; module?: string };
+type NavGroup = { title: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  { title: 'Overview', items: [
+    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/reporting', label: 'Reporting & analytics', icon: LineChart, module: 'reporting' },
+  ] },
+  { title: 'Customers', items: [
+    { href: '/customers', label: 'Customers (RFM)', icon: BarChart3 },
+    { href: '/members', label: 'Members', icon: Users },
+    { href: '/segments', label: 'Segments', icon: Target, module: 'segments' },
+  ] },
+  { title: 'Loyalty', items: [
+    { href: '/earn-rules', label: 'Earn rules', icon: Coins },
+    { href: '/rewards', label: 'Rewards', icon: Gift },
+    { href: '/tiers', label: 'Tiers', icon: Layers, module: 'tiers' },
+    { href: '/campaigns', label: 'Campaigns', icon: Megaphone, module: 'campaigns' },
+    { href: '/coupons', label: 'Coupons', icon: Ticket, module: 'coupons' },
+    { href: '/gamification', label: 'Gamification', icon: Trophy, module: 'gamification' },
+  ] },
+  { title: 'Partnerships', items: [
+    { href: '/lulu', label: 'Lulu Happiness', icon: Sparkles, module: 'partnerships' },
+  ] },
+  { title: 'Engagement', items: [
+    { href: '/messaging', label: 'Messaging', icon: Mail, module: 'messaging' },
+  ] },
+  { title: 'Developer', items: [
+    { href: '/webhooks', label: 'Webhooks', icon: Webhook, module: 'webhooks' },
+    { href: '/api-keys', label: 'API keys', icon: KeyRound, module: 'api-keys' },
+  ] },
+  { title: 'Operations', items: [
+    { href: '/change-requests', label: 'Change requests', icon: GitPullRequestArrow },
+    { href: '/activity', label: 'Activity log', icon: History },
+  ] },
+  { title: 'Admin', items: [
+    { href: '/team', label: 'Team & access', icon: UsersRound, module: 'team' },
+    { href: '/settings', label: 'Settings', icon: Settings },
+  ] },
 ];
 
 // Labels are always visible on mobile (the drawer is full-width); only hidden on
@@ -47,7 +66,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { co
     getSettings().then((s) => setBrand({ name: s.name })).catch(() => {});
   }, []);
 
-  const items = NAV.filter((item) => !item.module || access[item.module] !== false);
+  const groups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((item) => !item.module || access[item.module] !== false) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <aside
@@ -65,23 +86,32 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { co
         <img src="/partners-points-mark.png" alt="Partners Points" className={clsx('hidden h-11 w-11 object-contain', collapsed && 'lg:block')} />
       </div>
 
-      <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
-        {items.map((item) => {
-          const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onMobileClose}
-              title={collapsed ? item.label : undefined}
-              className={clsx('flex h-11 items-center rounded-2xl transition', active ? 'bg-white/10 text-lime-400' : 'text-white/55 hover:bg-white/5 hover:text-white')}
-            >
-              <span className="grid w-[60px] shrink-0 place-items-center"><Icon size={20} /></span>
-              <span className={labelCls(collapsed)}>{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="mt-4 flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-2">
+        {groups.map((group, gi) => (
+          <div key={group.title} className="mb-1">
+            {/* group header (expanded) / subtle divider (collapsed) */}
+            <p className={clsx('px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-white/30', collapsed && 'lg:hidden')}>{group.title}</p>
+            {collapsed && gi > 0 ? <div className="mx-auto my-2 hidden h-px w-7 bg-white/10 lg:block" /> : null}
+            <div className="flex flex-col gap-1">
+              {group.items.map((item) => {
+                const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onMobileClose}
+                    title={collapsed ? item.label : undefined}
+                    className={clsx('flex h-11 items-center rounded-2xl transition', active ? 'bg-white/10 text-lime-400' : 'text-white/55 hover:bg-white/5 hover:text-white')}
+                  >
+                    <span className="grid w-[60px] shrink-0 place-items-center"><Icon size={20} /></span>
+                    <span className={labelCls(collapsed)}>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="mt-2 flex flex-col gap-1 px-2">

@@ -14,6 +14,10 @@ export interface AccessClaims {
   branchId?: string | null;
   roles?: string[];
   actorType: 'user' | 'customer' | 'terminal' | 'system';
+  /** Superadmin acting as a brand (full override of governance locks). */
+  elevated?: boolean;
+  /** The platform user a brand-scoped impersonation token was minted for. */
+  onBehalfOf?: string | null;
 }
 
 @Injectable()
@@ -80,6 +84,7 @@ export function claimsToTenant(claims: AccessClaims): TenantContext {
     branchId: claims.branchId ?? null,
     scopeLevel: claims.scopeLevel,
     surface: claims.surface,
-    actor: { type: claims.actorType, id: claims.sub, onBehalfOf: null },
+    elevated: claims.elevated ?? false,
+    actor: { type: claims.actorType, id: claims.sub, onBehalfOf: claims.onBehalfOf ?? null },
   };
 }

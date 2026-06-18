@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { RequirePermissions } from '../../auth/authz/permissions.decorator';
 import { PermissionsGuard } from '../../auth/authz/permissions.guard';
 import { AdminJwtGuard } from '../../auth/guards/admin-jwt.guard';
-import { EnableMerchantDto, FundAllowanceDto, ThresholdDto, UpdateMerchantDto, UpdatePartnerDto } from './dto';
+import { EnableMerchantDto, FundAllowanceDto, InvoiceTopupDto, RejectTopupDto, ThresholdDto, UpdateMerchantDto, UpdatePartnerDto } from './dto';
 import { PartnershipService } from './partnership.service';
 
 /** Superadmin: partner config, per-merchant enablement, allowance, and reports. */
@@ -35,6 +35,42 @@ export class AdminPartnershipsController {
   @ApiOperation({ summary: 'Update a partner-merchant (ratio, status, caps).' })
   updateMerchant(@CurrentTenant() ctx: TenantContext, @Param('id') id: string, @Body() dto: UpdateMerchantDto) {
     return this.partnerships.updateMerchant(ctx, id, dto);
+  }
+
+  // ── Top-up request queue ────────────────────────────────────────────────
+  @Get('topup-requests')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'List merchant-initiated allowance top-up requests.' })
+  topupRequests(@CurrentTenant() ctx: TenantContext, @Query('status') status?: string) {
+    return this.partnerships.listTopupRequests(ctx, status);
+  }
+
+  @Post('topup-requests/:id/invoice')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Mark a top-up request as invoiced.' })
+  invoiceTopup(@CurrentTenant() ctx: TenantContext, @Param('id') id: string, @Body() dto: InvoiceTopupDto) {
+    return this.partnerships.markTopupInvoiced(ctx, id, dto.invoiceRef);
+  }
+
+  @Post('topup-requests/:id/confirm')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Confirm payment — credits the allowance wallet.' })
+  confirmTopup(@CurrentTenant() ctx: TenantContext, @Param('id') id: string) {
+    return this.partnerships.confirmTopup(ctx, id);
+  }
+
+  @Post('topup-requests/:id/reject')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Reject a top-up request.' })
+  rejectTopup(@CurrentTenant() ctx: TenantContext, @Param('id') id: string, @Body() dto: RejectTopupDto) {
+    return this.partnerships.rejectTopup(ctx, id, dto.reason);
+  }
+
+  @Get('conversions/:id')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'A single conversion with customer + allowance detail.' })
+  conversionDetail(@CurrentTenant() ctx: TenantContext, @Param('id') id: string) {
+    return this.partnerships.getConversion(ctx, id);
   }
 
   @Get(':partnerId')
@@ -96,5 +132,14 @@ export class AdminPartnershipsController {
   @RequirePermissions('platform.report.read')
   conversions(@CurrentTenant() ctx: TenantContext, @Param('partnerId') partnerId: string, @Query('status') status?: string) {
     return this.partnerships.listConversions(ctx, partnerId, status);
+  }
+
+  @Get(':partnerId/conversions.csv')
+  @RequirePermissions('platform.report.read')
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="conversions.csv"')
+  @ApiOperation({ summary: 'Export partner conversions as CSV.' })
+  conversionsCsv(@CurrentTenant() ctx: TenantContext, @Param('partnerId') partnerId: string) {
+    return this.partnerships.exportPartnerConversionsCsv(ctx, partnerId);
   }
 }

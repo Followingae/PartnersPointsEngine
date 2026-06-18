@@ -29,6 +29,9 @@ export class GovernanceInterceptor implements NestInterceptor {
     const ctx = req.tenant;
     // Governance applies to brand principals only; platform/superadmin writes pass through.
     if (!ctx || ctx.scopeLevel !== 'brand' || !ctx.brandId) return next.handle();
+    // A superadmin acting as the brand (elevated) has full override — the write
+    // applies directly and is captured by the normal audit trail.
+    if (ctx.elevated) return next.handle();
 
     const action = METHOD_ACTION[req.method];
     if (!action) return next.handle();
