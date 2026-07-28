@@ -316,19 +316,23 @@ function receiptBody(
   // receipt scrolls behind it, without eating a screenful. No JS (CSP-free page).
   const hasAdLink = Boolean(ad?.ctaUrl && /^https?:\/\//i.test(ad.ctaUrl));
   const hasAdImage = Boolean(ad?.imageUrl && /^https?:\/\//i.test(ad!.imageUrl!));
-  // When there's a creative, the creative IS the banner — full-bleed, nothing
-  // beside it. Natural aspect ratio so no headline gets cropped; the max-height
-  // is only a guard so an unusually tall upload can't eat the screen.
-  // Text layout is the fallback for ads that have no image at all.
-  const adInner = hasAdImage
+  // The creative runs full-bleed across the top of the docked card, with the
+  // headline, body and CTA in a compact row beneath it — the console preview's
+  // layout. Natural aspect ratio keeps the artwork uncropped; max-height is only
+  // a guard so an unusually tall upload can't eat the screen. Without a creative
+  // the lime rail stands in for the image.
+  const adBanner = hasAdImage
     ? `<img src="${esc(ad!.imageUrl!)}" alt="${esc(ad?.headline ?? 'Sponsored')}" loading="lazy"
-            style="display:block;width:100%;height:auto;max-height:30vh;object-fit:cover;object-position:center">
-       <span style="position:absolute;top:9px;left:9px;background:rgba(21,21,15,.62);color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:4px 8px;border-radius:999px">Sponsored</span>`
-    : `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px">
-        <div style="width:6px;height:38px;flex:0 0 6px;border-radius:999px;background:var(--lime)"></div>
+            style="display:block;width:100%;height:auto;max-height:26vh;object-fit:cover;object-position:center">`
+    : '';
+  const adInner = `
+      ${adBanner}
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 14px">
+        ${hasAdImage ? '' : '<div style="width:6px;height:40px;flex:0 0 6px;border-radius:999px;background:var(--lime)"></div>'}
         <div style="min-width:0;flex:1">
           <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em;line-height:1.2">Sponsored</div>
-          <div style="font-weight:700;font-size:14.5px;line-height:1.25;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad?.headline ?? '')}</div>
+          ${ad?.headline ? `<div style="font-weight:700;font-size:15px;line-height:1.3;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad.headline)}</div>` : ''}
+          ${ad?.body ? `<div class="tiny muted" style="line-height:1.35;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad.body)}</div>` : ''}
         </div>
         ${hasAdLink
           ? `<div style="flex:none;background:var(--lime);color:#15150F;font-weight:700;font-size:13px;border-radius:999px;padding:9px 14px">${esc(ad!.ctaLabel ?? 'Open')} →</div>`
