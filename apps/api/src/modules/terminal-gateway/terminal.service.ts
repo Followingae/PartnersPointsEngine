@@ -218,6 +218,40 @@ export class TerminalService {
   }
 
   /**
+   * The identified customer's usable vouchers, so the cashier can see and tap
+   * what they hold instead of needing the code read out.
+   */
+  async memberVouchers(ctx: TenantContext, memberToken: string) {
+    const claims = await this.member(memberToken, ctx);
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.voucher.findMany({
+        where: {
+          membershipId: claims.membershipId,
+          brandId: ctx.brandId!,
+          status: 'issued',
+          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: {
+          code: true, expiresAt: true, createdAt: true,
+          catalogItem: { select: { name: true, kind: true, payload: true } },
+        },
+      });
+      return rows.map((v) => {
+        const payload = (v.catalogItem?.payload ?? {}) as { discountMinor?: number };
+        return {
+          code: v.code,
+          rewardName: v.catalogItem?.name ?? 'Reward',
+          kind: v.catalogItem?.kind ?? 'voucher',
+          discountMinor: typeof payload.discountMinor === 'number' ? payload.discountMinor : 0,
+          expiresAt: v.expiresAt,
+        };
+      });
+    });
+  }
+
+  /**
    * Redeem a reward voucher at the till (the customer shows a code/QR from the
    * app or a printed slip). Returns what the cashier must hand over, and the
    * money value when the reward is a discount.

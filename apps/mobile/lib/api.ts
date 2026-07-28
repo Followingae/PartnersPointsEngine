@@ -3,11 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * Customer API client for the Partners Points mobile app.
  *
- * NOTE: the backend customer token is per-brand (closed-loop). A cross-merchant
- * "list my wallets" surface needs a small platform-level addition (tracked in
- * task #86); multi-wallet screens use sample data until then.
+ * The customer token is per-brand (the programme is closed-loop), so a session
+ * belongs to one brand at a time. Screens that show every wallet at once still
+ * use sample data until a platform-level "my wallets" endpoint exists.
  */
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001/v1';
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.partnerspoints.ae/v1';
 const TOKEN_KEY = 'pp_customer_token';
 
 export async function getToken(): Promise<string | null> {
@@ -60,6 +60,53 @@ export const verifyOtp = (phone: string, code: string, brandId: string) =>
     method: 'POST',
     body: JSON.stringify({ phone, code, brandId }),
   });
+
+// ── Loyalty (per-brand, from the customer token) ───────────────────────────
+
+export interface Balance {
+  available: string;
+  pending: string;
+  lifetime: string;
+  tier: { id: string; name: string } | null;
+}
+export const getBalance = () => api<Balance>('/customer/balance');
+
+export interface TxnRow {
+  journalId: string;
+  kind: string;
+  direction: string;
+  amount: string;
+  occurredAt: string;
+  pointState: string | null;
+}
+export const getTransactions = () => api<TxnRow[]>('/customer/transactions');
+
+export interface Reward {
+  id: string;
+  name: string;
+  description: string | null;
+  pointsCost: string;
+  kind: string;
+}
+export const getRewards = () => api<Reward[]>('/customer/rewards');
+export const redeemReward = (id: string, idempotencyKey: string) =>
+  api<{ voucher: { code: string; status: string; pointsSpent: string } }>(`/customer/rewards/${id}/redeem`, {
+    method: 'POST',
+    body: JSON.stringify({ idempotencyKey }),
+  });
+/** Mark an issued voucher as used (the till can also do this). */
+export const useVoucher = (code: string) =>
+  api<{ code: string; status: string }>(`/customer/vouchers/${code}/redeem`, { method: 'POST' });
+
+export interface BadgeAward {
+  awardedAt: string;
+  badge: { name: string; icon: string | null };
+}
+export const getBadges = () => api<BadgeAward[]>('/customer/badges');
+export const getLeaderboard = () => api('/customer/leaderboard');
+export const getReferralCode = () => api<{ code: string }>('/customer/referral-code');
+export const redeemReferral = (code: string) =>
+  api('/customer/referral/redeem', { method: 'POST', body: JSON.stringify({ code }) });
 
 // ── Convert to Lulu (partnerships) ─────────────────────────────────────────
 export const linkPartner = (partnerKey: string, memberRef: string) =>

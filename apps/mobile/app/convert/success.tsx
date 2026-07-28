@@ -1,86 +1,54 @@
-import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font } from '@/lib/tokens';
+import { Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Button, H1, Screen, pts } from '@/components/UI';
+import { C, font } from '@/lib/tokens';
+import { CenterState, Footer, Ic } from '@/components/RewardKit';
 
-const LULU_OUT = '560';
-const PIECES: { left: `${number}%`; w: number; h: number; round: boolean; color: string; dur: number; delay: number }[] = [
-  { left: '8%', w: 9, h: 14, round: false, color: BRAND.blue, dur: 2200, delay: 0 },
-  { left: '22%', w: 8, h: 8, round: true, color: BRAND.lime, dur: 2400, delay: 300 },
-  { left: '38%', w: 10, h: 10, round: false, color: BRAND.sky, dur: 2100, delay: 150 },
-  { left: '54%', w: 8, h: 14, round: false, color: BRAND.purple, dur: 2500, delay: 450 },
-  { left: '70%', w: 9, h: 9, round: true, color: BRAND.lime, dur: 2300, delay: 100 },
-  { left: '86%', w: 8, h: 13, round: false, color: BRAND.blue, dur: 2200, delay: 350 },
-  { left: '48%', w: 8, h: 8, round: true, color: BRAND.sky, dur: 2600, delay: 600 },
-];
+const RATE = 5;
+/** Matches the eligible pool on the convert screen. */
+const ELIGIBLE = 3240;
 
-function Confetti({ p }: { p: (typeof PIECES)[number] }) {
-  const v = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.timing(v, { toValue: 1, duration: p.dur, delay: p.delay, easing: Easing.in(Easing.ease), useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
-  }, [v, p]);
+function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <Animated.View
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: p.left,
-        width: p.w,
-        height: p.h,
-        borderRadius: p.round ? 999 : 2,
-        backgroundColor: p.color,
-        opacity: v.interpolate({ inputRange: [0, 0.9, 1], outputRange: [1, 1, 0] }),
-        transform: [
-          { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, 420] }) },
-          { rotate: v.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '560deg'] }) },
-        ],
-      }}
-    />
+    <View style={{ flex: 1, padding: 18, borderRadius: 18, backgroundColor: C.canvas }}>
+      <Text style={{ fontFamily: font(500), fontSize: 11.5, color: C.muted }}>{label}</Text>
+      <Text style={{ marginTop: 8, fontFamily: font(600), fontSize: 24, letterSpacing: -0.72, color: C.ink }}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
+/** Screen 39, success state — both balances, side by side. */
 export default function ConvertSuccess() {
-  const t = useTokens();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const pop = useRef(new Animated.Value(0.4)).current;
-  useEffect(() => {
-    Animated.spring(pop, { toValue: 1, friction: 5, tension: 130, useNativeDriver: true }).start();
-  }, [pop]);
+  const { amount } = useLocalSearchParams<{ amount?: string }>();
+
+  const points = Number(amount ?? 2000) || 2000;
+  const luluOut = Math.floor(points / RATE);
+  const remaining = Math.max(0, ELIGIBLE - points);
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.canvas }}>
-      <LinearGradient colors={[BRAND.blue, BRAND.deep]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.5 }} />
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(5,4,30,0.5)' }} />
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: t.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 24, paddingTop: 36, paddingBottom: 30 + insets.bottom, alignItems: 'center', overflow: 'hidden' }}>
-        {PIECES.map((p, i) => <Confetti key={i} p={p} />)}
-        <Animated.View style={{ transform: [{ scale: pop }] }}>
-          <LinearGradient colors={[BRAND.sky, BRAND.blue]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', marginTop: 14, shadowColor: BRAND.blue, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.55, shadowRadius: 22, elevation: 10 }}>
-            <Svg width={42} height={42} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><Path d="M5 13l4 4 10-11" /></Svg>
-          </LinearGradient>
-        </Animated.View>
-        <Text style={{ fontFamily: font.display(700), fontSize: 28, marginTop: 20, letterSpacing: -0.3, color: t.ink }}>{LULU_OUT} added 🎉</Text>
-        <Text style={{ fontSize: 14, color: t.soft, marginTop: 6, fontFamily: font.sans(400) }}>Lulu Happiness Points · to •••• 4821</Text>
-        <View style={{ marginTop: 20, gap: 8, backgroundColor: t.chip, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 22 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 30 }}>
-            <Text style={{ fontSize: 12.5, color: t.soft, fontFamily: font.sans(400) }}>Converted</Text>
-            <Text style={{ fontFamily: font.sans(600), fontSize: 12.5, color: t.ink }}>2,800 pts · 3 merchants</Text>
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 30 }}>
-            <Text style={{ fontSize: 12.5, color: t.soft, fontFamily: font.sans(400) }}>Reference</Text>
-            <Text style={{ fontFamily: font.mono(500), fontSize: 12.5, color: t.ink }}>CNV·8821·LP</Text>
-          </View>
+    <Screen background={C.surface} scroll={false} bottomGap={30}>
+      <CenterState>
+        <View style={{
+          width: 80, height: 80, borderRadius: 999, backgroundColor: C.green,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Ic name="check" size={36} sw={2.4} />
         </View>
-        <Pressable onPress={() => router.replace('/home')} style={{ width: '100%', marginTop: 24, backgroundColor: t.ink, borderRadius: 18, paddingVertical: 17 }}>
-          <Text style={{ color: t.canvas, textAlign: 'center', fontFamily: font.sans(700), fontSize: 16 }}>Done</Text>
-        </Pressable>
-      </View>
-    </View>
+
+        <H1 style={{ marginTop: 28, fontSize: 28, textAlign: 'center' }}>{pts(points)} pts converted</H1>
+
+        <View style={{ marginTop: 30, alignSelf: 'stretch', flexDirection: 'row', gap: 12 }}>
+          <StatTile label="Partners Points" value={pts(remaining)} />
+          <StatTile label="Lulu" value={pts(luluOut)} />
+        </View>
+      </CenterState>
+
+      <Footer>
+        <Button label="Done" onPress={() => router.replace('/(tabs)/home')} />
+      </Footer>
+    </Screen>
   );
 }

@@ -77,6 +77,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
         val voucherBusy: Boolean = false,
         val voucherError: String? = null,
         val redeemedVouchers: List<ae.rfmloyaltyco.terminal.api.VoucherRedemption> = emptyList(),
+        /** Rewards the identified customer already holds. */
+        val availableVouchers: List<ae.rfmloyaltyco.terminal.api.AvailableVoucher> = emptyList(),
     ) {
         fun redeemValueMinor(): Long = rate.valueMinor(redeemPoints, amountMinor)
 
@@ -190,6 +192,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun onMemberToken(token: String, identifierType: String, value: String) {
         val context = runCatching { api.memberContext(token) }.getOrNull()
         val quote = runCatching { api.quote(token, _state.value.amountMinor) }.getOrNull()
+        // What rewards do they already hold? The cashier shouldn't need the code.
+        val available = runCatching { api.memberVouchers(token) }.getOrDefault(emptyList())
         _state.update {
             it.copy(
                 lookupBusy = false,
@@ -197,6 +201,7 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 member = Member(token, identifierType, value, context),
                 quote = quote,
                 redeemPoints = 0,
+                availableVouchers = available,
             )
         }
     }
@@ -218,6 +223,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                         voucherBusy = false,
                         voucherError = null,
                         redeemedVouchers = it.redeemedVouchers + v,
+                        // it's used now — drop it from the "available" list
+                        availableVouchers = it.availableVouchers.filterNot { a -> a.code.equals(v.code, true) },
                     )
                 }
             } catch (e: TerminalApi.ApiException) {

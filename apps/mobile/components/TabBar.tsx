@@ -1,122 +1,155 @@
-import { Pressable, Text, View } from 'react-native';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path } from 'react-native-svg';
-import { BRAND } from '@/lib/tokens';
-import { useTokens } from '@/lib/theme';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { C, font } from '@/lib/tokens';
 
-type IconProps = { color: string };
-
-const Icons: Record<string, (p: IconProps) => React.ReactNode> = {
-  home: ({ color }) => (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinejoin="round">
-      <Path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z" />
-    </Svg>
-  ),
-  discover: ({ color }) => (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinejoin="round">
-      <Circle cx={12} cy={12} r={8.5} />
-      <Path d="M15.5 8.5l-2 5-5 2 2-5z" />
-    </Svg>
-  ),
-  activity: ({ color }) => (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M3 13h4l2-6 3.5 13 2.5-7h6" />
-    </Svg>
-  ),
-  profile: ({ color }) => (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round">
-      <Circle cx={12} cy={8} r={3.4} />
-      <Path d="M5 19.5a7 7 0 0 1 14 0" />
-    </Svg>
-  ),
-};
-
-const LABELS: Record<string, string> = { home: 'Home', discover: 'Discover', activity: 'Activity', profile: 'Profile' };
-const ORDER = ['home', 'discover', 'scan', 'activity', 'profile'];
-
-/** Minimal shape of the props the Expo Router `tabBar` callback provides. */
-interface TabBarProps {
-  state: { index: number; routes: { key: string; name: string }[] };
-  navigation: {
-    navigate: (name: string) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    emit: (e: any) => any;
+/** Stroked line icons matching the design's set. */
+function Icon({ name, active }: { name: string; active: boolean }) {
+  const stroke = active ? C.ink : 'rgba(21,21,15,.45)';
+  const p = {
+    stroke,
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    fill: 'none',
   };
+  switch (name) {
+    case 'cards':
+      return (
+        <Svg width={21} height={21} viewBox="0 0 24 24">
+          <Rect x={2.5} y={6} width={19} height={13} rx={3.2} {...p} />
+          <Path d="M2.5 10.5h19" {...p} />
+        </Svg>
+      );
+    case 'discover':
+      return (
+        <Svg width={21} height={21} viewBox="0 0 24 24">
+          <Circle cx={11} cy={11} r={7.2} {...p} />
+          <Path d="M16.5 16.5L21 21" {...p} />
+        </Svg>
+      );
+    case 'activity':
+      return (
+        <Svg width={21} height={21} viewBox="0 0 24 24">
+          <Path d="M4 6h16M7 12h10M10 18h4" {...p} />
+        </Svg>
+      );
+    case 'profile':
+      return (
+        <Svg width={21} height={21} viewBox="0 0 24 24">
+          <Circle cx={12} cy={8} r={3.4} {...p} />
+          <Path d="M5 19.5a7 7 0 0 1 14 0" {...p} />
+        </Svg>
+      );
+    default:
+      return null;
+  }
 }
 
-/** Floating, rounded bottom tab bar with the raised center Scan button. */
-export function TabBar({ state, navigation }: TabBarProps) {
-  const t = useTokens();
+/** QR glyph for the raised centre button. */
+function ScanGlyph() {
+  const p = {
+    stroke: '#fff',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    fill: 'none',
+  };
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Rect x={3.5} y={3.5} width={6.5} height={6.5} rx={1.6} {...p} />
+      <Rect x={14} y={3.5} width={6.5} height={6.5} rx={1.6} {...p} />
+      <Rect x={3.5} y={14} width={6.5} height={6.5} rx={1.6} {...p} />
+      <Path d="M14 14h3v3h-3zM20.5 14v6.5H17" {...p} />
+    </Svg>
+  );
+}
+
+const LABELS: Record<string, string> = {
+  home: 'Cards',
+  discover: 'Discover',
+  activity: 'Activity',
+  profile: 'Profile',
+};
+const ICONS: Record<string, string> = {
+  home: 'cards',
+  discover: 'discover',
+  activity: 'activity',
+  profile: 'profile',
+};
+
+/** Floating bar with the raised Scan button in the middle. */
+export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const routes = state.routes.filter((r) => r.name !== 'scan');
+  const left = routes.slice(0, 2);
+  const right = routes.slice(2);
   const activeName = state.routes[state.index]?.name;
 
-  const go = (name: string) => {
-    const event = navigation.emit({ type: 'tabPress', target: name, canPreventDefault: true });
-    if (!event?.defaultPrevented) navigation.navigate(name as never);
-  };
+  const item = (routeName: string, key: string) => (
+    <Pressable
+      key={key}
+      onPress={() => navigation.navigate(routeName as never)}
+      style={styles.item}
+      hitSlop={8}
+    >
+      <Icon name={ICONS[routeName] ?? 'cards'} active={activeName === routeName} />
+      <Text style={[styles.label, { color: activeName === routeName ? C.ink : 'rgba(21,21,15,.55)' }]}>
+        {LABELS[routeName] ?? routeName}
+      </Text>
+    </Pressable>
+  );
 
   return (
-    <View
-      style={{
-        position: 'absolute',
-        left: 14,
-        right: 14,
-        bottom: 14 + (insets.bottom ? insets.bottom - 6 : 0),
-        height: 66,
-        backgroundColor: t.barbg,
-        borderRadius: 30,
-        borderWidth: 1,
-        borderColor: t.line,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 22,
-        shadowColor: t.elevColor,
-        shadowOffset: { width: 0, height: 18 },
-        shadowOpacity: 1,
-        shadowRadius: 22,
-        elevation: 12,
-      }}
-    >
-      {ORDER.map((name) => {
-        if (name === 'scan') {
-          return (
-            <Pressable key="scan" onPress={() => go('scan')} hitSlop={8}>
-              <LinearGradient
-                colors={[BRAND.sky, BRAND.blue]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: 999,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginTop: -30,
-                  shadowColor: BRAND.blue,
-                  shadowOffset: { width: 0, height: 10 },
-                  shadowOpacity: 0.6,
-                  shadowRadius: 16,
-                  elevation: 10,
-                }}
-              >
-                <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round">
-                  <Path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-                  <Path d="M4 12h16" />
-                </Svg>
-              </LinearGradient>
-            </Pressable>
-          );
-        }
-        const color = activeName === name ? BRAND.blue : t.faint;
-        return (
-          <Pressable key={name} onPress={() => go(name)} style={{ alignItems: 'center', gap: 3 }} hitSlop={8}>
-            {Icons[name]({ color })}
-            <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 9.5, color }}>{LABELS[name]}</Text>
-          </Pressable>
-        );
-      })}
+    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
+      <View style={styles.bar}>
+        {left.map((r) => item(r.name, r.key))}
+        <View style={{ width: 64 }} />
+        {right.map((r) => item(r.name, r.key))}
+      </View>
+      <Pressable
+        onPress={() => navigation.navigate('scan' as never)}
+        style={[styles.scan, { bottom: Math.max(insets.bottom, 10) + 18 }]}
+      >
+        <ScanGlyph />
+      </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 18 },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,.96)',
+    borderRadius: 999,
+    height: 66,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: C.hairline,
+    shadowColor: '#15150F',
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  item: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  label: { fontFamily: font(600), fontSize: 9.5 },
+  scan: {
+    position: 'absolute',
+    alignSelf: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: C.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#15150F',
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
+  },
+});

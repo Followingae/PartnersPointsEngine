@@ -1,65 +1,104 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Screen } from '@/components/Screen';
-import { SettingsHeader } from '@/app/profile/_ui';
-import { useTokens } from '@/lib/theme';
-import { BRAND, elevation, font } from '@/lib/tokens';
+import { useRouter } from 'expo-router';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import { BackBar, Lede } from '@/components/Bits';
+import { Button, H1, Label, Screen } from '@/components/UI';
+import { C, R, T, font } from '@/lib/tokens';
 
-function Field({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  const t = useTokens();
+function Field({
+  label, value, onChange, editable = true, keyboard,
+}: {
+  label: string;
+  value: string;
+  onChange?: (v: string) => void;
+  editable?: boolean;
+  keyboard?: 'default' | 'email-address';
+}) {
   return (
     <View>
-      <Text style={{ fontFamily: font.sans(600), fontSize: 12, color: t.soft, marginBottom: 7 }}>{label}</Text>
-      <View style={{ backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 14, padding: 15 }}>
-        <Text style={{ fontFamily: font.sans(600), fontSize: 15, color: muted ? t.soft : t.ink }}>{value}</Text>
-      </View>
+      <Label>{label}</Label>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        editable={editable}
+        keyboardType={keyboard ?? 'default'}
+        placeholderTextColor={C.faint}
+        style={[
+          T.body,
+          {
+            marginTop: 8,
+            height: 54,
+            borderRadius: R.control,
+            backgroundColor: C.wash,
+            paddingHorizontal: 16,
+            color: editable ? C.ink : C.muted,
+          },
+        ]}
+      />
     </View>
   );
 }
 
+const GENDERS = ['Female', 'Male', 'Other'];
+
+/** Personal details — first row on the profile screen. */
 export default function EditDetails() {
-  const t = useTokens();
-  const [gender, setGender] = useState('Female');
+  const router = useRouter();
+
+  // TODO(api): GET/PATCH /customer/me
+  const [name, setName] = useState('Maya Khoury');
+  const [birthday, setBirthday] = useState('14 March 1996');
+  const [email, setEmail] = useState('maya.h@email.com');
+  const [gender, setGender] = useState(GENDERS[0]);
+
   return (
     <Screen>
-      <SettingsHeader title="Personal details" />
-      <View style={{ paddingHorizontal: 22, paddingTop: 18, gap: 16 }}>
-        <Field label="FULL NAME" value="Maya Haddad" />
-        <Field label="BIRTHDATE" value="14 March 1996" />
+      <BackBar fallback="/profile" />
+
+      <H1 style={{ marginTop: 20 }}>Personal details</H1>
+      <Lede style={{ marginTop: 10 }}>Your birthday unlocks a bonus every year.</Lede>
+
+      <View style={{ marginTop: 28, gap: 18 }}>
+        <Field label="Full name" value={name} onChange={setName} />
+        <Field label="Birthday" value={birthday} onChange={setBirthday} />
+
         <View>
-          <Text style={{ fontFamily: font.sans(600), fontSize: 12, color: t.soft, marginBottom: 7 }}>GENDER</Text>
-          <View style={{ flexDirection: 'row', gap: 9 }}>
-            {['Female', 'Male', 'Other'].map((g) => {
+          <Label>Gender</Label>
+          <View style={{ flexDirection: 'row', gap: 9, marginTop: 8 }}>
+            {GENDERS.map((g) => {
               const on = gender === g;
               return (
                 <Pressable
                   key={g}
                   onPress={() => setGender(g)}
-                  style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    backgroundColor: on ? BRAND.blue : t.card,
-                    borderWidth: on ? 0 : 1,
-                    borderColor: t.line,
-                    paddingVertical: 13,
-                    borderRadius: 14,
-                  }}
+                  style={({ pressed }) => [
+                    {
+                      flex: 1,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: 48,
+                      borderRadius: R.control,
+                      backgroundColor: on ? C.ink : C.wash,
+                    },
+                    pressed ? { opacity: 0.85 } : null,
+                  ]}
                 >
-                  <Text style={{ fontFamily: font.sans(on ? 700 : 600), fontSize: 13, color: on ? '#fff' : t.ink }}>{g}</Text>
+                  <Text style={{ fontFamily: font(600), fontSize: 13.5, color: on ? '#fff' : C.ink }}>{g}</Text>
                 </Pressable>
               );
             })}
           </View>
         </View>
-        <Field label="EMAIL" value="maya.h@email.com" />
-        <Field label="PHONE" value="+971 50 123 4567" muted />
+
+        <Field label="Email" value={email} onChange={setEmail} keyboard="email-address" />
+        <Field label="Phone" value="+971 50 123 4567" editable={false} />
       </View>
-      <View style={{ paddingHorizontal: 22, paddingTop: 20, paddingBottom: 30 }}>
-        {/* TODO(api): save profile */}
-        <Pressable style={[{ backgroundColor: BRAND.blue, borderRadius: 18, paddingVertical: 17, alignItems: 'center' }, elevation('rgba(11,4,217,0.4)')]}>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 16, color: '#fff' }}>Save changes</Text>
-        </Pressable>
-      </View>
+
+      <Button
+        label="Save changes"
+        onPress={() => router.back()}
+        style={{ marginTop: 28, borderRadius: R.card, height: 58 }}
+      />
     </Screen>
   );
 }

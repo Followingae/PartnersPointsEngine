@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -84,7 +86,10 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
             }
         },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             // ── amount summary (compact) ──────────────────────────────────────
             RfmCard(padding = 16.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -119,6 +124,47 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
             if (member != null) {
                 val available = member.context?.availablePoints ?: 0L
                 val quote = state.quote
+
+                // ── rewards this customer already holds — tap to apply ───────
+                if (state.availableVouchers.isNotEmpty()) {
+                    RfmCard(padding = 14.dp) {
+                        Text("Their rewards", style = MaterialTheme.typography.titleSmall, color = RfmColor.Ink)
+                        Text(
+                            "Tap to use on this sale",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = RfmColor.MutedFg,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        state.availableVouchers.forEach { v ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                                    .clickable(enabled = !state.voucherBusy) { vm.redeemVoucher(v.code) },
+                                shape = RoundedCornerShape(14.dp),
+                                color = RfmColor.Lime200,
+                                border = BorderStroke(1.dp, RfmColor.Lime600.copy(alpha = 0.4f)),
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(v.rewardName, style = MaterialTheme.typography.titleSmall, color = RfmColor.Lime900)
+                                        Text(
+                                            if (v.discountMinor > 0)
+                                                "− ${formatAmountWithCurrency(v.discountMinor, cfg.currency)}"
+                                            else "Free item",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = RfmColor.Lime900.copy(alpha = 0.75f),
+                                        )
+                                    }
+                                    Text("USE", style = MaterialTheme.typography.titleSmall, color = RfmColor.Lime900)
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if (rate.enabled && rate.rateValueMinor > 0 && available > 0) {
                     // Everything below is computed in whole dirhams.

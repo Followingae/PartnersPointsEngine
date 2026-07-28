@@ -1,41 +1,82 @@
 import { Pressable, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font, elevation } from '@/lib/tokens';
+import { Body, Button, H2 } from '@/components/UI';
+import { C, SP, font } from '@/lib/tokens';
 
-const CONFETTI = [
-  { left: '10%', top: 60, w: 9, h: 14, r: 2, c: BRAND.blue },
-  { left: '32%', top: 30, w: 8, h: 8, r: 999, c: BRAND.lime },
-  { left: '62%', top: 80, w: 9, h: 13, r: 2, c: BRAND.purple },
-  { left: '82%', top: 40, w: 8, h: 8, r: 999, c: BRAND.sky },
-];
+/** 23 · Join confirmation — the brand behind a scrim, terms in a bottom sheet. */
+
+type Terms = { name: string; tone: string; rows: { label: string; value: string }[] };
+
+// TODO(api): GET /customer/merchants/{id}/programme
+const PROGRAMMES: Record<string, Terms> = {
+  'bloom-coffee': {
+    name: 'Bloom Coffee', tone: C.blue,
+    rows: [
+      { label: 'Earn rate', value: '2 pts per AED' },
+      { label: 'Points expiry', value: '12 months' },
+    ],
+  },
+  'camel-bean': {
+    name: 'Camel Bean', tone: C.orange,
+    rows: [
+      { label: 'Earn rate', value: '1 pt per AED' },
+      { label: 'Points expiry', value: '12 months' },
+    ],
+  },
+};
+
+const FALLBACK = PROGRAMMES['bloom-coffee'] as Terms;
 
 export default function JoinConfirm() {
-  const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const p = (id ? PROGRAMMES[id] : undefined) ?? FALLBACK;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.canvas, paddingTop: insets.top }}>
-      {CONFETTI.map((c, i) => (
-        <View key={i} style={{ position: 'absolute', top: c.top, left: c.left as never, width: c.w, height: c.h, borderRadius: c.r, backgroundColor: c.c }} />
-      ))}
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }}>
-        <View style={{ width: 88, height: 88, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', ...elevation(t.elevColor) }}>
-          <Text style={{ fontFamily: font.display(800), fontSize: 34, color: BRAND.blue }}>CB</Text>
+    <View style={{ flex: 1, backgroundColor: p.tone }}>
+      <Pressable onPress={() => router.back()} style={{ flex: 1, backgroundColor: 'rgba(21,21,15,.45)' }} />
+
+      <View
+        style={{
+          backgroundColor: C.surface,
+          borderTopLeftRadius: 30, borderTopRightRadius: 30,
+          paddingHorizontal: SP.gutter, paddingTop: 14, paddingBottom: 32 + insets.bottom,
+        }}
+      >
+        <View style={{ alignItems: 'center' }}>
+          <View style={{ width: 42, height: 5, borderRadius: 999, backgroundColor: C.hairline }} />
         </View>
-        <Text style={{ marginTop: 26, fontFamily: font.display(700), fontSize: 28, lineHeight: 29, letterSpacing: -0.6, color: t.ink, textAlign: 'center' }}>You've joined Camel Bean!</Text>
-        <Text style={{ marginTop: 12, fontSize: 15, color: t.soft, textAlign: 'center' }}>Your wallet is ready. Here's a little something to start.</Text>
-        <View style={{ marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: 'rgba(191,242,5,0.24)', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999 }}>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 15, color: '#4d5c00' }}>🎁 +100 pts welcome bonus</Text>
+
+        <H2 style={{ marginTop: 22, fontSize: 26, letterSpacing: -0.65 }}>Join {p.name}?</H2>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14, lineHeight: 21.7 }}>
+          Your name and number are shared with the brand. You can leave any time from card settings.
+        </Body>
+
+        <View style={{ marginTop: 22 }}>
+          {p.rows.map((r, i) => (
+            <View
+              key={r.label}
+              style={{ paddingVertical: 18, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.hairline }}
+            >
+              <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{r.label}</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted, marginTop: 3 }}>{r.value}</Text>
+            </View>
+          ))}
         </View>
-      </View>
-      <View style={{ paddingHorizontal: 26, paddingBottom: 36 + insets.bottom }}>
-        <Pressable onPress={() => router.replace(`/wallet/${id}`)} style={{ backgroundColor: BRAND.blue, borderRadius: 18, paddingVertical: 17, alignItems: 'center' }}>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 16, color: '#fff' }}>View my wallet</Text>
-        </Pressable>
+
+        <View style={{ marginTop: 26 }}>
+          {/* TODO(api): POST /customer/memberships { merchantId } */}
+          <Button
+            label="Join"
+            onPress={() => router.replace(`/join/success?id=${id ?? 'bloom-coffee'}`)}
+            style={{ height: 58, borderRadius: 18, backgroundColor: p.tone }}
+          />
+          <Pressable onPress={() => router.back()} style={{ paddingVertical: 14, alignItems: 'center' }}>
+            <Text style={{ fontFamily: font(600), fontSize: 15, color: C.muted }}>Not now</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );

@@ -1,33 +1,43 @@
-import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font } from '@/lib/tokens';
+import { View } from 'react-native';
+import Svg, { Path, Rect } from 'react-native-svg';
+import { Body, Button, H1, H2, Screen } from '@/components/UI';
+import { C } from '@/lib/tokens';
 
+/** 10 · No cards yet — the empty state behind Cards (home). */
 export default function WalletsEmpty() {
-  const t = useTokens();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.canvas, paddingTop: insets.top }}>
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }}>
-        <View style={{ width: 120, height: 120, borderRadius: 30, borderWidth: 2, borderColor: t.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }}>
-          <Svg width={46} height={46} viewBox="0 0 24 24" fill="none" stroke={t.faint} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <Screen background={C.surface} scroll={false}>
+      <View style={{ marginTop: 16 }}>
+        <H1>Cards</H1>
+      </View>
+
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
+        <View
+          style={{
+            width: '100%', height: 180, borderRadius: 24, backgroundColor: C.wash,
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Svg width={44} height={44} viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <Rect x={3} y={6} width={18} height={13} rx={3} />
-            <Path d="M3 10h18" />
-            <Circle cx={17} cy={14.5} r={1.3} />
+            <Path d="M16 12h3" />
           </Svg>
         </View>
-        <Text style={{ marginTop: 26, fontFamily: font.display(700), fontSize: 26, letterSpacing: -0.6, color: t.ink }}>No wallets yet</Text>
-        <Text style={{ marginTop: 12, fontSize: 15, color: t.soft, textAlign: 'center' }}>Join a merchant to open your first wallet and start earning points.</Text>
+
+        <H2 style={{ marginTop: 32, textAlign: 'center' }}>Nothing here yet</H2>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5, lineHeight: 22.5, textAlign: 'center' }}>
+          Join a brand, or scan the code at a till to claim points you already have.
+        </Body>
+
+        <Button
+          label="Browse brands"
+          onPress={() => router.push('/(tabs)/discover')}
+          style={{ marginTop: 26, alignSelf: 'stretch', height: 58, borderRadius: 18 }}
+        />
       </View>
-      <View style={{ paddingHorizontal: 26, paddingBottom: 36 + insets.bottom }}>
-        <Pressable onPress={() => router.push('/discover')} style={{ backgroundColor: BRAND.blue, borderRadius: 18, paddingVertical: 17, alignItems: 'center' }}>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 16, color: '#fff' }}>Find a merchant</Text>
-        </Pressable>
-      </View>
-    </View>
+    </Screen>
   );
 }

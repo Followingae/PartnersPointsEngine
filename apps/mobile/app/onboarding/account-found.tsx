@@ -1,56 +1,46 @@
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path } from 'react-native-svg';
-import { Screen } from '@/components/Screen';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font } from '@/lib/tokens';
-import { PrimaryButton } from './_components';
+import { Button, Screen, pts } from '@/components/UI';
+import { C, font } from '@/lib/tokens';
+import { Footer, Monogram, Sub, Title } from './_components';
 
-function Avatar({ colors, label, first }: { colors: [string, string]; label: string; first?: boolean }) {
-  const t = useTokens();
+type Linked = { code: string; name: string; points: number; bg: string; ink: string };
+
+/** Cards the number already has points on. */
+const LINKED: Linked[] = [
+  { code: 'CB', name: 'Camel Bean', points: 2480, bg: C.orange, ink: C.ink },
+  { code: 'N', name: 'Núr Pâtisserie', points: 1150, bg: C.purple, ink: '#fff' },
+  { code: 'V', name: 'Verde Market', points: 760, bg: C.green, ink: C.ink },
+];
+
+function LinkedRow({ card }: { card: Linked }) {
   return (
-    <LinearGradient
-      colors={colors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={{ width: 52, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: t.canvas, marginLeft: first ? 0 : -10 }}
-    >
-      <Text style={{ fontFamily: font.display(800), fontSize: 18, color: '#fff' }}>{label}</Text>
-    </LinearGradient>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+      <Monogram code={card.code} size={44} radius={14} bg={card.bg} color={card.ink} fontSize={14} />
+      <Text style={{ flex: 1, fontFamily: font(600), fontSize: 15, color: C.ink }}>{card.name}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 20, letterSpacing: -0.6, color: C.ink }}>{pts(card.points)}</Text>
+    </View>
   );
 }
 
+/** 05 · Account found. */
 export default function AccountFound() {
-  const t = useTokens();
   const router = useRouter();
+
   return (
-    <Screen scroll={false}>
-      <View style={{ flex: 1 }}>
-        <View style={{ height: 46 }} />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }}>
-          <LinearGradient
-            colors={[BRAND.sky, BRAND.blue]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', shadowColor: BRAND.blue, shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.5, shadowRadius: 28, elevation: 10 }}
-          >
-            <Svg width={44} height={44} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M5 13l4 4 10-11" />
-            </Svg>
-          </LinearGradient>
-          <Text style={{ marginTop: 28, fontFamily: font.display(700), fontSize: 30, lineHeight: 31, letterSpacing: -0.6, textAlign: 'center', color: t.ink }}>Welcome back, Maya 👋</Text>
-          <Text style={{ marginTop: 12, fontFamily: font.sans(400), fontSize: 15, lineHeight: 21, textAlign: 'center', color: t.soft }}>We found 3 wallets already linked to your number.</Text>
-          <View style={{ flexDirection: 'row', marginTop: 24 }}>
-            <Avatar colors={[BRAND.blue, '#070459']} label="CB" first />
-            <Avatar colors={[BRAND.purple, '#4A1E99']} label="N" />
-            <Avatar colors={[BRAND.sky, BRAND.blue]} label="V" />
-          </View>
-        </View>
-        <View style={{ paddingHorizontal: 26, paddingBottom: 36 }}>
-          <PrimaryButton label="Go to my wallets" onPress={() => router.replace('/home')} />
+    <Screen scroll={false} background={C.surface} bottomGap={18}>
+      <View style={{ flex: 1, justifyContent: 'center' }}>
+        <Title>We found your points</Title>
+        <Sub style={{ marginTop: 10 }}>{`${LINKED.length} cards are already linked to your number.`}</Sub>
+
+        <View style={{ marginTop: 32, gap: 12 }}>
+          {LINKED.map((card) => <LinkedRow key={card.code} card={card} />)}
         </View>
       </View>
+
+      <Footer>
+        <Button label="Open my cards" onPress={() => router.push('/onboarding/biometric')} />
+      </Footer>
     </Screen>
   );
 }

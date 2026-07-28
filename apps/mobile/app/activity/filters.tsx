@@ -1,56 +1,78 @@
-import { useRouter } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font } from '@/lib/tokens';
+import { TextAction } from '@/components/Bits';
+import { Button, Chip, H2, Label } from '@/components/UI';
+import { C, R, SP } from '@/lib/tokens';
 
-function Chip({ label, on }: { label: string; on?: boolean }) {
-  const t = useTokens();
+const TYPES = ['All', 'Earned', 'Redeemed', 'Converted', 'Expired'];
+const CARDS = ['All cards', 'Camel Bean', 'Núr', 'Verde'];
+
+function ChipRow({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
   return (
-    <View style={{ backgroundColor: on ? BRAND.blue : t.chip, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 999 }}>
-      <Text style={{ fontFamily: font.sans(on ? 700 : 600), fontSize: 12.5, color: on ? '#fff' : t.ink }}>{label}</Text>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+      {options.map((o) => (
+        <Pressable key={o} onPress={() => onChange(o)} style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}>
+          <Chip label={o} tone={o === value ? 'ink' : 'neutral'} style={{ paddingHorizontal: 15, paddingVertical: 9 }} />
+        </Pressable>
+      ))}
     </View>
   );
 }
 
+/** 50 · Filter activity — the sheet the Activity tab's filter button opens. */
 export default function ActivityFilters() {
-  const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [type, setType] = useState(TYPES[0]);
+  const [card, setCard] = useState(CARDS[0]);
+
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/activity'));
+
+  // TODO(api): pass the chosen type/card through to GET /customer/activity.
+  const apply = () => close();
+  const reset = () => {
+    setType(TYPES[0]);
+    setCard(CARDS[0]);
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: t.canvas }}>
-      <Pressable onPress={() => router.back()} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(38,38,38,0.32)' }} />
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: t.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 24, paddingTop: 14, paddingBottom: 30 + insets.bottom }}>
-        <View style={{ alignItems: 'center', paddingBottom: 8 }}>
-          <View style={{ width: 42, height: 5, borderRadius: 999, backgroundColor: t.line }} />
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontFamily: font.display(700), fontSize: 20, color: t.ink }}>Filter activity</Text>
-          <Text style={{ fontFamily: font.sans(600), fontSize: 13, color: BRAND.blue }}>Reset</Text>
+    <View style={{ flex: 1, backgroundColor: C.surface }}>
+      <Stack.Screen options={{ animation: 'slide_from_bottom' }} />
+
+      <Pressable style={{ flex: 1 }} onPress={close} />
+
+      <View
+        style={{
+          backgroundColor: C.surface,
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 30,
+          paddingHorizontal: SP.gutter,
+          paddingTop: 14,
+          paddingBottom: 32 + insets.bottom,
+        }}
+      >
+        <View style={{ alignItems: 'center' }}>
+          <View style={{ width: 42, height: 5, borderRadius: 999, backgroundColor: 'rgba(21,21,15,.08)' }} />
         </View>
 
-        <Text style={{ marginTop: 20, fontFamily: font.sans(700), fontSize: 12, color: t.soft, textTransform: 'uppercase', letterSpacing: 0.6 }}>Type</Text>
-        <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-          <Chip label="Earned" on /><Chip label="Redeemed" /><Chip label="Converted" on /><Chip label="Bonus" /><Chip label="Expired" />
+        <H2 style={{ marginTop: 22 }}>Filter activity</H2>
+
+        <View style={{ marginTop: 22 }}>
+          <Label>Type</Label>
+          <ChipRow options={TYPES} value={type} onChange={setType} />
         </View>
 
-        <Text style={{ marginTop: 22, fontFamily: font.sans(700), fontSize: 12, color: t.soft, textTransform: 'uppercase', letterSpacing: 0.6 }}>Merchant</Text>
-        <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
-          <Chip label="Camel Bean" on /><Chip label="Núr" /><Chip label="Verde" />
+        <View style={{ marginTop: 26 }}>
+          <Label>Card</Label>
+          <ChipRow options={CARDS} value={card} onChange={setCard} />
         </View>
 
-        <Text style={{ marginTop: 22, fontFamily: font.sans(700), fontSize: 12, color: t.soft, textTransform: 'uppercase', letterSpacing: 0.6 }}>Date range</Text>
-        <View style={{ marginTop: 10, flexDirection: 'row', gap: 10 }}>
-          {['1 Jun', '17 Jun'].map((d) => (
-            <View key={d} style={{ flex: 1, backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 14, paddingVertical: 13, alignItems: 'center' }}>
-              <Text style={{ fontFamily: font.sans(600), fontSize: 13, color: t.ink }}>{d}</Text>
-            </View>
-          ))}
+        <View style={{ marginTop: 28 }}>
+          <Button label="Apply" onPress={apply} style={{ borderRadius: R.card, height: 58 }} />
+          <TextAction label="Reset" onPress={reset} />
         </View>
-
-        <Pressable onPress={() => router.back()} style={{ marginTop: 24, backgroundColor: BRAND.blue, borderRadius: 18, paddingVertical: 17 }}>
-          <Text style={{ color: '#fff', textAlign: 'center', fontFamily: font.sans(700), fontSize: 16 }}>Show 24 results</Text>
-        </Pressable>
       </View>
     </View>
   );

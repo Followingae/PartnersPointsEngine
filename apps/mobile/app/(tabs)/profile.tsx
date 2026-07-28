@@ -1,70 +1,60 @@
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, Text, View } from 'react-native';
-import { Screen } from '@/components/Screen';
-import { Chevron, Row } from '@/app/profile/_ui';
-import { useTokens } from '@/lib/theme';
-import { BRAND, elevation, font } from '@/lib/tokens';
+import { Text, View } from 'react-native';
+import { Icon, ListRow, Tile, type IconName } from '@/components/Bits';
+import { H1, Screen, Small } from '@/components/UI';
+import { C, font } from '@/lib/tokens';
 
-export default function ProfileTab() {
-  const t = useTokens();
+// TODO(api): GET /customer/me for the name, phone and partner link state.
+const ME = { name: 'Maya Khoury', phone: '+971 50 123 4567', initials: 'MK' };
+
+const ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
+  { icon: 'user', title: 'Personal details', sub: 'Name, birthday, email', href: '/profile/edit' },
+  { icon: 'card', title: 'Linked partners', sub: 'Lulu · connected', href: '/profile/partners' },
+  { icon: 'bell', title: 'Notifications', sub: 'Per brand and per type', href: '/profile/notifications' },
+  { icon: 'shield', title: 'Security', sub: 'Face ID, sessions', href: '/profile/security' },
+  { icon: 'lock', title: 'Privacy and data', sub: 'Export or delete', href: '/profile/privacy' },
+  { icon: 'globe', title: 'Language', sub: 'English', href: '/profile/language' },
+  { icon: 'help', title: 'Help and support', sub: 'Answers and contact', href: '/help' },
+  { icon: 'info', title: 'About', sub: 'Version, terms, privacy', href: '/about' },
+  { icon: 'logout', title: 'Sign out', sub: 'You can come back any time', href: '/signout' },
+];
+
+export default function Profile() {
   const router = useRouter();
-
   return (
-    <Screen pad>
-      {/* identity */}
-      <View style={{ paddingHorizontal: 22, paddingTop: 8, flexDirection: 'row', alignItems: 'center', gap: 15 }}>
-        <LinearGradient
-          colors={[BRAND.sky, BRAND.blue]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ width: 66, height: 66, borderRadius: 999, alignItems: 'center', justifyContent: 'center' }}
+    <Screen>
+      <H1 style={{ marginTop: 16 }}>Profile</H1>
+
+      <View style={{ marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 999,
+            backgroundColor: C.wash,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          <Text style={{ fontFamily: font.display(800), fontSize: 26, color: '#fff' }}>M</Text>
-        </LinearGradient>
+          <Text style={{ fontFamily: font(600), fontSize: 20, color: C.muted }}>{ME.initials}</Text>
+        </View>
         <View>
-          <Text style={{ fontFamily: font.display(700), fontSize: 22, letterSpacing: -0.2, color: t.ink }}>Maya Haddad</Text>
-          <Text style={{ fontSize: 13, color: t.soft }}>Member since 2024</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 19, letterSpacing: -0.38, color: C.ink }}>{ME.name}</Text>
+          <Small style={{ marginTop: 4, fontSize: 13 }}>{ME.phone}</Small>
         </View>
       </View>
 
-      {/* completion card */}
-      <View style={{ paddingHorizontal: 22, paddingTop: 18 }}>
-        <View style={[{ backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 18, padding: 14, paddingHorizontal: 16 }, elevation(t.elevColor)]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 13, color: t.soft }}>Profile 70% complete</Text>
-            <Text style={{ fontSize: 13, fontFamily: font.sans(700), color: BRAND.blue }}>+50 pts left</Text>
-          </View>
-          <View style={{ marginTop: 10, height: 7, borderRadius: 999, backgroundColor: t.chip, overflow: 'hidden' }}>
-            <LinearGradient colors={[BRAND.blue, BRAND.sky]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ width: '70%', height: '100%', borderRadius: 999 }} />
-          </View>
-        </View>
-      </View>
-
-      {/* settings list */}
-      <View style={{ paddingHorizontal: 22, paddingTop: 18 }}>
-        <Pressable onPress={() => router.push('/profile/edit')}><Row emoji="👤" label="Personal details" /></Pressable>
-        <Pressable onPress={() => router.push('/profile/partners')}>
-          <Row
-            emoji="🔗"
-            label="Linked partners"
-            trailing={
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontFamily: font.sans(600), fontSize: 12, color: BRAND.blue, marginRight: 6 }}>Lulu</Text>
-                <Chevron />
-              </View>
-            }
+      <View style={{ marginTop: 26 }}>
+        {ROWS.map((r) => (
+          <ListRow
+            key={r.title}
+            lead={<Tile><Icon name={r.icon} size={19} /></Tile>}
+            title={r.title}
+            sub={r.sub}
+            onPress={() => router.push(r.href)}
           />
-        </Pressable>
-        <Pressable onPress={() => router.push('/profile/notifications')}><Row emoji="🔔" label="Notifications" /></Pressable>
-        <Pressable onPress={() => router.push('/profile/security')}><Row emoji="🔒" label="Security" /></Pressable>
-        <Pressable onPress={() => router.push('/profile/appearance')}><Row emoji="🎨" label="Appearance" /></Pressable>
-        <Pressable onPress={() => router.push('/help')}><Row emoji="❓" label="Help & support" last /></Pressable>
+        ))}
       </View>
-
-      <Pressable onPress={() => router.push('/signout')} style={{ paddingHorizontal: 22, paddingTop: 16 }}>
-        <Text style={{ textAlign: 'center', fontFamily: font.sans(700), fontSize: 14, color: BRAND.coral }}>Sign out</Text>
-      </Pressable>
     </Screen>
   );
 }

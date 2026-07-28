@@ -1,46 +1,38 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Screen } from '@/components/Screen';
-import { SettingsHeader, Toggle } from '@/app/profile/_ui';
-import { useTokens } from '@/lib/theme';
-import { font } from '@/lib/tokens';
+import { View } from 'react-native';
+import { BackBar, Lede, ListRow, Toggle } from '@/components/Bits';
+import { H1, Screen } from '@/components/UI';
 
+// TODO(api): GET/PATCH /customer/me/notifications
 const INITIAL = [
   { title: 'Points earned', desc: 'When you earn at a merchant', on: true },
-  { title: 'Happy hour & offers', desc: 'Time-limited promos near you', on: true },
+  { title: 'Happy hour and offers', desc: 'Time-limited promos near you', on: true },
   { title: 'Expiring points', desc: 'Reminders before points expire', on: true },
+  { title: 'Challenges and streaks', desc: 'Progress and reminders', on: true },
   { title: 'Conversions', desc: 'Lulu transfer updates', on: true },
-  { title: 'Marketing emails', desc: 'News & partner offers', on: false },
+  { title: 'Marketing emails', desc: 'News and partner offers', on: false },
 ];
 
-export default function NotificationSettings() {
-  const t = useTokens();
+export default function Notifications() {
   const [rows, setRows] = useState(INITIAL);
   const toggle = (i: number) => setRows((r) => r.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
-  // TODO(api): persist notification preferences
+
   return (
     <Screen>
-      <SettingsHeader title="Notifications" />
-      <View style={{ paddingHorizontal: 22, paddingTop: 18 }}>
+      <BackBar fallback="/profile" />
+
+      <H1 style={{ marginTop: 20 }}>Notifications</H1>
+      <Lede style={{ marginTop: 10 }}>Choose what reaches you, per brand and per type.</Lede>
+
+      <View style={{ marginTop: 24 }}>
         {rows.map((n, i) => (
-          <Pressable
+          <ListRow
             key={n.title}
+            title={n.title}
+            sub={n.desc}
             onPress={() => toggle(i)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 13,
-              paddingVertical: 16,
-              borderBottomWidth: i === rows.length - 1 ? 0 : 1,
-              borderBottomColor: t.line,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: font.sans(600), fontSize: 14.5, color: t.ink }}>{n.title}</Text>
-              <Text style={{ fontSize: 12, color: t.soft }}>{n.desc}</Text>
-            </View>
-            <Toggle on={n.on} />
-          </Pressable>
+            trailing={<Toggle on={n.on} />}
+          />
         ))}
       </View>
     </Screen>

@@ -155,6 +155,23 @@ class TerminalApi(private val settings: SettingsStore) {
         } ?: emptyList(),
     )
 
+    /** Rewards this member can use right now (so the cashier can just tap one). */
+    suspend fun memberVouchers(memberToken: String): List<AvailableVoucher> {
+        val res = request("POST", "/members/vouchers", JSONObject().put("memberToken", memberToken).toString())
+        val arr = res.optJSONArray("items") ?: res.optJSONArray("data")
+        // endpoint returns a bare array; the helper wraps non-objects under "items"
+        val list = arr ?: return emptyList()
+        return (0 until list.length()).mapNotNull { i ->
+            list.optJSONObject(i)?.let { o ->
+                AvailableVoucher(
+                    code = o.optString("code"),
+                    rewardName = o.optString("rewardName").ifBlank { "Reward" },
+                    discountMinor = o.optLong("discountMinor"),
+                )
+            }
+        }
+    }
+
     /** Redeem a reward voucher the customer presents at the till. */
     suspend fun redeemVoucher(code: String, memberToken: String?): VoucherRedemption {
         val body = JSONObject().put("code", code)
@@ -208,7 +225,13 @@ class TerminalApi(private val settings: SettingsStore) {
                     }
                     throw ApiException(res.code, msg.ifBlank { "request failed" })
                 }
-                if (text.isBlank()) JSONObject() else JSONObject(text)
+                when {
+                    text.isBlank() -> JSONObject()
+                    // some endpoints return a bare array — wrap it so callers
+                    // always get an object back
+                    text.trimStart().startsWith("[") -> JSONObject().put("items", org.json.JSONArray(text))
+                    else -> JSONObject(text)
+                }
             }
         }
 
@@ -360,5 +383,12 @@ data class VoucherRedemption(
     val code: String,
     val rewardName: String,
     val kind: String,
+    val discountMinor: Long,
+)
+
+/** A reward the identified customer already holds. */
+data class AvailableVoucher(
+    val code: String,
+    val rewardName: String,
     val discountMinor: Long,
 )

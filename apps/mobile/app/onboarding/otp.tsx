@@ -1,23 +1,23 @@
-import { Pressable, Text, View } from 'react-native';
+import { ReactNode } from 'react';
+import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, BackButton } from '@/components/Screen';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font } from '@/lib/tokens';
-import { Caret, PrimaryButton } from './_components';
+import { Button, Screen, Small } from '@/components/UI';
+import { C, font } from '@/lib/tokens';
+import { BackButton, Caret, Footer, Sub, Title } from './_components';
 
-function Cell({ children, active, filled }: { children?: React.ReactNode; active?: boolean; filled?: boolean }) {
-  const t = useTokens();
+/** One OTP box. Filled boxes are washed in; empty ones are outlined. */
+function Cell({ children, filled }: { children?: ReactNode; filled?: boolean }) {
   return (
     <View
       style={{
         flex: 1,
         aspectRatio: 1 / 1.15,
         borderRadius: 16,
-        backgroundColor: t.card,
-        borderWidth: active || filled ? 2 : 1,
-        borderColor: active || filled ? BRAND.blue : t.line,
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: filled ? C.canvas : C.surface,
+        borderWidth: filled ? 0 : 1.5,
+        borderColor: C.hairline,
       }}
     >
       {children}
@@ -25,44 +25,44 @@ function Cell({ children, active, filled }: { children?: React.ReactNode; active
   );
 }
 
+function Digit({ value }: { value: string }) {
+  return <Text style={{ fontFamily: font(600), fontSize: 24, color: C.ink }}>{value}</Text>;
+}
+
+/** 04 · OTP. */
 export default function Otp() {
-  const t = useTokens();
   const router = useRouter();
 
   function onVerify() {
-    // TODO(api): verifyOtp(phone, code, brandId) then store token
-    router.push('/onboarding/biometric');
+    // TODO(api): verifyOtp(msisdn, code) — persist the session token before advancing.
+    router.push('/onboarding/account-found');
   }
 
   return (
-    <Screen scroll={false}>
-      <View style={{ flex: 1 }}>
-        <View style={{ height: 46, justifyContent: 'center', paddingHorizontal: 22 }}>
-          <BackButton fallback="/onboarding/phone" />
-        </View>
-
-        <View style={{ flex: 1, paddingHorizontal: 26, paddingTop: 24 }}>
-          <Text style={{ fontFamily: font.display(700), fontSize: 30, lineHeight: 31, letterSpacing: -0.6, color: t.ink }}>Enter the code</Text>
-          <Text style={{ marginTop: 12, fontFamily: font.sans(400), fontSize: 15, color: t.soft }}>
-            Sent to +971 50 123 4567 · <Text onPress={() => router.push('/onboarding/phone')} style={{ fontFamily: font.sans(700), color: BRAND.blue }}>Edit</Text>
-          </Text>
-
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 32 }}>
-            <Cell filled><Text style={{ fontFamily: font.display(700), fontSize: 26, color: t.ink }}>4</Text></Cell>
-            <Cell filled><Text style={{ fontFamily: font.display(700), fontSize: 26, color: t.ink }}>8</Text></Cell>
-            <Cell filled><Text style={{ fontFamily: font.display(700), fontSize: 26, color: t.ink }}>2</Text></Cell>
-            <Cell active><Caret height={26} /></Cell>
-            <Cell />
-            <Cell />
-          </View>
-
-          <Text style={{ marginTop: 26, fontFamily: font.sans(400), fontSize: 14, color: t.faint, textAlign: 'center' }}>Resend code in 0:24</Text>
-        </View>
-
-        <View style={{ paddingHorizontal: 26, paddingBottom: 36 }}>
-          <PrimaryButton label="Verify" onPress={onVerify} />
-        </View>
+    <Screen scroll={false} background={C.surface} bottomGap={18}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <BackButton onPress={() => router.back()} />
       </View>
+
+      <View style={{ marginTop: 20 }}>
+        <Title>Enter the code</Title>
+        <Sub style={{ marginTop: 10 }}>Sent to +971 50 123 4567</Sub>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 32 }}>
+        <Cell filled><Digit value="4" /></Cell>
+        <Cell filled><Digit value="8" /></Cell>
+        <Cell filled><Digit value="2" /></Cell>
+        <Cell><Caret height={24} offset={0} /></Cell>
+        <Cell />
+        <Cell />
+      </View>
+
+      <Small style={{ marginTop: 26, fontSize: 13.5, textAlign: 'center' }}>Resend in 0:24</Small>
+
+      <Footer>
+        <Button label="Verify" onPress={onVerify} />
+      </Footer>
     </Screen>
   );
 }

@@ -64,10 +64,13 @@ export function Card({ children, style, onPress }: { children: ReactNode; style?
 
 /** Full-width primary action. Ink by default, lime for celebratory moments. */
 export function Button({
-  label, onPress, tone = 'primary', loading, disabled, style,
+  label, onPress, tone = 'primary', loading, disabled, style, radius, height,
 }: {
   label: string; onPress?: () => void; tone?: 'primary' | 'lime' | 'ghost' | 'outline';
   loading?: boolean; disabled?: boolean; style?: ViewStyle;
+  /** The design uses 18 on onboarding CTAs and 14 elsewhere. */
+  radius?: number;
+  height?: number;
 }) {
   const bg = tone === 'primary' ? C.ink : tone === 'lime' ? C.lime : tone === 'ghost' ? C.wash : 'transparent';
   const fg = tone === 'primary' ? '#fff' : C.ink;
@@ -77,6 +80,8 @@ export function Button({
       onPress={disabled || loading ? undefined : onPress}
       style={({ pressed }) => [
         styles.btn,
+        radius !== undefined ? { borderRadius: radius } : null,
+        height !== undefined ? { height } : null,
         { backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.92 : 1 },
         border,
         style,
@@ -132,10 +137,12 @@ export function Header({ title, right, sub }: { title: string; right?: ReactNode
 }
 
 /** Thin progress track (tiers, challenges, stamp cards). */
-export function Progress({ value, total, color = C.ink, height = 8 }: { value: number; total: number; color?: string; height?: number }) {
+export function Progress({
+  value, total, color = C.ink, height = 8, track = C.wash,
+}: { value: number; total: number; color?: string; height?: number; track?: string }) {
   const pct = total > 0 ? Math.max(0, Math.min(1, value / total)) : 0;
   return (
-    <View style={{ height, borderRadius: 999, backgroundColor: C.wash, overflow: 'hidden' }}>
+    <View style={{ height, borderRadius: 999, backgroundColor: track, overflow: 'hidden' }}>
       <View style={{ width: `${pct * 100}%`, height: '100%', borderRadius: 999, backgroundColor: color }} />
     </View>
   );

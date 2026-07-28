@@ -1,54 +1,86 @@
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { BackButton, Screen } from '@/components/Screen';
-import { useTokens } from '@/lib/theme';
-import { BRAND, elevation, font } from '@/lib/tokens';
+import { H1, Screen, Small } from '@/components/UI';
+import { C, R, font } from '@/lib/tokens';
+import { IconName, ListRow, TopBar } from '@/components/RewardKit';
 
-function VoucherRow({ colors, badge, title, expires, onPress }: { colors: [string, string]; badge: string; title: string; expires: string; onPress: () => void }) {
-  const t = useTokens();
+type Status = 'active' | 'used' | 'expired';
+
+const FILTERS: { key: Status; label: string }[] = [
+  { key: 'active', label: 'Active' },
+  { key: 'used', label: 'Used' },
+  { key: 'expired', label: 'Expired' },
+];
+
+const VOUCHERS: {
+  id: string; title: string; sub: string; icon: IconName; iconBg: string; status: Status;
+}[] = [
+  { id: 'cb-9k2d-4417', title: 'Free flat white', sub: 'Camel Bean · expires 11 Aug', icon: 'cup', iconBg: 'rgba(255,74,28,.12)', status: 'active' },
+  { id: 'nur-slice', title: 'Free slice', sub: 'Núr · expires 2 Aug', icon: 'gift', iconBg: 'rgba(123,47,247,.12)', status: 'active' },
+  { id: 'verde-10', title: 'AED 10 off', sub: 'Verde · expires 30 Jul', icon: 'tag', iconBg: 'rgba(0,179,126,.14)', status: 'active' },
+];
+
+function Filter({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 20, padding: 14, ...elevation(t.elevColor) }}>
-      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontFamily: font.display(800), fontSize: 16, color: '#fff' }}>{badge}</Text>
-      </LinearGradient>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: font.sans(700), fontSize: 14.5, color: t.ink }}>{title}</Text>
-        <Text style={{ fontSize: 12, color: t.faint, marginTop: 2 }}>{expires}</Text>
-      </View>
-      <View style={{ backgroundColor: 'rgba(191,242,5,0.24)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999 }}>
-        <Text style={{ fontFamily: font.sans(700), fontSize: 11, color: '#4d5c00' }}>Active</Text>
-      </View>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          paddingVertical: 9,
+          paddingHorizontal: 15,
+          borderRadius: R.chip,
+          backgroundColor: selected ? C.ink : C.canvas,
+        },
+        pressed ? { opacity: 0.8 } : null,
+      ]}
+    >
+      <Text style={{
+        fontFamily: font(selected ? 600 : 500),
+        fontSize: 12.5,
+        color: selected ? '#fff' : C.ink,
+      }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 export default function Vouchers() {
-  const t = useTokens();
   const router = useRouter();
-  const tabs = [
-    { label: 'Active 2', active: true },
-    { label: 'Used', active: false },
-    { label: 'Expired', active: false },
-  ];
+  const [filter, setFilter] = useState<Status>('active');
+
+  // TODO(api): list the customer's vouchers; sample rows come from the design.
+  const rows = VOUCHERS.filter((v) => v.status === filter);
+
   return (
-    <Screen pad>
-      <View style={{ paddingHorizontal: 22, paddingTop: 6 }}>
-        <BackButton fallback="/profile" />
-      </View>
-      <View style={{ paddingHorizontal: 22, paddingTop: 6 }}>
-        <Text style={{ fontFamily: font.display(700), fontSize: 28, color: t.ink, letterSpacing: -0.6 }}>My vouchers</Text>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 22, paddingTop: 14 }}>
-        {tabs.map((tab) => (
-          <View key={tab.label} style={{ backgroundColor: tab.active ? BRAND.blue : t.chip, paddingHorizontal: 15, paddingVertical: 9, borderRadius: 999 }}>
-            <Text style={{ fontFamily: font.sans(tab.active ? 700 : 600), fontSize: 12.5, color: tab.active ? '#fff' : t.ink }}>{tab.label}</Text>
-          </View>
+    <Screen background={C.surface} bottomGap={30}>
+      <TopBar />
+
+      <H1 style={{ marginTop: 20 }}>Vouchers</H1>
+
+      <View style={{ marginTop: 22, flexDirection: 'row', gap: 8 }}>
+        {FILTERS.map((f) => (
+          <Filter key={f.key} label={f.label} selected={filter === f.key} onPress={() => setFilter(f.key)} />
         ))}
       </View>
-      <View style={{ paddingHorizontal: 22, paddingTop: 16, gap: 12 }}>
-        <VoucherRow colors={[BRAND.blue, BRAND.deep]} badge="CB" title="Free flat white" expires="Expires 30 Jul" onPress={() => router.push('/voucher/flw')} />
-        <VoucherRow colors={[BRAND.purple, '#4A1E99']} badge="N" title="10% off any cake" expires="Expires 12 Aug" onPress={() => router.push('/voucher/cake')} />
+
+      <View style={{ marginTop: 24 }}>
+        {rows.map((v, i) => (
+          <ListRow
+            key={v.id}
+            icon={v.icon}
+            iconBg={v.iconBg}
+            title={v.title}
+            sub={v.sub}
+            chevron
+            divider={i > 0}
+            onPress={() => router.push(`/voucher/${v.id}`)}
+          />
+        ))}
+        {rows.length === 0 ? (
+          <Small style={{ paddingVertical: 24 }}>Nothing here yet.</Small>
+        ) : null}
       </View>
     </Screen>
   );

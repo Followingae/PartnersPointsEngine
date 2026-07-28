@@ -1,240 +1,202 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path } from 'react-native-svg';
-import { Screen } from '@/components/Screen';
-import { useTokens } from '@/lib/theme';
-import { BRAND, elevation, font } from '@/lib/tokens';
+import { ReactNode } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { OnColorBar, brandFg, getBrand } from '@/components/BrandCard';
+import { IconButton, Label, Screen, Small, pts } from '@/components/UI';
+import { C, R, S, SP, font } from '@/lib/tokens';
 
-function QuickAction({
-  label,
-  primary,
-  onPress,
-  icon,
-}: {
-  label: string;
-  primary?: boolean;
-  onPress?: () => void;
-  icon: React.ReactNode;
-}) {
-  const t = useTokens();
-  const inner = (
-    <>
-      <View
-        style={{
-          width: 38,
-          height: 38,
-          borderRadius: 12,
-          backgroundColor: primary ? 'rgba(255,255,255,0.2)' : t.chip,
-          marginBottom: 8,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {icon}
-      </View>
-      <Text style={{ fontFamily: font.sans(primary ? 700 : 600), fontSize: 12, color: primary ? '#fff' : t.ink }}>{label}</Text>
-    </>
+/** 13 · Card detail — brand-coloured head over a white sheet. */
+
+function BackIcon({ color }: { color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M15 5l-7 7 7 7" />
+    </Svg>
   );
-  if (primary) {
-    return (
-      <Pressable onPress={onPress} style={{ flex: 1 }}>
-        <LinearGradient
-          colors={[BRAND.sky, BRAND.blue]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ borderRadius: 20, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center', ...shadow(BRAND.blue) }}
-        >
-          {inner}
-        </LinearGradient>
-      </Pressable>
-    );
-  }
+}
+
+function MoreIcon({ color }: { color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={5} cy={12} r={1} />
+      <Circle cx={12} cy={12} r={1} />
+      <Circle cx={19} cy={12} r={1} />
+    </Svg>
+  );
+}
+
+const act = (color: string) => ({ fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const);
+
+function QrIcon({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" {...act(color)}>
+      <Path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+      <Path d="M4 12h16" />
+    </Svg>
+  );
+}
+function RewardsIcon({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" {...act(color)}>
+      <Path d="M12 3l9 9-9 9-9-9z" />
+      <Circle cx={12} cy={9} r={1.4} />
+    </Svg>
+  );
+}
+function ConvertIcon({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" {...act(color)}>
+      <Path d="M17 4v6h-6M7 20v-6h6" />
+      <Path d="M19 10a7 7 0 0 0-13-2M5 14a7 7 0 0 0 13 2" />
+    </Svg>
+  );
+}
+function WalletIcon({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" {...act(color)}>
+      <Rect x={3} y={6} width={18} height={13} rx={3} />
+      <Path d="M16 12h3" />
+    </Svg>
+  );
+}
+
+function Action({ label, icon, primary, onPress }: {
+  label: string; icon: (color: string) => ReactNode; primary?: boolean; onPress?: () => void;
+}) {
+  const fg = primary ? '#fff' : C.ink;
   return (
     <Pressable
       onPress={onPress}
-      style={{ flex: 1, backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center', ...elevation(t.elevColor) }}
+      style={({ pressed }) => ({
+        flex: 1, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 6,
+        alignItems: 'center', gap: 9,
+        backgroundColor: primary ? C.ink : C.wash,
+        opacity: pressed ? 0.85 : 1,
+      })}
     >
-      {inner}
+      {icon(fg)}
+      <Text style={{ fontFamily: font(600), fontSize: 11.5, color: fg }}>{label}</Text>
     </Pressable>
   );
 }
 
-const shadow = (c: string) => ({ shadowColor: c, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.55, shadowRadius: 18, elevation: 8 });
-
-function RewardCardSmall({ name, cost, affordable }: { name: string; cost: string; affordable: boolean }) {
-  const t = useTokens();
+function RecentRow({ title, when, amount, color, first }: {
+  title: string; when: string; amount: string; color: string; first?: boolean;
+}) {
   return (
-    <View style={{ width: 158, backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 22, overflow: 'hidden', ...elevation(t.elevColor) }}>
-      <View style={{ height: 96, backgroundColor: '#e3e3e6', alignItems: 'center', justifyContent: 'flex-end', padding: 8 }}>
-        <Text style={{ fontFamily: font.mono(500), fontSize: 9, color: '#7a7a82', backgroundColor: 'rgba(255,255,255,0.75)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 }}>reward image</Text>
+    <View
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18,
+        borderTopWidth: first ? 0 : 1, borderTopColor: 'rgba(21,21,15,.08)',
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{title}</Text>
+        <Small style={{ marginTop: 3, fontSize: 12.5 }}>{when}</Small>
       </View>
-      <View style={{ padding: 11 }}>
-        <Text style={{ fontFamily: font.sans(700), fontSize: 13, color: t.ink }}>{name}</Text>
-        <View style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: affordable ? 'rgba(191,242,5,0.24)' : t.chip, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 }}>
-          <Text style={{ fontFamily: font.mono(600), fontSize: 11, color: affordable ? '#4d5c00' : t.faint }}>{cost}</Text>
-        </View>
-      </View>
+      <Text style={{ fontFamily: font(600), fontSize: 15, color }}>{amount}</Text>
     </View>
   );
 }
 
-export default function WalletDetail() {
-  const t = useTokens();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+export default function CardDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  // TODO(api): GET /me/cards/:id — balance, tier, recent ledger entries.
+  const brand = getBrand(id);
+  const fg = brandFg(brand.color);
+  const chrome = fg === '#fff' ? 'rgba(255,255,255,.18)' : 'rgba(21,21,15,.15)';
+  const base = `/wallet/${brand.id}`;
 
   return (
-    <Screen pad topInset={false}>
-      {/* gradient hero */}
-      <LinearGradient
-        colors={[BRAND.blue, BRAND.deep]}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={{ paddingTop: insets.top + 12, paddingHorizontal: 22, paddingBottom: 30 }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} style={glassBtn}>
-            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M15 5l-7 7 7 7" />
-            </Svg>
-          </Pressable>
-          <View style={glassBtn}>
-            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round">
-              <Circle cx={5} cy={12} r={1} />
-              <Circle cx={12} cy={12} r={1} />
-              <Circle cx={19} cy={12} r={1} />
-            </Svg>
-          </View>
+    <Screen background={brand.color} pad={false} bottomGap={0}>
+      <View style={{ paddingHorizontal: SP.gutter }}>
+        <View style={{ marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <IconButton onPress={() => router.back()} style={{ borderRadius: 999, backgroundColor: chrome }}>
+            <BackIcon color={fg} />
+          </IconButton>
+          <IconButton onPress={() => router.push(`${base}/notifications`)} style={{ borderRadius: 999, backgroundColor: chrome }}>
+            <MoreIcon color={fg} />
+          </IconButton>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 22 }}>
-          <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.96)', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: font.display(800), fontSize: 22, color: BRAND.blue }}>CB</Text>
+        <View style={{ marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+          <View
+            style={{
+              width: 52, height: 52, borderRadius: 16, backgroundColor: chrome,
+              alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Text style={{ fontFamily: font(600), fontSize: 17, color: fg }}>{brand.initial}</Text>
           </View>
           <View>
-            <Text style={{ fontFamily: font.display(700), fontSize: 20, color: '#fff' }}>Camel Bean</Text>
-            <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.82)' }}>Specialty coffee · 6 branches</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 19, letterSpacing: -0.38, color: fg }}>{brand.name}</Text>
+            <Text style={{ marginTop: 3, fontFamily: font(500), fontSize: 12.5, color: fg }}>{brand.category}</Text>
           </View>
         </View>
 
-        <View style={{ marginTop: 24 }}>
-          <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.78)' }}>Your balance</Text>
-          <Text style={{ fontFamily: font.display(700), fontSize: 64, color: '#fff', letterSpacing: -1.8, marginTop: 4 }}>2,480</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 }}>
-            <View style={{ backgroundColor: 'rgba(191,242,5,0.22)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 }}>
-              <Text style={{ fontFamily: font.sans(700), fontSize: 12, color: BRAND.lime }}>🏅 Gold tier</Text>
-            </View>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>320 pts to Black</Text>
-          </View>
-          <View style={{ marginTop: 12, height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' }}>
-            <View style={{ width: '82%', height: '100%', borderRadius: 999, backgroundColor: BRAND.lime }} />
-          </View>
+        <View style={{ marginTop: 34, flexDirection: 'row', alignItems: 'baseline', gap: 9 }}>
+          <Text style={{ fontFamily: font(600), fontSize: 60, lineHeight: 52, letterSpacing: -2.4, color: fg }}>
+            {pts(brand.points)}
+          </Text>
+          <Text style={{ fontFamily: font(500), fontSize: 15, color: fg }}>pts</Text>
         </View>
-      </LinearGradient>
 
-      {/* quick actions */}
-      <View style={{ flexDirection: 'row', gap: 11, paddingHorizontal: 22, paddingTop: 18 }}>
-        <QuickAction
-          label="Show QR"
-          onPress={() => router.push('/scan')}
-          icon={
-            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={t.ink} strokeWidth={1.9} strokeLinecap="round">
-              <Path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-              <Path d="M4 12h16" />
-            </Svg>
-          }
-        />
-        <QuickAction
-          label="Convert"
-          primary
-          onPress={() => router.push('/convert/intro')}
-          icon={
-            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M17 4v6h-6M7 20v-6h6" />
-              <Path d="M19 10a7 7 0 0 0-13-2M5 14a7 7 0 0 0 13 2" />
-            </Svg>
-          }
-        />
-        <QuickAction
-          label="Rewards"
-          onPress={() => router.push('/rewards')}
-          icon={
-            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={t.ink} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M12 3l2.4 5 5.6.6-4 3.9 1.1 5.5L12 15.8 6.9 18l1.1-5.5-4-3.9 5.6-.6z" />
-            </Svg>
-          }
-        />
-      </View>
-
-      {/* how you earn */}
-      <View style={{ paddingHorizontal: 22, paddingTop: 18 }}>
-        <Pressable onPress={() => router.push(`/wallet/${id}/earn`)} style={{ backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 24, padding: 16, ...elevation(t.elevColor) }}>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 14, color: t.ink, marginBottom: 12 }}>How you earn</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 11 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: BRAND.lime }} />
-            <Text style={{ fontSize: 13.5, color: t.soft }}>1 pt per AED spent in-store & online</Text>
+        <Pressable onPress={() => router.push(`${base}/tiers`)}>
+          <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <Text style={{ fontFamily: font(500), fontSize: 13.5, color: fg }}>{brand.tier}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13, color: fg }}>{brand.footnote}</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: BRAND.blue }} />
-            <Text style={{ fontSize: 13.5, color: t.soft }}>2× happy hour · Thursdays 4–6pm</Text>
+          <View style={{ marginTop: 10 }}>
+            <OnColorBar value={brand.progress ?? 0} color={brand.color} />
           </View>
         </Pressable>
       </View>
 
-      {/* rewards strip */}
-      <View style={{ paddingTop: 20 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 22, paddingBottom: 12 }}>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 16, color: t.ink }}>Rewards</Text>
-          <Pressable onPress={() => router.push('/rewards')}>
-            <Text style={{ fontFamily: font.sans(600), fontSize: 12, color: BRAND.blue }}>See all</Text>
-          </Pressable>
+      <View
+        style={{
+          marginTop: 30, paddingTop: 26, paddingBottom: 40, minHeight: 440,
+          backgroundColor: C.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30,
+        }}
+      >
+        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: SP.gutter }}>
+          <Action label="Show QR" primary icon={(c) => <QrIcon color={c} />} onPress={() => router.push('/(tabs)/scan')} />
+          <Action label="Rewards" icon={(c) => <RewardsIcon color={c} />} onPress={() => router.push('/rewards')} />
+          <Action label="Convert" icon={(c) => <ConvertIcon color={c} />} onPress={() => router.push('/convert')} />
+          {/* TODO(api): add-to-Apple/Google-Wallet pass issuance. */}
+          <Action label="Wallet" icon={(c) => <WalletIcon color={c} />} />
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 13, paddingHorizontal: 22 }}>
-          <RewardCardSmall name="Free flat white" cost="450 pts" affordable />
-          <RewardCardSmall name="Pastry of the day" cost="800 pts" affordable={false} />
-        </ScrollView>
-      </View>
 
-      {/* activity */}
-      <View style={{ paddingHorizontal: 22, paddingTop: 20 }}>
-        <Text style={{ fontFamily: font.sans(700), fontSize: 16, color: t.ink, marginBottom: 12 }}>Recent activity</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: t.line }}>
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(191,242,5,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#4d5c00" strokeWidth={2.2} strokeLinecap="round">
-              <Path d="M12 5v14M5 12h14" />
-            </Svg>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: font.sans(600), fontSize: 14, color: t.ink }}>Earned at JLT branch</Text>
-            <Text style={{ fontSize: 12, color: t.faint }}>Today · 9:12am</Text>
-          </View>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 14, color: '#4d5c00' }}>+120</Text>
+        <View style={{ paddingHorizontal: SP.gutter, paddingTop: 30 }}>
+          <Pressable
+            onPress={() => router.push(`${base}/activity`)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <Label>Recent</Label>
+            <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.muted }}>All</Text>
+          </Pressable>
+
+          <RecentRow first title="Earned · JLT branch" when="Today · 2:41 PM" amount="+120" color={S.earnInk} />
+          <RecentRow title="Redeemed · free flat white" when="Mon · 8:40 AM" amount="−450" color={S.spend} />
+          <RecentRow title="Converted to Lulu" when="Sat · 2:40 PM" amount="−1,000" color={C.electric} />
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 11 }}>
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(11,4,217,0.1)', alignItems: 'center', justifyContent: 'center' }}>
-            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={BRAND.blue} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M17 4v6h-6M7 20v-6h6" />
-            </Svg>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: font.sans(600), fontSize: 14, color: t.ink }}>Converted to Lulu</Text>
-            <Text style={{ fontSize: 12, color: t.faint }}>Mon · 2:40pm</Text>
-          </View>
-          <Text style={{ fontFamily: font.sans(700), fontSize: 14, color: BRAND.blue }}>−1,000</Text>
+
+        <View style={{ paddingHorizontal: SP.gutter, paddingTop: 8, flexDirection: 'row', gap: 10 }}>
+          <Pressable
+            onPress={() => router.push(`${base}/earn`)}
+            style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: R.chip, backgroundColor: C.wash }}
+          >
+            <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.ink }}>How you earn</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push(`${base}/expiring`)}
+            style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: R.chip, backgroundColor: C.wash }}
+          >
+            <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.ink }}>Expiring points</Text>
+          </Pressable>
         </View>
       </View>
     </Screen>
   );
 }
-
-const glassBtn = {
-  width: 36,
-  height: 36,
-  borderRadius: 999,
-  backgroundColor: 'rgba(255,255,255,0.16)',
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-};

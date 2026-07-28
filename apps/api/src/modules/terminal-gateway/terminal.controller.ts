@@ -41,6 +41,12 @@ export class TerminalController {
     return this.terminal.createReceipt(ctx, dto);
   }
 
+  @Post('members/vouchers')
+  @ApiOperation({ summary: 'Rewards this member can use right now — shown to the cashier.' })
+  memberVouchers(@CurrentTenant() ctx: TenantContext, @Body() dto: MemberContextDto) {
+    return this.terminal.memberVouchers(ctx, dto.memberToken);
+  }
+
   @Post('vouchers/redeem')
   @ApiOperation({ summary: 'Redeem a reward voucher at the till (code from the app or a slip).' })
   redeemVoucher(@CurrentTenant() ctx: TenantContext, @Body() dto: RedeemVoucherDto) {

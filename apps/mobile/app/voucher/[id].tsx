@@ -1,77 +1,75 @@
-import { Pressable, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import Svg, { Path, Rect } from 'react-native-svg';
-import { Screen } from '@/components/Screen';
-import { useTokens } from '@/lib/theme';
-import { BRAND, elevation, font } from '@/lib/tokens';
+import { Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Button, IconButton, Screen, Small } from '@/components/UI';
+import { C, font, shadow } from '@/lib/tokens';
+import {
+  Footer, Ic, Perforation, QrPlaceholder, ROUND, TextAction, TopBar,
+} from '@/components/RewardKit';
 
-function Barcode() {
-  const t = useTokens();
-  // Deterministic bar widths.
-  let bars: { x: number; w: number }[] = [];
-  let x = 0;
-  let s = 7;
-  while (x < 280) {
-    s = (s * 9301 + 49297) % 233280;
-    const w = 1.5 + (s / 233280) * 4;
-    bars.push({ x, w });
-    x += w + 2 + (s % 3);
-  }
-  return (
-    <Svg width="100%" height={60} viewBox="0 0 290 60" preserveAspectRatio="none">
-      {bars.map((b, i) => (
-        <Rect key={i} x={b.x} y={0} width={b.w} height={60} fill={t.ink} />
-      ))}
-    </Svg>
-  );
-}
-
+/**
+ * The till-facing screen. Everything on it exists so a barista can read it at
+ * arm's length: brand strip, punched ticket, code, expiry.
+ */
 export default function Voucher() {
-  const t = useTokens();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+
+  // TODO(api): server-issued code — the code and expiry must come from the API,
+  // never be derived on the device.
+  const voucher = {
+    badge: 'CB',
+    title: 'Free flat white',
+    where: 'Camel Bean · any branch',
+    code: 'CB-9K2D-4417',
+    expiry: 'Expires 11 Aug · one use',
+  };
+
   return (
-    <Screen scroll={false}>
-      <View style={{ height: 46, alignItems: 'center', justifyContent: 'center' }}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/vouchers'))} style={{ position: 'absolute', left: 22, width: 36, height: 36, borderRadius: 999, backgroundColor: t.card, alignItems: 'center', justifyContent: 'center', ...elevation(t.elevColor) }}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={t.ink} strokeWidth={2.2} strokeLinecap="round">
-            <Path d="M6 6l12 12M18 6L6 18" />
-          </Svg>
-        </Pressable>
-        <Text style={{ fontFamily: font.sans(700), fontSize: 15, color: t.ink }}>Your voucher</Text>
-      </View>
+    <Screen background={C.surface} scroll={false} bottomGap={30}>
+      <TopBar
+        right={
+          <IconButton style={ROUND}>
+            <Ic name="dots" size={18} sw={1.9} />
+          </IconButton>
+        }
+      />
 
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
-        <View style={{ width: '100%', backgroundColor: t.card, borderRadius: 28, overflow: 'hidden', ...elevation(t.elevColor) }}>
-          <LinearGradient colors={[BRAND.blue, BRAND.deep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ paddingVertical: 24, paddingHorizontal: 22, alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: font.display(800), fontSize: 9, color: BRAND.blue }}>CB</Text>
-              </View>
-              <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.9)' }}>Camel Bean</Text>
+      <View style={{ flex: 1, justifyContent: 'center' }}>
+        <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: C.surface, ...shadow.card }}>
+          {/* Brand strip */}
+          <View style={{
+            backgroundColor: C.orange, padding: 22, flexDirection: 'row', alignItems: 'center', gap: 12,
+          }}>
+            <View style={{
+              width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(21,21,15,.17)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontFamily: font(600), fontSize: 12, color: C.ink }}>{voucher.badge}</Text>
             </View>
-            <Text style={{ fontFamily: font.display(700), fontSize: 28, color: '#fff', marginTop: 12 }}>Free flat white</Text>
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>Any size · any branch</Text>
-          </LinearGradient>
-
-          {/* perforation */}
-          <View style={{ height: 24, justifyContent: 'center' }}>
-            <View style={{ position: 'absolute', left: -12, top: 0, width: 24, height: 24, borderRadius: 999, backgroundColor: t.canvas }} />
-            <View style={{ position: 'absolute', right: -12, top: 0, width: 24, height: 24, borderRadius: 999, backgroundColor: t.canvas }} />
-            <View style={{ marginHorizontal: 14, borderTopWidth: 2, borderColor: t.line, borderStyle: 'dashed' }} />
+            <View>
+              <Text style={{ fontFamily: font(600), fontSize: 16, color: C.ink }}>{voucher.title}</Text>
+              <Text style={{ marginTop: 2, fontFamily: font(500), fontSize: 12, color: C.ink }}>{voucher.where}</Text>
+            </View>
           </View>
 
-          <View style={{ paddingHorizontal: 22, paddingTop: 8, paddingBottom: 26, alignItems: 'center' }}>
-            <Barcode />
-            <Text style={{ marginTop: 14, fontFamily: font.mono(600), fontSize: 15, letterSpacing: 2, color: t.ink }}>FLW·7K2D·CB</Text>
-            <Text style={{ marginTop: 14, fontSize: 12.5, color: t.soft }}>Show at the till · valid until 30 Jul 2026</Text>
+          {/* The tear line: notches punch through to the page behind. */}
+          <Perforation background={C.orange} notch={C.surface} />
+
+          <View style={{ paddingTop: 26, paddingHorizontal: 22, paddingBottom: 24, alignItems: 'center', gap: 20 }}>
+            <QrPlaceholder size={150} seed={(id ?? 'v').length + 3} />
+            <Text style={{ fontFamily: font(600), fontSize: 17, letterSpacing: 2.4, color: C.ink }}>
+              {voucher.code}
+            </Text>
+            <Small style={{ fontSize: 13 }}>{voucher.expiry}</Small>
           </View>
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: 26, paddingBottom: 16, alignItems: 'center' }}>
-        <Text style={{ fontFamily: font.sans(600), fontSize: 14, color: t.soft }}>Mark as used</Text>
-      </View>
+      <Footer>
+        {/* TODO(api): redeem — mark the voucher used once the till confirms. */}
+        <Button label="Mark as used" onPress={() => router.replace('/vouchers')} />
+        <TextAction label="Keep for later" onPress={() => (router.canGoBack() ? router.back() : router.replace('/vouchers'))} />
+      </Footer>
     </Screen>
   );
 }

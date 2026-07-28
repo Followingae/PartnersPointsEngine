@@ -1,46 +1,69 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path } from 'react-native-svg';
-import { Screen } from '@/components/Screen';
-import { useTokens } from '@/lib/theme';
-import { BRAND, font } from '@/lib/tokens';
-import { IllusChip, PrimaryButton, StripeOverlay } from './_components';
+import { Button, Screen } from '@/components/UI';
+import { C, font } from '@/lib/tokens';
+import { Footer, Monogram, Sub, TextLink, Title } from './_components';
 
-export default function FirstMerchant() {
-  const t = useTokens();
-  const router = useRouter();
+type Nearby = { code: string; name: string; meta: string; bg: string; ink: string; badge: string };
+
+/** Brands to join, in the order the design lays them out (row-major). */
+const NEARBY: Nearby[] = [
+  { code: 'CB', name: 'Camel Bean', meta: 'Coffee · 0.4 km', bg: C.orange, ink: C.ink, badge: 'rgba(21,21,15,.17)' },
+  { code: 'BC', name: 'Bloom Coffee', meta: 'Coffee · 0.8 km', bg: C.blue, ink: '#fff', badge: 'rgba(255,255,255,.2)' },
+  { code: 'V', name: 'Verde Market', meta: 'Grocery · 1.2 km', bg: C.green, ink: C.ink, badge: 'rgba(21,21,15,.17)' },
+  { code: 'OT', name: 'Olive & Thyme', meta: 'Dining · 1.4 km', bg: C.pink, ink: C.ink, badge: 'rgba(21,21,15,.17)' },
+];
+
+function BrandTile({ brand }: { brand: Nearby }) {
   return (
-    <Screen scroll={false}>
-      <View style={{ flex: 1 }}>
-        <View style={{ height: 46 }} />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }}>
-          <LinearGradient
-            colors={[BRAND.blue, BRAND.purple]}
-            start={{ x: 0.1, y: 0 }}
-            end={{ x: 0.9, y: 1 }}
-            style={{ width: 170, height: 170, borderRadius: 28, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', shadowColor: t.elevColor, shadowOffset: { width: 0, height: 18 }, shadowOpacity: 1, shadowRadius: 22, elevation: 8 }}
-          >
-            <StripeOverlay />
-            <IllusChip label="illustration" />
-          </LinearGradient>
-          <Text style={{ marginTop: 30, fontFamily: font.display(700), fontSize: 28, lineHeight: 29, letterSpacing: -0.6, textAlign: 'center', color: t.ink }}>Let&apos;s find your first merchant</Text>
-          <Text style={{ marginTop: 12, fontFamily: font.sans(400), fontSize: 15, lineHeight: 21, textAlign: 'center', color: t.soft }}>Join a program to start earning points and unlocking rewards.</Text>
-        </View>
-        <View style={{ paddingHorizontal: 26, paddingBottom: 36 }}>
-          <PrimaryButton label="Browse merchants" onPress={() => router.replace('/discover')} />
-          <Pressable
-            onPress={() => router.replace('/scan')}
-            style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: t.card, borderWidth: 1, borderColor: t.line, borderRadius: 18, paddingVertical: 15, shadowColor: t.elevColor, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 1, shadowRadius: 20, elevation: 4 }}
-          >
-            <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={t.ink} strokeWidth={2} strokeLinecap="round">
-              <Path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-              <Path d="M4 12h16" />
-            </Svg>
-            <Text style={{ fontFamily: font.sans(700), fontSize: 15, color: t.ink }}>Scan in-store QR</Text>
-          </Pressable>
-        </View>
+    <View
+      style={{
+        flex: 1, height: 120, borderRadius: 20, padding: 16,
+        backgroundColor: brand.bg, justifyContent: 'space-between',
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+        <Monogram code={brand.code} size={26} radius={9} bg={brand.badge} color={brand.ink} fontSize={10} />
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: font(600), fontSize: 12.5, color: brand.ink }}>
+          {brand.name}
+        </Text>
       </View>
+
+      <View>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+          <Text style={{ fontFamily: font(600), fontSize: 26, lineHeight: 24, letterSpacing: -0.78, color: brand.ink }}>0</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 11, color: brand.ink }}>pts</Text>
+        </View>
+        <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, color: brand.ink }}>{brand.meta}</Text>
+      </View>
+    </View>
+  );
+}
+
+/** 08 · First card. */
+export default function FirstMerchant() {
+  const router = useRouter();
+
+  return (
+    <Screen scroll={false} background={C.surface} bottomGap={18}>
+      <View style={{ flex: 1, justifyContent: 'center' }}>
+        <View style={{ gap: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {NEARBY.slice(0, 2).map((b) => <BrandTile key={b.code} brand={b} />)}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {NEARBY.slice(2).map((b) => <BrandTile key={b.code} brand={b} />)}
+          </View>
+        </View>
+
+        <Title style={{ marginTop: 38 }}>Add your first card</Title>
+        <Sub style={{ marginTop: 12, lineHeight: 23 }}>Join a brand and start earning on your next visit.</Sub>
+      </View>
+
+      <Footer>
+        <Button label="Browse brands" onPress={() => router.replace('/(tabs)/home')} />
+        <TextLink label="Scan a code in store" onPress={() => router.replace('/(tabs)/scan')} />
+      </Footer>
     </Screen>
   );
 }

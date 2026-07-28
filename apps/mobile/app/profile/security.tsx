@@ -1,41 +1,58 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Screen } from '@/components/Screen';
-import { Chevron, SettingsHeader, Toggle } from '@/app/profile/_ui';
-import { useTokens } from '@/lib/theme';
-import { font } from '@/lib/tokens';
+import { View } from 'react-native';
+import { BackBar, Lede, ListRow, Toggle } from '@/components/Bits';
+import { H1, Label, Screen, Small } from '@/components/UI';
+import { C } from '@/lib/tokens';
+
+// TODO(api): GET /customer/me/sessions
+const SESSIONS = [
+  { device: 'iPhone 15 · this device', where: 'Dubai · active now' },
+  { device: 'iPad Air', where: 'Dubai · 3 days ago' },
+];
 
 export default function Security() {
-  const t = useTokens();
   const [faceId, setFaceId] = useState(true);
   const [pin, setPin] = useState(true);
+
   return (
     <Screen>
-      <SettingsHeader title="Security" />
-      <View style={{ paddingHorizontal: 22, paddingTop: 18 }}>
-        <Pressable onPress={() => setFaceId((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: t.line }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: font.sans(600), fontSize: 14.5, color: t.ink }}>Face ID unlock</Text>
-            <Text style={{ fontSize: 12, color: t.soft }}>Open the app with Face ID</Text>
-          </View>
-          <Toggle on={faceId} />
-        </Pressable>
-        <Pressable onPress={() => setPin((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: t.line }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: font.sans(600), fontSize: 14.5, color: t.ink }}>App PIN</Text>
-            <Text style={{ fontSize: 12, color: t.soft }}>6-digit fallback code</Text>
-          </View>
-          <Toggle on={pin} />
-        </Pressable>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: t.line }}>
-          <Text style={{ flex: 1, fontFamily: font.sans(600), fontSize: 14.5, color: t.ink }}>Manage devices</Text>
-          <Text style={{ fontFamily: font.sans(600), fontSize: 12, color: t.soft, marginRight: 6 }}>2 active</Text>
-          <Chevron />
+      <BackBar fallback="/profile" />
+
+      <H1 style={{ marginTop: 20 }}>Security</H1>
+      <Lede style={{ marginTop: 10 }}>Face ID and the devices signed in to your account.</Lede>
+
+      <View style={{ marginTop: 24 }}>
+        <ListRow
+          title="Face ID unlock"
+          sub="Open the app with Face ID"
+          onPress={() => setFaceId((v) => !v)}
+          trailing={<Toggle on={faceId} />}
+        />
+        <ListRow
+          title="App PIN"
+          sub="6-digit fallback code"
+          onPress={() => setPin((v) => !v)}
+          trailing={<Toggle on={pin} />}
+        />
+        <ListRow title="Change phone number" sub="Verify a new number by SMS" />
+      </View>
+
+      <View style={{ marginTop: 30 }}>
+        <Label>Devices</Label>
+        <View style={{ marginTop: 8 }}>
+          {SESSIONS.map((s, i) => (
+            <ListRow
+              key={s.device}
+              divider={i > 0}
+              title={s.device}
+              sub={s.where}
+              trailing={<Small style={{ fontSize: 12.5 }}>Sign out</Small>}
+            />
+          ))}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16 }}>
-          <Text style={{ flex: 1, fontFamily: font.sans(600), fontSize: 14.5, color: t.ink }}>Change phone number</Text>
-          <Chevron />
-        </View>
+        <Small style={{ marginTop: 14, color: C.faint }}>
+          Signing out a device does not affect your points.
+        </Small>
       </View>
     </Screen>
   );
