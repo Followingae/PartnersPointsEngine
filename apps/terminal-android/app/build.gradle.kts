@@ -18,8 +18,8 @@ android {
         applicationId = "ae.rfmloyaltyco.terminal"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     signingConfigs {

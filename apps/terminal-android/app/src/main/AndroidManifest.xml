@@ -17,6 +17,7 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
     <application
+        android:name=".TerminalApp"
         android:label="RFM Terminal"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
