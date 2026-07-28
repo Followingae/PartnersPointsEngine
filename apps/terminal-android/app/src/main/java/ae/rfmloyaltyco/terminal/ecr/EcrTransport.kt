@@ -15,6 +15,18 @@ data class EcrPaymentResult(
     val referNo: String? = null,
     val paymentMethod: String? = null,
     val amountMinor: Long? = null,
+    // full acquirer slip data (SmartPay returns these; needed for a compliant
+    // merchant copy so SmartPay's own printout can be switched off)
+    val batchNo: String? = null,
+    val terminalNo: String? = null,
+    val merchantNo: String? = null,
+    val transTime: String? = null,
+    val cardExpiry: String? = null,
+    val responseCode: String? = null,
+    val aid: String? = null,
+    val tvr: String? = null,
+    val tsi: String? = null,
+    val appLabel: String? = null,
     val raw: String? = null,
 ) {
     enum class Status { APPROVED, DECLINED, CANCELLED, TIMEOUT, LINK_ERROR }

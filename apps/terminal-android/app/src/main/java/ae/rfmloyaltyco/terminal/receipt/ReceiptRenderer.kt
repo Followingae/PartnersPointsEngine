@@ -3,21 +3,25 @@ package ae.rfmloyaltyco.terminal.receipt
 import ae.rfmloyaltyco.terminal.R
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.core.content.res.ResourcesCompat
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Everything a loyalty receipt shows. */
+/** One slip: acquirer payment data + loyalty, printed once. */
 data class ReceiptData(
     val brandName: String,
     val branchName: String?,
@@ -40,186 +44,190 @@ data class ReceiptData(
     val loyaltyId: String? = null,
     val memberPhoneMasked: String? = null,
     val eReceiptUrl: String? = null,
+    // acquirer slip fields (from SmartPay)
+    val cardType: String? = null,
+    val voucherNo: String? = null,
+    val referNo: String? = null,
+    val batchNo: String? = null,
+    val terminalNo: String? = null,
+    val merchantNo: String? = null,
+    val transTime: String? = null,
+    val cardExpiry: String? = null,
+    val responseCode: String? = null,
+    val aid: String? = null,
+    val tvr: String? = null,
+    val tsi: String? = null,
+    val appLabel: String? = null,
 )
 
 /**
- * Renders the receipt as a 384-dot-wide monochrome bitmap — the exact bitmap
- * the thermal head prints AND the exact bitmap shown on screen, so the printing
- * animation matches the paper dot-for-dot.
- *
- * Typography mirrors the console: Bricolage Grotesque display, Hanken Grotesk
- * body, IBM Plex Mono for machine data.
+ * Renders the receipt as a 384-dot monochrome bitmap — the same bitmap the
+ * thermal head prints and the screen animates, so paper and pixels match.
+ * Layout is deliberately tight: paper roll is a running cost.
  */
 class ReceiptRenderer(private val context: Context) {
 
     private val display: Typeface = loadFont(R.font.bricolage_grotesque, Typeface.DEFAULT_BOLD)
     private val sans: Typeface = loadFont(R.font.hanken_grotesk, Typeface.DEFAULT)
     private val mono: Typeface = loadFont(R.font.ibm_plex_mono, Typeface.MONOSPACE)
+    private val logo: Bitmap? = runCatching {
+        BitmapFactory.decodeResource(context.resources, R.drawable.rfm_slip_logo)
+    }.getOrNull()
 
     private fun loadFont(res: Int, fallback: Typeface): Typeface =
         runCatching { ResourcesCompat.getFont(context, res) }.getOrNull() ?: fallback
 
     fun render(d: ReceiptData): Bitmap {
-        // Draw tall, crop to content height at the end.
-        val bmp = Bitmap.createBitmap(WIDTH, 1800, Bitmap.Config.ARGB_8888)
+        val bmp = Bitmap.createBitmap(WIDTH, 2200, Bitmap.Config.ARGB_8888)
         bmp.eraseColor(Color.WHITE)
         val c = Canvas(bmp)
-        var y = 34f
-
+        var y = 18f
         val black = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
 
-        // ── header ───────────────────────────────────────────────────────────
-        y = drawCentered(c, d.brandName.ifBlank { "Partners Points" }, display, 38f, y, bold = true)
-        y += 3f
-        y = drawCentered(c, listOfNotNull(d.branchName, d.terminalLabel).joinToString(" · "), sans, 18f, y)
-        y = drawCentered(c, timestamp(d.at), mono, 16f, y)
-        y += 10f
-        y = dashedRule(c, y)
-
-        // ── customer ─────────────────────────────────────────────────────────
-        if (d.memberName != null) {
-            y += 12f
-            y = row(c, "Customer", d.memberName, y, sans, 18f, bold = true)
-            d.loyaltyId?.let { y = row(c, "Member ID", it, y, mono, 15f) }
-            d.memberPhoneMasked?.let { y = row(c, "Mobile", it, y, mono, 15f) }
-            y += 4f
-            y = dashedRule(c, y)
+        // ── RFM logo ─────────────────────────────────────────────────────────
+        logo?.let { l ->
+            val w = (WIDTH * 0.62f).toInt()
+            val h = (l.height * (w.toFloat() / l.width)).toInt()
+            c.drawBitmap(l, Rect(0, 0, l.width, l.height), Rect((WIDTH - w) / 2, y.toInt(), (WIDTH + w) / 2, y.toInt() + h), black)
+            y += h + 10f
         }
+
+        // ── merchant header ──────────────────────────────────────────────────
+        y = center(c, d.brandName.ifBlank { "Partners Points" }, display, 30f, y, bold = true)
+        y = center(c, listOfNotNull(d.branchName, d.terminalLabel).joinToString(" · "), sans, 16f, y)
+        y += 6f
+        y = rule(c, y)
 
         if (d.kind != "sale") {
+            y += 6f
+            y = center(c, if (d.kind == "void") "* * V O I D * *" else "* * R E F U N D * *", mono, 19f, y, bold = true)
+            y += 2f
+            y = rule(c, y)
+        }
+
+        // ── payment ──────────────────────────────────────────────────────────
+        y += 8f
+        y = row(c, "Subtotal", money(d.grossMinor, d.currency), y, sans, 17f)
+        if (d.discountMinor > 0) y = row(c, "Points discount", "-" + money(d.discountMinor, d.currency), y, sans, 17f)
+        y += 2f
+        y = row(c, if (d.kind == "sale") "TOTAL" else "AMOUNT", money(d.netMinor, d.currency), y, display, 27f, bold = true)
+        y += 4f
+
+        val tender = if (d.paymentMethod == "cash") "CASH" else (d.cardType ?: "CARD")
+        y = row(c, tender, d.maskedPan ?: "", y, mono, 15f)
+        d.appLabel?.let { y = row(c, "App", it, y, mono, 14f) }
+        listOfNotNull(
+            d.authNo?.let { "Auth" to it },
+            d.voucherNo?.let { "Voucher" to it },
+            d.referNo?.let { "RRN" to it },
+            d.batchNo?.let { "Batch" to it },
+            d.merchantNo?.let { "MID" to it },
+            d.terminalNo?.let { "TID" to it },
+            d.aid?.let { "AID" to it },
+            d.responseCode?.let { "Resp" to it },
+        ).forEach { (k, v) -> y = row(c, k, v, y, mono, 14f) }
+        y = center(c, d.transTime ?: timestamp(d.at), mono, 14f, y + 2f)
+
+        if (d.paymentMethod != "cash" && d.kind == "sale") {
+            y += 2f
+            y = center(c, "APPROVED — NO SIGNATURE REQUIRED", mono, 13f, y)
+        }
+        y += 4f
+        y = rule(c, y)
+
+        // ── loyalty ──────────────────────────────────────────────────────────
+        if (d.memberName != null) {
+            y += 10f
+            val top = y
+            var by = y + 16f
+            by = center(c, d.memberName, sans, 18f, by, bold = true)
+            listOfNotNull(d.loyaltyId, d.memberPhoneMasked).takeIf { it.isNotEmpty() }?.let {
+                by = center(c, it.joinToString("  ·  "), mono, 13f, by)
+            }
+            if (d.earnedPoints > 0) {
+                by += 2f
+                by = center(c, "+${fmt(d.earnedPoints)} ${d.pointsCode}", display, 34f, by, bold = true)
+            }
+            if (d.redeemedPoints > 0) by = center(c, "-${fmt(d.redeemedPoints)} ${d.pointsCode} redeemed", sans, 16f, by)
+            d.balanceAfter?.let { by = center(c, "Balance  ${fmt(it)} ${d.pointsCode}", sans, 16f, by) }
+            by += 10f
+            c.drawRoundRect(
+                RectF(12f, top, WIDTH - 12f, by), 18f, 18f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 2.5f },
+            )
+            y = by + 12f
+        } else {
             y += 8f
-            y = drawCentered(c, if (d.kind == "void") "* * *  VOID  * * *" else "* * *  REFUND  * * *", mono, 20f, y, bold = true)
+            y = center(c, "Join and earn on every visit", sans, 16f, y)
             y += 4f
         }
 
-        // ── amounts ──────────────────────────────────────────────────────────
-        y += 14f
-        y = row(c, "Subtotal", money(d.grossMinor, d.currency), y, sans, 19f)
-        if (d.discountMinor > 0) {
-            y = row(c, "Points discount", "− " + money(d.discountMinor, d.currency), y, sans, 19f)
-        }
-        y += 6f
-        // total: big display numerals
-        y = row(c, if (d.kind == "sale") "TOTAL" else "AMOUNT", money(d.netMinor, d.currency), y, display, 30f, bold = true)
-        y += 4f
-        val tender = if (d.paymentMethod == "cash") "Cash" else listOfNotNull("Card", d.maskedPan).joinToString(" ")
-        y = row(c, tender, d.authNo?.let { "Auth $it" } ?: "", y, mono, 16f)
-        y += 8f
-        y = dashedRule(c, y)
-
-        // ── loyalty block ────────────────────────────────────────────────────
-        if (d.memberName != null && (d.earnedPoints > 0 || d.redeemedPoints > 0 || d.balanceAfter != null)) {
-            y += 16f
-            val blockTop = y
-            var by = y + 24f
-            by = drawCentered(c, d.memberName, sans, 20f, by, bold = true)
-            if (d.earnedPoints > 0) {
-                by += 4f
-                by = drawCentered(c, "+${fmt(d.earnedPoints)} ${d.pointsCode}", display, 40f, by, bold = true)
-            }
-            if (d.redeemedPoints > 0) {
-                by = drawCentered(c, "−${fmt(d.redeemedPoints)} ${d.pointsCode} redeemed", sans, 18f, by)
-            }
-            if (d.balanceAfter != null) {
-                by += 2f
-                by = drawCentered(c, "Balance  ${fmt(d.balanceAfter)} ${d.pointsCode}", sans, 18f, by)
-            }
-            by += 14f
-            // rounded frame around the loyalty block, console-card style
-            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK
-                style = Paint.Style.STROKE
-                strokeWidth = 2.5f
-            }
-            c.drawRoundRect(RectF(14f, blockTop, WIDTH - 14f, by), 22f, 22f, frame)
-            y = by + 18f
-        } else {
-            y += 8f
-            y = drawCentered(c, "Join Partners Points — earn on every visit", sans, 17f, y)
-            y += 8f
-        }
-
-        // ── QR → hosted eReceipt (falls back to the order reference) ─────────
+        // ── eReceipt QR ──────────────────────────────────────────────────────
         runCatching {
             val payload = d.eReceiptUrl ?: d.orderNo
-            // Big modules survive thermal smudge; EC level M tolerates the rest.
-            val size = 240
-            val hints = mapOf(
-                com.google.zxing.EncodeHintType.MARGIN to 2,
-                com.google.zxing.EncodeHintType.ERROR_CORRECTION to com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M,
+            val size = 230
+            val matrix = MultiFormatWriter().encode(
+                payload, BarcodeFormat.QR_CODE, size, size,
+                mapOf(EncodeHintType.MARGIN to 1, EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M),
             )
-            val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size, hints)
             val left = (WIDTH - size) / 2
-            val top = y.toInt() + 8
-            for (qx in 0 until size) {
-                for (qy in 0 until size) {
-                    if (matrix.get(qx, qy)) c.drawPoint((left + qx).toFloat(), (top + qy).toFloat(), black)
-                }
+            val top = y.toInt() + 4
+            for (qx in 0 until size) for (qy in 0 until size) {
+                if (matrix.get(qx, qy)) c.drawPoint((left + qx).toFloat(), (top + qy).toFloat(), black)
             }
-            y = (top + size).toFloat() + 8f
-            if (d.eReceiptUrl != null) {
-                y = drawCentered(c, "Scan for your eReceipt & offers", sans, 16f, y)
-            }
+            y = (top + size).toFloat() + 4f
+            if (d.eReceiptUrl != null) y = center(c, "Scan for your digital receipt", sans, 15f, y)
         }
-        y = drawCentered(c, d.orderNo, mono, 15f, y)
-        y += 10f
-        y = dashedRule(c, y)
+        y = center(c, d.orderNo, mono, 13f, y)
         y += 6f
-        y = drawCentered(c, "Thank you — see you again soon", sans, 16f, y)
-        y = drawCentered(c, "Powered by Partners Points", mono, 13f, y)
-        y += 26f
+        y = rule(c, y)
+        y += 4f
+        y = center(c, "Thank you — see you again soon", sans, 15f, y)
+        y += 16f
 
-        val cropped = Bitmap.createBitmap(bmp, 0, 0, WIDTH, y.toInt().coerceAtMost(bmp.height))
-        if (cropped !== bmp) bmp.recycle()
-        return cropped
+        val out = Bitmap.createBitmap(bmp, 0, 0, WIDTH, y.toInt().coerceAtMost(bmp.height))
+        if (out !== bmp) bmp.recycle()
+        return out
     }
 
-    // ── drawing helpers ──────────────────────────────────────────────────────
+    // ── helpers ──────────────────────────────────────────────────────────────
 
-    private fun paint(tf: Typeface, size: Float, bold: Boolean = false): Paint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            typeface = if (bold) Typeface.create(tf, Typeface.BOLD) else tf
-            textSize = size
-        }
+    private fun paint(tf: Typeface, size: Float, bold: Boolean = false) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        typeface = if (bold) Typeface.create(tf, Typeface.BOLD) else tf
+        textSize = size
+    }
 
-    private fun drawCentered(c: Canvas, text: String, tf: Typeface, size: Float, y: Float, bold: Boolean = false): Float {
+    private fun center(c: Canvas, text: String, tf: Typeface, size: Float, y: Float, bold: Boolean = false): Float {
         if (text.isBlank()) return y
         val p = paint(tf, size, bold)
-        val w = p.measureText(text)
-        c.drawText(text, (WIDTH - w) / 2f, y + size, p)
-        return y + size * 1.35f
+        c.drawText(text, (WIDTH - p.measureText(text)) / 2f, y + size, p)
+        return y + size * 1.22f
     }
 
     private fun row(c: Canvas, left: String, right: String, y: Float, tf: Typeface, size: Float, bold: Boolean = false): Float {
         val p = paint(tf, size, bold)
         c.drawText(left, MARGIN, y + size, p)
-        if (right.isNotBlank()) {
-            val w = p.measureText(right)
-            c.drawText(right, WIDTH - MARGIN - w, y + size, p)
-        }
-        return y + size * 1.45f
+        if (right.isNotBlank()) c.drawText(right, WIDTH - MARGIN - p.measureText(right), y + size, p)
+        return y + size * 1.26f
     }
 
-    private fun dashedRule(c: Canvas, y: Float): Float {
+    private fun rule(c: Canvas, y: Float): Float {
         val p = Paint().apply {
-            color = Color.BLACK
-            style = Paint.Style.STROKE
-            strokeWidth = 2f
-            pathEffect = DashPathEffect(floatArrayOf(8f, 6f), 0f)
+            color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 2f
+            pathEffect = DashPathEffect(floatArrayOf(7f, 5f), 0f)
         }
-        val path = Path().apply { moveTo(MARGIN, y); lineTo(WIDTH - MARGIN, y) }
-        c.drawPath(path, p)
-        return y + 4f
+        c.drawPath(Path().apply { moveTo(MARGIN, y); lineTo(WIDTH - MARGIN, y) }, p)
+        return y + 3f
     }
 
-    private fun money(minor: Long, currency: String): String = "$currency %,d.%02d".format(minor / 100, minor % 100)
-    private fun fmt(v: Long): String = "%,d".format(v)
-    private fun timestamp(at: Long): String = SimpleDateFormat("dd MMM yyyy  HH:mm", Locale.US).format(Date(at))
+    private fun money(minor: Long, currency: String) = "$currency %,d.%02d".format(minor / 100, minor % 100)
+    private fun fmt(v: Long) = "%,d".format(v)
+    private fun timestamp(at: Long) = SimpleDateFormat("dd MMM yyyy  HH:mm", Locale.US).format(Date(at))
 
     companion object {
         /** 58 mm thermal head = 384 dots. */
         const val WIDTH = 384
-        private const val MARGIN = 18f
+        private const val MARGIN = 16f
     }
 }

@@ -76,6 +76,12 @@ object SmartPayIntentBridge {
             putExtra("AppId", context.packageName)
             putExtra("package_name", context.packageName)
             putExtra("activity_name", "ae.rfmloyaltyco.terminal.MainActivity")
+            // Ask SmartPay not to print its own slip — we print one merged
+            // receipt. Unknown extras are ignored, so this is safe; if this
+            // build ignores them, switch printing off in SmartPay's settings.
+            putExtra("print_flag", 0)
+            putExtra("is_print", false)
+            putExtra("printReceipt", false)
             extras.forEach { (k, v) ->
                 when (v) {
                     is Int -> putExtra(k, v)
@@ -140,6 +146,16 @@ object SmartPayIntentBridge {
                 referNo = data.stringLike("refer_no"),
                 paymentMethod = "card",
                 amountMinor = data.longLike("trans_amount"),
+                batchNo = data.stringLike("batch_no"),
+                terminalNo = data.stringLike("terminal_no"),
+                merchantNo = data.stringLike("merchant_no"),
+                transTime = data.stringLike("trans_time"),
+                cardExpiry = data.stringLike("card_expire_date"),
+                responseCode = data.stringLike("response_code"),
+                aid = data.stringLike("aid"),
+                tvr = data.stringLike("tvr"),
+                tsi = data.stringLike("tsi"),
+                appLabel = data.stringLike("app_label") ?: data.stringLike("app_name"),
                 raw = dump,
             )
         }

@@ -66,12 +66,14 @@ fun HomeScreen(
 
     Column(Modifier.fillMaxSize().background(RfmColor.Canvas).padding(20.dp)) {
         Spacer(Modifier.height(18.dp))
-        Text(
-            "PARTNERS POINTS",
-            style = MaterialTheme.typography.labelSmall,
-            color = RfmColor.Lime600,
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(ae.rfmloyaltyco.terminal.R.drawable.pp_wordmark),
+            contentDescription = "Partners Points",
+            modifier = Modifier.height(26.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            alignment = Alignment.CenterStart,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             server?.brandName?.ifBlank { null } ?: cfg.terminalLabel,
             style = MaterialTheme.typography.displayMedium,
@@ -84,10 +86,19 @@ fun HomeScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = RfmColor.MutedFg,
         )
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StatusDot(ok = apiOk == true, label = if (apiOk == null) "Loyalty…" else if (apiOk == true) "Loyalty linked" else "Loyalty offline")
-            StatusDot(ok = ecrOk == true, label = if (cfg.ecrMode == "demo") "SmartPay (demo)" else if (ecrOk == null) "SmartPay…" else if (ecrOk == true) "SmartPay linked" else "SmartPay offline")
+        // Status is only worth the cashier's attention when something is wrong.
+        val trouble = buildList {
+            if (apiOk == false) add("Loyalty offline")
+            if (ecrOk == false) add(if (cfg.ecrMode == "intent") "SmartPay not found" else "Payment link offline")
+        }
+        if (trouble.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                trouble.forEach { StatusDot(ok = false, label = it) }
+            }
+        } else if (cfg.ecrMode == "demo") {
+            Spacer(Modifier.height(12.dp))
+            StatusDot(ok = true, label = "Demo mode — no real payments")
         }
 
         if (!cfg.paired) {

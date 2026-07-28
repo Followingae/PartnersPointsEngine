@@ -387,6 +387,19 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 loyaltyId = member?.context?.loyaltyId?.ifBlank { null },
                 memberPhoneMasked = member?.takeIf { it.identifierType == "phone" }?.identifierValue?.let { maskPhone(it) },
                 eReceiptUrl = eUrl,
+                cardType = ecrResult?.cardType,
+                voucherNo = ecrResult?.voucherNo,
+                referNo = ecrResult?.referNo,
+                batchNo = ecrResult?.batchNo,
+                terminalNo = ecrResult?.terminalNo,
+                merchantNo = ecrResult?.merchantNo,
+                transTime = ecrResult?.transTime,
+                cardExpiry = ecrResult?.cardExpiry,
+                responseCode = ecrResult?.responseCode,
+                aid = ecrResult?.aid,
+                tvr = ecrResult?.tvr,
+                tsi = ecrResult?.tsi,
+                appLabel = ecrResult?.appLabel,
             )
             _state.update {
                 it.copy(

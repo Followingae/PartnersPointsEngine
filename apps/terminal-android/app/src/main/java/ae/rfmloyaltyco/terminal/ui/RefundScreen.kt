@@ -3,6 +3,7 @@ package ae.rfmloyaltyco.terminal.ui
 import ae.rfmloyaltyco.terminal.TerminalApp
 import ae.rfmloyaltyco.terminal.checkout.CheckoutViewModel
 import ae.rfmloyaltyco.terminal.data.TxnRecord
+import ae.rfmloyaltyco.terminal.receipt.ReceiptData
 import ae.rfmloyaltyco.terminal.theme.PrimaryAction
 import ae.rfmloyaltyco.terminal.theme.RfmCard
 import ae.rfmloyaltyco.terminal.theme.RfmColor
@@ -44,18 +45,35 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
     var selected by remember { mutableStateOf<TxnRecord?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var voucherEntry by remember { mutableStateOf("") }
+    var slip by remember { mutableStateOf<ReceiptData?>(null) }
+    val server = remember { app.settings.cachedServerConfig() }
+
+    val slipToPrint = slip
+    if (slipToPrint != null) {
+        PrintReceiptOverlay(app = app, data = slipToPrint) { slip = null }
+        return
+    }
 
     val refundable = records.filter { it.kind == "sale" && it.status == "approved" && it.paymentMethod == "card" }
 
     fun run(kind: String) {
         val original = selected ?: return
+        val intentMode = cfg.ecrMode == "intent"
+        // SmartPay identifies the original by its VOUCHER number (printed on the
+        // slip). Sales taken before v1.6 didn't capture it — ask for it instead
+        // of sending an order number SmartPay will reject.
+        val reference = (original.voucherNo ?: voucherEntry.trim().ifBlank { null })
+            ?: if (intentMode) {
+                message = "Enter the voucher number from the original slip to ${if (kind == "void") "void" else "refund"} it."
+                return
+            } else {
+                original.ecrOrderNo
+            }
         busy = true
         message = null
         scope.launch {
             val orderNo = CheckoutViewModel.newOrderNo()
-            // SmartPay identifies the original by its voucher number; the ECR SDK
-            // path uses our order number.
-            val reference = original.voucherNo ?: original.ecrOrderNo
             val result = if (kind == "void") {
                 app.ecr().voidPurchase(orderNo, reference)
             } else {
@@ -79,10 +97,41 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
                         paymentMethod = "card",
                         status = "approved",
                         note = "Loyalty points not clawed back automatically — adjust in the console if needed",
+                        voucherNo = result.voucherNo,
                     ),
                 )
                 app.history.update(original.localId) { it.copy(status = if (kind == "void") "voided" else "refunded") }
                 message = if (kind == "void") "Void approved" else "Refund approved"
+                // print the void/refund slip — the customer needs proof too
+                slip = ReceiptData(
+                    brandName = server?.brandName?.ifBlank { null } ?: "Partners Points",
+                    branchName = server?.branchName,
+                    terminalLabel = server?.terminalLabel ?: cfg.terminalLabel,
+                    at = System.currentTimeMillis(),
+                    orderNo = orderNo,
+                    grossMinor = original.netMinor,
+                    discountMinor = 0,
+                    netMinor = original.netMinor,
+                    currency = cfg.currency,
+                    paymentMethod = "card",
+                    maskedPan = result.maskedPan ?: original.maskedPan,
+                    authNo = result.authNo,
+                    memberName = original.memberName,
+                    earnedPoints = 0,
+                    redeemedPoints = 0,
+                    balanceAfter = null,
+                    pointsCode = server?.pointsCode ?: "PTS",
+                    kind = kind,
+                    cardType = result.cardType,
+                    voucherNo = result.voucherNo,
+                    referNo = result.referNo,
+                    batchNo = result.batchNo,
+                    terminalNo = result.terminalNo,
+                    merchantNo = result.merchantNo,
+                    transTime = result.transTime,
+                    responseCode = result.responseCode,
+                    aid = result.aid,
+                )
                 selected = null
             } else {
                 message = result.message
@@ -99,6 +148,15 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
             if (sel != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = RfmColor.Destructive) }
+                    if (sel.voucherNo == null && cfg.ecrMode == "intent") {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = voucherEntry,
+                            onValueChange = { voucherEntry = it.filter { c -> c.isLetterOrDigit() } },
+                            label = { Text("Voucher no. from the original slip") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
                     PrimaryAction("Refund ${formatAmountWithCurrency(sel.netMinor, cfg.currency)}", loading = busy) { run("refund") }
                     PrimaryAction("Void (same day)", color = RfmColor.Muted, contentColor = RfmColor.Ink, loading = busy) { run("void") }
                 }
@@ -131,7 +189,10 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
                                     style = MaterialTheme.typography.labelMedium,
                                     color = RfmColor.MutedFg,
                                 )
-                            }
+                                r.voucherNo?.let {
+                                    Text("Voucher $it", style = MaterialTheme.typography.labelSmall, color = RfmColor.MutedFg)
+                                }
+}
                             Text(r.ecrOrderNo.takeLast(8), style = MaterialTheme.typography.labelSmall, color = RfmColor.MutedFg)
                         }
                     }
