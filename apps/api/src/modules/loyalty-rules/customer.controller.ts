@@ -68,6 +68,13 @@ export class CustomerController {
     return this.gamification.memberChallenges(ctx, membershipId);
   }
 
+  @Get('program')
+  @ApiOperation({ summary: 'How this brand’s programme works: tiers, how points are earned, what they’re worth.' })
+  async program(@CurrentTenant() ctx: TenantContext) {
+    const membershipId = await this.loyalty.resolveCustomerMembership(ctx);
+    return this.loyalty.customerProgram(ctx, membershipId);
+  }
+
   @Get('leaderboard')
   @ApiOperation({ summary: 'Top members in this brand by lifetime points.' })
   leaderboard(@CurrentTenant() ctx: TenantContext) {

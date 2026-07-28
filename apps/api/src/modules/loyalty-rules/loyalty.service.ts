@@ -651,6 +651,58 @@ export class LoyaltyService {
     });
   }
 
+  /**
+   * How this brand's programme works, from the member's side: the tier ladder
+   * and where they sit on it, how points are earned, and what they're worth.
+   *
+   * One call rather than three, because the app's card screens each show a
+   * slice of the same thing and a customer opening them in sequence shouldn't
+   * pay for three round trips.
+   */
+  async customerProgram(ctx: TenantContext, membershipId: string) {
+    const redemption = await this.getRedemptionConfig(ctx);
+    return this.tenants.run(ctx, async (tx) => {
+      const { lifetime, tier } = await this.lifetimeAndTier(tx, ctx, membershipId);
+
+      const tiers = await tx.tier.findMany({
+        where: { brandId: ctx.brandId! },
+        orderBy: { threshold: 'asc' },
+        select: { id: true, name: true, threshold: true, multiplierBps: true, benefits: true },
+      });
+
+      const rules = await tx.loyaltyEarnRule.findMany({
+        where: { brandId: ctx.brandId!, enabled: true },
+        orderBy: { priority: 'asc' },
+        select: { name: true, definition: true },
+      });
+
+      const brand = await tx.brand.findFirst({
+        where: { id: ctx.brandId! },
+        select: { name: true, currency: true, pointsCurrencyCode: true },
+      });
+
+      return {
+        brandName: brand?.name ?? '',
+        currency: brand?.currency ?? 'AED',
+        pointsCode: brand?.pointsCurrencyCode ?? 'PTS',
+        lifetime: lifetime.toString(),
+        tiers: tiers.map((t) => ({
+          id: t.id,
+          name: t.name,
+          threshold: t.threshold.toString(),
+          /** 10000 = 1.0×; the app shows this as "earn 1.5× points". */
+          multiplierBps: t.multiplierBps,
+          benefits: t.benefits,
+          reached: lifetime >= t.threshold,
+          current: tier?.id === t.id,
+        })),
+        /** Named rules only — the definitions are the engine's, not the customer's. */
+        earnRules: rules.map((r) => ({ name: r.name })),
+        redemption,
+      };
+    });
+  }
+
   /** Edit a customer's profile attributes the merchant maintains (name, gender, birthdate). */
   async updateCustomerProfile(ctx: TenantContext, membershipId: string, dto: { fullName?: string; gender?: string; birthdate?: string | null }) {
     return this.tenants.run(ctx, async (tx) => {

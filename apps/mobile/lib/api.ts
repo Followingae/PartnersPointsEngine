@@ -349,6 +349,35 @@ export interface Challenge {
 export const getChallenges = (brandId: string) =>
   brandApi<Challenge[]>(brandId, '/customer/challenges');
 
+export interface ProgramTier {
+  id: string;
+  name: string;
+  threshold: string;
+  /** 10000 = 1.0×. */
+  multiplierBps: number;
+  benefits: Record<string, unknown>;
+  reached: boolean;
+  current: boolean;
+}
+
+export interface Program {
+  brandName: string;
+  currency: string;
+  pointsCode: string;
+  lifetime: string;
+  tiers: ProgramTier[];
+  earnRules: Array<{ name: string }>;
+  redemption: {
+    configured?: boolean;
+    ratePoints?: string;
+    rateValueMinor?: string;
+    minRedeemPoints?: string;
+  } | null;
+}
+
+/** How a brand's programme works, and where this member sits in it. */
+export const getProgram = (brandId: string) => brandApi<Program>(brandId, '/customer/program');
+
 export const getReferralCode = (brandId: string) =>
   brandApi<{ code: string }>(brandId, '/customer/referral-code');
 
