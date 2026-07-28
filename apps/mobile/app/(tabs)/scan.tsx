@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, { Path } from 'react-native-svg';
 import { ErrorState, Loading, Screen } from '@/components/UI';
@@ -26,6 +26,8 @@ const QR = 196;
  */
 export default function MyQrTab() {
   const router = useRouter();
+  // Arriving from a card's detail screen, that card's code is the one wanted.
+  const { brandId } = useLocalSearchParams<{ brandId?: string }>();
   const [index, setIndex] = useState(0);
 
   const cards = useAsync<Card[]>(getCards, []);
@@ -33,6 +35,12 @@ export default function MyQrTab() {
   const card = list[Math.min(index, Math.max(list.length - 1, 0))];
 
   const scan = useAsync(async () => (card ? getScanCode(card.brandId) : null), [card?.brandId]);
+
+  useEffect(() => {
+    if (!brandId || !cards.data) return;
+    const i = cards.data.findIndex((c) => c.brandId === brandId);
+    if (i >= 0) setIndex(i);
+  }, [brandId, cards.data]);
 
   useEffect(() => {
     if (cards.signedOut || scan.signedOut) router.replace('/onboarding/phone');

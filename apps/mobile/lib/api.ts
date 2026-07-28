@@ -329,6 +329,26 @@ export interface BadgeAward {
 }
 export const getBadges = (brandId: string) => brandApi<BadgeAward[]>(brandId, '/customer/badges');
 
+export interface Challenge {
+  id: string;
+  name: string;
+  kind: string;
+  /** A repeatable visits challenge — draw this one as a stamp card. */
+  isStampCard: boolean;
+  target: string;
+  progress: string;
+  progressPct: number;
+  /** Stamp cards filled before the current one. */
+  completions: number;
+  completedAt: string | null;
+  rewardPoints: string;
+  rewardName: string | null;
+  endsAt: string | null;
+}
+
+export const getChallenges = (brandId: string) =>
+  brandApi<Challenge[]>(brandId, '/customer/challenges');
+
 export const getReferralCode = (brandId: string) =>
   brandApi<{ code: string }>(brandId, '/customer/referral-code');
 

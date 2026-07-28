@@ -138,7 +138,12 @@ export default function VoucherScreen() {
       <Footer>
         {spendable ? (
           <>
-            {/* TODO(api): redeem — mark the voucher used once the till confirms. */}
+            {/*
+              The voucher itself is live data; this one action is not. There is no
+              customer-side endpoint to burn a voucher — the till redeems it and the
+              status arrives on the next fetch — so the button only returns to the
+              list. TODO(api): call it once a customer-side redeem exists.
+            */}
             <Button label="Mark as used" onPress={() => router.replace('/vouchers')} />
             <TextAction label="Keep for later" onPress={back} />
           </>

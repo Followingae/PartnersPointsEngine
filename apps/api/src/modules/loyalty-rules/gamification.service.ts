@@ -214,6 +214,66 @@ export class GamificationService {
     ).then((rows) => rows.map((a) => ({ name: a.badge.name, icon: a.badge.icon, awardedAt: a.awardedAt })));
   }
 
+  /**
+   * The member's challenges and stamp cards, with where they've got to.
+   *
+   * Stamp cards are the repeatable ones: they issue a reward each time they
+   * fill and start over, so `progress` is progress around the current card and
+   * `completions` is how many have been filled before it.
+   */
+  async memberChallenges(ctx: TenantContext, membershipId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const now = new Date();
+      const challenges = await tx.challenge.findMany({
+        where: {
+          brandId: ctx.brandId!,
+          enabled: true,
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (challenges.length === 0) return [];
+
+      const progress = await tx.challengeProgress.findMany({
+        where: { membershipId, challengeId: { in: challenges.map((c) => c.id) } },
+      });
+      const byChallenge = new Map(progress.map((p) => [p.challengeId, p]));
+
+      const rewardIds = challenges.map((c) => c.rewardItemId).filter((v): v is string => Boolean(v));
+      const rewards = rewardIds.length
+        ? await tx.rewardCatalogItem.findMany({
+            where: { id: { in: rewardIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+      const rewardById = new Map(rewards.map((r) => [r.id, r.name]));
+
+      return challenges.map((c) => {
+        const p = byChallenge.get(c.id);
+        const done = p?.progress ?? 0n;
+        const target = c.target > 0n ? c.target : 1n;
+        return {
+          id: c.id,
+          name: c.name,
+          kind: c.kind,
+          /** A repeatable visits challenge is what the app draws as a stamp card. */
+          isStampCard: c.repeatable && c.kind === 'visits',
+          target: target.toString(),
+          progress: done.toString(),
+          progressPct: Math.min(100, Number((done * 100n) / target)),
+          completions: p?.completions ?? 0,
+          completedAt: p?.completedAt ?? null,
+          rewardPoints: c.rewardPoints.toString(),
+          rewardName: c.rewardItemId ? (rewardById.get(c.rewardItemId) ?? null) : null,
+          endsAt: c.endsAt,
+        };
+      });
+    });
+  }
+
   async leaderboard(ctx: TenantContext, limit = 10) {
     return this.tenants.run(ctx, (tx) =>
       tx.$queryRaw<{ customer_id: string; lifetime: bigint }[]>`

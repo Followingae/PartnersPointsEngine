@@ -3,7 +3,10 @@ import { Dimensions, Pressable, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Button, H1 } from '@/components/UI';
+import { Body, Button, ErrorState, H1, Loading, pts } from '@/components/UI';
+import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
+import { getCards } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
 import { C, SP, font, shadow } from '@/lib/tokens';
 
 /** 24 · Joined — confetti, the new card at zero, and the wallet hand-off. */
@@ -36,21 +39,24 @@ function Piece({ left, height, tone, duration, delay }: (typeof PIECES)[number])
   );
 }
 
-type Card = { code: string; name: string; tier: string; tone: string; fg: string; earn: string };
-
-// TODO(api): the membership returned by POST /customer/memberships
-const CARDS: Record<string, Card> = {
-  'bloom-coffee': { code: 'BC', name: 'Bloom Coffee', tier: 'Green', tone: C.blue, fg: '#fff', earn: 'Earn 2 pts per AED' },
-  'camel-bean': { code: 'CB', name: 'Camel Bean', tier: 'Bronze', tone: C.orange, fg: C.ink, earn: 'Earn 1 pt per AED' },
-};
-
-const FALLBACK = CARDS['bloom-coffee'] as Card;
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 export default function JoinSuccess() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const card = (id ? CARDS[id] : undefined) ?? FALLBACK;
+  const brandId = one(useLocalSearchParams<{ id?: string }>().id);
+
+  // The membership was created by the sheet before this screen; the card it
+  // produced is read back so the celebration shows the real thing.
+  const { data, loading, error, signedOut, refresh } = useAsync(getCards);
+
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+  }, [signedOut, router]);
+
+  const card = data?.find((c) => c.brandId === brandId);
+  const tone = brandId ? brandColor(brandId, card?.branding) : C.wash;
+  const fg = brandFg(tone);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.surface, paddingTop: insets.top }}>
@@ -59,50 +65,67 @@ export default function JoinSuccess() {
       </View>
 
       <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: SP.gutter }}>
-        <View
-          style={{
-            height: 200, borderRadius: 26, padding: 24, backgroundColor: card.tone,
-            justifyContent: 'space-between', ...shadow.raised,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: card.fg }}>{card.code}</Text>
+        {loading ? (
+          <Loading />
+        ) : error && !card ? (
+          <ErrorState message={error} onRetry={refresh} />
+        ) : !card ? (
+          <>
+            <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>Card added</H1>
+            <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 22.5 }}>
+              It will show up in your cards in a moment.
+            </Body>
+          </>
+        ) : (
+          <>
+            <View
+              style={{
+                height: 200, borderRadius: 26, padding: 24, backgroundColor: tone,
+                justifyContent: 'space-between', ...shadow.raised,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: fg }}>{brandInitials(card.brandName)}</Text>
+                  </View>
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: -0.17, color: fg }}>{card.brandName}</Text>
+                </View>
+                {card.tier ? (
+                  <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>{card.tier}</Text>
+                ) : null}
               </View>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: -0.17, color: card.fg }}>{card.name}</Text>
-            </View>
-            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: card.fg }}>{card.tier}</Text>
-          </View>
 
-          <View style={{ gap: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-              <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 55, letterSpacing: -1.44, color: card.fg }}>0</Text>
-              <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: card.fg }}>pts</Text>
-            </View>
-            <View style={{ gap: 9 }}>
-              <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: card.fg }}>{card.earn}</Text>
-              <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,.26)' }}>
-                <View style={{ height: 3, width: '0%', borderRadius: 2, backgroundColor: '#fff' }} />
+              <View style={{ gap: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                  <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 55, letterSpacing: -1.44, color: fg }}>{pts(Number(card.available))}</Text>
+                  <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: fg }}>pts</Text>
+                </View>
+                <View style={{ gap: 9 }}>
+                  <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>Collect {card.pointsCode}</Text>
+                  <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,.26)' }}>
+                    <View style={{ height: 3, width: `${Math.max(0, Math.min(100, card.progressPct))}%`, borderRadius: 2, backgroundColor: '#fff' }} />
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
-        </View>
 
-        <H1 style={{ marginTop: 36, fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>Card added</H1>
-        <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 22.5 }}>
-          Keep it on your phone so the till can find you without the app.
-        </Body>
+            <H1 style={{ marginTop: 36, fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>Card added</H1>
+            <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 22.5 }}>
+              Keep it on your phone so the till can find you without the app.
+            </Body>
 
-        {/* TODO(api): PassKit pass from GET /customer/memberships/{id}/pass */}
-        <View
-          style={{
-            marginTop: 24, height: 50, borderRadius: 12, borderWidth: 1.5, borderColor: C.hairline,
-            alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <Text style={{ fontFamily: font(500), fontSize: 11.5, lineHeight: 16, color: C.soft }}>Add to Apple Wallet · official badge</Text>
-        </View>
+            {/* TODO(api): PassKit pass from GET /customer/memberships/{id}/pass */}
+            <View
+              style={{
+                marginTop: 24, height: 50, borderRadius: 12, borderWidth: 1.5, borderColor: C.hairline,
+                alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontFamily: font(500), fontSize: 11.5, lineHeight: 16, color: C.soft }}>Add to Apple Wallet · official badge</Text>
+            </View>
+          </>
+        )}
       </View>
 
       <View style={{ paddingHorizontal: SP.gutter, paddingBottom: 34 + insets.bottom }}>

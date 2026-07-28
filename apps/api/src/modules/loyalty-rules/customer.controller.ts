@@ -61,6 +61,13 @@ export class CustomerController {
     return this.gamification.badges(ctx, membershipId);
   }
 
+  @Get('challenges')
+  @ApiOperation({ summary: 'Challenges and stamp cards, with the member’s progress.' })
+  async challenges(@CurrentTenant() ctx: TenantContext) {
+    const membershipId = await this.loyalty.resolveCustomerMembership(ctx);
+    return this.gamification.memberChallenges(ctx, membershipId);
+  }
+
   @Get('leaderboard')
   @ApiOperation({ summary: 'Top members in this brand by lifetime points.' })
   leaderboard(@CurrentTenant() ctx: TenantContext) {

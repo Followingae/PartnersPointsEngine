@@ -243,7 +243,12 @@ export default function CardDetail() {
         }}
       >
         <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: SP.gutter }}>
-          <Action label="Show QR" primary icon={(c) => <QrIcon color={c} />} onPress={() => router.push('/(tabs)/scan')} />
+          <Action
+            label="Show QR"
+            primary
+            icon={(c) => <QrIcon color={c} />}
+            onPress={() => router.push({ pathname: '/(tabs)/scan', params: { brandId: card.brandId } })}
+          />
           <Action
             label="Rewards"
             icon={(c) => <RewardsIcon color={c} />}

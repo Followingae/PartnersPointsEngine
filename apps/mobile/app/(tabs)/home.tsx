@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { BrandCard, brandColor, brandInitials } from '@/components/BrandCard';
 import { EmptyState, ErrorState, Header, IconButton, Loading, Screen, pts } from '@/components/UI';
-import { getCards } from '@/lib/api';
+import { getCards, getProfile } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
 
@@ -28,6 +28,10 @@ const DECK = 3;
 export default function CardsHome() {
   const router = useRouter();
   const { data: cards, loading, refreshing, error, signedOut, refresh } = useAsync(getCards, []);
+  // Only feeds the avatar button, so it stays out of the screen's own state:
+  // an unreadable profile costs two letters, not the deck.
+  const profile = useAsync(getProfile, []);
+  const initials = profile.data?.fullName ? brandInitials(profile.data.fullName) : '';
 
   useEffect(() => {
     if (signedOut) router.replace('/onboarding/phone');
@@ -47,8 +51,7 @@ export default function CardsHome() {
               <BellIcon />
             </IconButton>
             <IconButton onPress={() => router.push('/(tabs)/profile')} style={{ borderRadius: 999 }}>
-              {/* TODO(api): the signed-in customer's initials (GET /customer/wallet/profile). */}
-              <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.muted }}>MK</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.muted }}>{initials}</Text>
             </IconButton>
           </View>
         }

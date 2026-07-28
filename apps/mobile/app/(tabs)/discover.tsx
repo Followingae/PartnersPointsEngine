@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { Chip, EmptyState, ErrorState, H1, Loading, Screen } from '@/components/UI';
+import { Chip, EmptyState, ErrorState, H1, Loading, Screen, Small } from '@/components/UI';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
-import { getDiscoverBrands, type DiscoverBrand } from '@/lib/api';
+import { getDiscoverBrands, joinBrand, type DiscoverBrand } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
-import { C, R, SP, font } from '@/lib/tokens';
+import { C, R, S, SP, font } from '@/lib/tokens';
 
 /** 19 · Discover — search, filter chips, joinable brands. */
 
@@ -18,7 +18,9 @@ import { C, R, SP, font } from '@/lib/tokens';
 const FILTERS = ['All', 'In your wallet', 'To join'] as const;
 type Filter = (typeof FILTERS)[number];
 
-function BrandRow({ brand, onPress, onJoin }: { brand: DiscoverBrand; onPress: () => void; onJoin: () => void }) {
+function BrandRow({
+  brand, joining, onPress, onJoin,
+}: { brand: DiscoverBrand; joining: boolean; onPress: () => void; onJoin: () => void }) {
   const tile = brandColor(brand.brandId, brand.branding);
   return (
     <Pressable
@@ -37,8 +39,13 @@ function BrandRow({ brand, onPress, onJoin }: { brand: DiscoverBrand; onPress: (
       {brand.joined ? (
         <Chip label="Joined" tone="neutral" style={{ paddingHorizontal: 16, paddingVertical: 10 }} />
       ) : (
-        <Pressable onPress={onJoin} hitSlop={6}>
-          <Chip label="Join" tone="ink" style={{ paddingHorizontal: 16, paddingVertical: 10 }} />
+        // Disabled while the join is in flight, so a second tap can't fire it again.
+        <Pressable onPress={joining ? undefined : onJoin} hitSlop={6}>
+          <Chip
+            label={joining ? 'Joining…' : 'Join'}
+            tone={joining ? 'neutral' : 'ink'}
+            style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+          />
         </Pressable>
       )}
     </Pressable>
@@ -48,11 +55,32 @@ function BrandRow({ brand, onPress, onJoin }: { brand: DiscoverBrand; onPress: (
 export default function DiscoverTab() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('All');
+  const [joining, setJoining] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const { data, loading, refreshing, error, signedOut, refresh } = useAsync(getDiscoverBrands);
 
   useEffect(() => {
     if (signedOut) router.replace('/onboarding/phone');
   }, [signedOut, router]);
+
+  /**
+   * Joining is a no-op server-side when the card already exists, so the only
+   * thing to guard is firing two requests at once; the list is re-read after
+   * rather than flipped locally, since the card is what the API now owns.
+   */
+  const join = async (brandId: string) => {
+    if (joining) return;
+    setJoining(brandId);
+    setJoinError(null);
+    try {
+      await joinBrand(brandId);
+      refresh();
+    } catch (e) {
+      setJoinError(e instanceof Error ? e.message : 'Could not join right now.');
+    } finally {
+      setJoining(null);
+    }
+  };
 
   const brands = data ?? [];
   const list = brands.filter((b) =>
@@ -105,12 +133,14 @@ export default function DiscoverTab() {
         />
       ) : (
         <View style={{ marginTop: 24, gap: 16 }}>
+          {joinError ? <Small style={{ color: S.spend }}>{joinError}</Small> : null}
           {list.map((b) => (
             <BrandRow
               key={b.brandId}
               brand={b}
+              joining={joining === b.brandId}
               onPress={() => router.push(`/merchant/${b.brandId}`)}
-              onJoin={() => router.push(`/join/${b.brandId}`)}
+              onJoin={() => void join(b.brandId)}
             />
           ))}
         </View>

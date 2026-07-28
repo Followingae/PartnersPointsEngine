@@ -33,6 +33,7 @@ describe('Terminal gateway (Phase 4)', () => {
   let prisma: PrismaClient;
   let terminal: TerminalService;
   let loyalty: LoyaltyService;
+  let gamification: GamificationService;
 
   const platformId = randomUUID();
   const groupId = randomUUID();
@@ -58,7 +59,8 @@ describe('Terminal gateway (Phase 4)', () => {
     const tenants = new TenantService(prisma as never);
     const audit = new AuditService();
     const tokens = new TokenService(new JwtService({}), fakeConfig);
-    loyalty = new LoyaltyService(tenants, new CampaignService(tenants, audit), new GamificationService(tenants, audit), audit);
+    gamification = new GamificationService(tenants, audit);
+    loyalty = new LoyaltyService(tenants, new CampaignService(tenants, audit), gamification, audit);
     const crypto = new EnvelopeCryptoService(fakeConfig);
     terminal = new TerminalService(tenants, tokens, loyalty, crypto);
 
@@ -182,6 +184,16 @@ describe('Terminal gateway (Phase 4)', () => {
     const held = await prisma.voucher.findFirstOrThrow({ where: { code: code! } });
     expect(held.status).toBe('reserved');
     expect(held.redeemedAt).toBeNull();
+
+    // The customer app draws this as a stamp card, so it has to be able to see
+    // where the card has got to — and that a previous one was filled.
+    // The stamp tester, not the shared member this suite otherwise uses.
+    const mine = await gamification.memberChallenges(ctx, progress.membershipId);
+    const card = mine.find((c) => c.id === stamp.id)!;
+    expect(card.isStampCard).toBe(true);
+    expect(card.target).toBe('3');
+    expect(card.completions).toBe(1);
+    expect(card.rewardName).toBe('Free coffee');
 
     // Rewards never stack: a second one can't join the same bill.
     const second = await prisma.voucher.create({
