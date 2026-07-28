@@ -45,7 +45,7 @@ export default function Privacy() {
             lead={<Tile background="rgba(255,31,107,.12)"><Icon name="lock" size={19} color={S.spend} /></Tile>}
             title="Delete my account"
             sub="Removes your profile and unspent points"
-            trailing={<Text style={{ fontFamily: font(600), fontSize: 13, color: S.spend }}>Delete</Text>}
+            trailing={<Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: S.spend }}>Delete</Text>}
           />
         </View>
         <Small style={{ marginTop: 14, color: C.faint }}>

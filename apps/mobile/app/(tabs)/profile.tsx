@@ -36,11 +36,11 @@ export default function Profile() {
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontFamily: font(600), fontSize: 20, color: C.muted }}>{ME.initials}</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 20, lineHeight: 24, color: C.muted }}>{ME.initials}</Text>
         </View>
         <View>
-          <Text style={{ fontFamily: font(600), fontSize: 19, letterSpacing: -0.38, color: C.ink }}>{ME.name}</Text>
-          <Small style={{ marginTop: 4, fontSize: 13 }}>{ME.phone}</Small>
+          <Text style={{ fontFamily: font(600), fontSize: 19, lineHeight: 23, letterSpacing: -0.38, color: C.ink }}>{ME.name}</Text>
+          <Small style={{ marginTop: 4, fontSize: 13, lineHeight: 18 }}>{ME.phone}</Small>
         </View>
       </View>
 

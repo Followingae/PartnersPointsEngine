@@ -38,7 +38,7 @@ function Perk({ text, dot }: { text: string; dot: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
       <View style={{ width: 4, height: 4, borderRadius: 999, backgroundColor: dot }} />
-      <Text style={{ fontFamily: font(500), fontSize: 13.5, color: C.muted }}>{text}</Text>
+      <Text style={{ fontFamily: font(500), fontSize: 13.5, lineHeight: 19, color: C.muted }}>{text}</Text>
     </View>
   );
 }
@@ -59,20 +59,20 @@ export default function Tiers() {
       </View>
 
       <View style={{ marginTop: 20 }}>
-        <H1 style={{ fontSize: 30, letterSpacing: -0.75 }}>Tiers</H1>
-        <Body tone="muted" style={{ marginTop: 8, fontSize: 14 }}>{brand.name}</Body>
+        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>Tiers</H1>
+        <Body tone="muted" style={{ marginTop: 8, fontSize: 14, lineHeight: 20 }}>{brand.name}</Body>
       </View>
 
       <View style={{ marginTop: 22, borderRadius: 26, backgroundColor: brand.color, paddingVertical: 22, paddingHorizontal: 24 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <Text style={{ fontFamily: font(600), fontSize: 30, letterSpacing: -0.9, color: fg }}>{brand.tier}</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 30, lineHeight: 35, letterSpacing: -0.9, color: fg }}>{brand.tier}</Text>
           {/* TODO(api): tier anniversary date. */}
-          <Text style={{ fontFamily: font(500), fontSize: 13, color: fg }}>since Mar 2025</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>since Mar 2025</Text>
         </View>
         <View style={{ marginTop: 20 }}>
           <OnColorBar value={brand.progress ?? 0} color={brand.color} />
         </View>
-        <Text style={{ marginTop: 12, fontFamily: font(500), fontSize: 13.5, color: fg }}>
+        <Text style={{ marginTop: 12, fontFamily: font(500), fontSize: 13.5, lineHeight: 19, color: fg }}>
           {brand.footnote} · {pts(brand.points)} of {pts(next)}
         </Text>
       </View>
@@ -100,14 +100,14 @@ export default function Tiers() {
                     </Text>
                     {current ? (
                       <View style={{ backgroundColor: brand.color, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 }}>
-                        <Text style={{ fontFamily: font(600), fontSize: 10.5, letterSpacing: 1.05, textTransform: 'uppercase', color: fg }}>
+                        <Text style={{ fontFamily: font(600), fontSize: 10.5, lineHeight: 15, letterSpacing: 1.05, textTransform: 'uppercase', color: fg }}>
                           Now
                         </Text>
                       </View>
                     ) : null}
                     {rung.state === 'locked' ? <LockIcon /> : null}
                   </View>
-                  <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.soft }}>{rung.threshold}</Text>
+                  <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.soft }}>{rung.threshold}</Text>
                 </View>
 
                 <View style={{ marginTop: 8, gap: 5 }}>

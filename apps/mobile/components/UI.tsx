@@ -89,7 +89,7 @@ export function Button({
     >
       {loading
         ? <ActivityIndicator color={fg} />
-        : <Text style={{ fontFamily: font(600), fontSize: 15.5, color: fg }}>{label}</Text>}
+        : <Text style={{ fontFamily: font(600), fontSize: 15.5, lineHeight: 22, color: fg }}>{label}</Text>}
     </Pressable>
   );
 }
@@ -109,7 +109,7 @@ export function Chip({
   const { bg, fg } = map[tone];
   return (
     <View style={[styles.chip, { backgroundColor: bg }, style]}>
-      <Text style={{ fontFamily: font(600), fontSize: 11.5, color: fg }}>{label}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 11.5, lineHeight: 16, color: fg }}>{label}</Text>
     </View>
   );
 }
@@ -153,7 +153,7 @@ export function Row({ label, value, valueColor = C.ink, style }: { label: string
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, style]}>
       <Text style={[T.body, { color: C.muted }]}>{label}</Text>
-      <Text style={{ fontFamily: font(600), fontSize: 15, color: valueColor }}>{value}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: valueColor }}>{value}</Text>
     </View>
   );
 }

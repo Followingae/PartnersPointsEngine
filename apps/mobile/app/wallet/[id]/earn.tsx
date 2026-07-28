@@ -42,8 +42,8 @@ function EarnRow({ icon, tile, title, sub, first }: {
         {icon}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{title}</Text>
-        <Small style={{ marginTop: 3, fontSize: 12.5 }}>{sub}</Small>
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{title}</Text>
+        <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{sub}</Small>
       </View>
     </View>
   );
@@ -77,7 +77,7 @@ export default function HowYouEarn() {
   return (
     <Screen background={brandScrim(brand.color)} scroll={false} pad={false} bottomGap={0}>
       <SheetShell onDismiss={() => router.back()}>
-        <H2 style={{ marginTop: 22, fontSize: 26, letterSpacing: -0.65 }}>How you earn</H2>
+        <H2 style={{ marginTop: 22, fontSize: 26, lineHeight: 32, letterSpacing: -0.65 }}>How you earn</H2>
 
         {/* TODO(api): the brand's live earn rules. */}
         <View style={{ marginTop: 22 }}>

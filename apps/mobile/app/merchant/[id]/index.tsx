@@ -79,11 +79,11 @@ export default function MerchantStorefront() {
 
         <View style={{ paddingHorizontal: SP.gutter, marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
           <View style={{ width: 52, height: 52, borderRadius: R.tile, backgroundColor: 'rgba(255,255,255,.2)', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: font(600), fontSize: 17, color: onTone }}>{m.code}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: onTone }}>{m.code}</Text>
           </View>
           <View>
-            <Text style={{ fontFamily: font(600), fontSize: 19, letterSpacing: -0.38, color: onTone }}>{m.name}</Text>
-            <Text style={{ fontFamily: font(500), fontSize: 12.5, color: onTone, marginTop: 2 }}>{m.meta}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 19, lineHeight: 23, letterSpacing: -0.38, color: onTone }}>{m.name}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: onTone, marginTop: 2 }}>{m.meta}</Text>
           </View>
         </View>
 
@@ -107,8 +107,8 @@ export default function MerchantStorefront() {
                 {b.icon}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{b.title}</Text>
-                <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted, marginTop: 3 }}>{b.sub}</Text>
+                <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{b.title}</Text>
+                <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>{b.sub}</Text>
               </View>
             </View>
           ))}

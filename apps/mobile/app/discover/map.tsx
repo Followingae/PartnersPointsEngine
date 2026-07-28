@@ -36,7 +36,7 @@ export default function DiscoverMap() {
             ...shadow.raised,
           }}
         >
-          <Text style={{ fontFamily: font(600), fontSize: 13, color: p.fg }}>{p.code}</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: p.fg }}>{p.code}</Text>
         </View>
       ))}
 
@@ -59,7 +59,7 @@ export default function DiscoverMap() {
             <Circle cx={11} cy={11} r={7} />
             <Path d="M20 20l-3.2-3.2" />
           </Svg>
-          <Text style={{ flex: 1, fontFamily: font(500), fontSize: 14.5, color: C.soft }}>Search this area</Text>
+          <Text style={{ flex: 1, fontFamily: font(500), fontSize: 14.5, lineHeight: 20, color: C.soft }}>Search this area</Text>
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.ink} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z" />
             <Circle cx={12} cy={10} r={2.5} />
@@ -79,11 +79,11 @@ export default function DiscoverMap() {
         ]}
       >
         <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontFamily: font(600), fontSize: 14, color: C.ink }}>CB</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: C.ink }}>CB</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 15, color: C.ink }}>Camel Bean · JLT</Text>
-          <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted, marginTop: 3 }}>Open until 11 PM · 0.4 km</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}>Camel Bean · JLT</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>Open until 11 PM · 0.4 km</Text>
         </View>
         <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.soft} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
           <Path d="M9 5l7 7-7 7" />

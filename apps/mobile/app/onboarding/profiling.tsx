@@ -25,8 +25,8 @@ function DateField({ label, value, flex, filled, dim }: {
         borderColor: C.hairline,
       }}
     >
-      <Label style={{ fontSize: 10, letterSpacing: 1 }}>{label}</Label>
-      <Text style={{ fontFamily: font(600), fontSize: 17, color: dim ? C.soft : C.ink }}>{value}</Text>
+      <Label style={{ fontSize: 10, lineHeight: 14, letterSpacing: 1 }}>{label}</Label>
+      <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: dim ? C.soft : C.ink }}>{value}</Text>
     </View>
   );
 }
@@ -39,9 +39,9 @@ export default function Profiling() {
   return (
     <Screen scroll={false} background={C.surface} bottomGap={18}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Small style={{ fontSize: 13 }}>{`Step ${STEP} of ${STEPS}`}</Small>
+        <Small style={{ fontSize: 13, lineHeight: 18 }}>{`Step ${STEP} of ${STEPS}`}</Small>
         <Pressable onPress={next} hitSlop={10}>
-          <Text style={{ fontFamily: font(600), fontSize: 14, color: C.muted }}>Skip</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: C.muted }}>Skip</Text>
         </Pressable>
       </View>
 
@@ -59,7 +59,7 @@ export default function Profiling() {
           <DateField label="Year" value="––––" flex={1.1} dim />
         </View>
 
-        <Small style={{ marginTop: 20, fontSize: 13.5 }}>+50 pts once it’s saved</Small>
+        <Small style={{ marginTop: 20, fontSize: 13.5, lineHeight: 19 }}>+50 pts once it’s saved</Small>
       </View>
 
       <Footer>

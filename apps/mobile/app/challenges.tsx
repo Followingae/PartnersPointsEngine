@@ -11,8 +11,8 @@ function ChallengeCard({ c, onPress }: { c: Challenge; onPress: () => void }) {
     <Card onPress={onPress} style={{ paddingVertical: 20, paddingHorizontal: 22 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 15.5, color: C.ink }}>{c.title}</Text>
-          <Small style={{ marginTop: 4, fontSize: 12.5 }}>{c.meta}</Small>
+          <Text style={{ fontFamily: font(600), fontSize: 15.5, lineHeight: 22, color: C.ink }}>{c.title}</Text>
+          <Small style={{ marginTop: 4, fontSize: 12.5, lineHeight: 18 }}>{c.meta}</Small>
         </View>
         <Chip label={c.status} tone={ready ? 'lime' : 'neutral'} />
       </View>

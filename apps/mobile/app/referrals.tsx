@@ -24,8 +24,8 @@ export default function Referrals() {
         <Lede style={{ marginTop: 10 }}>They get 200 pts, you get 200 once they earn.</Lede>
 
         <View style={{ marginTop: 28, padding: 24, borderRadius: 22, backgroundColor: C.wash, alignItems: 'center' }}>
-          <Label style={{ fontSize: 11.5, color: C.muted }}>Your code</Label>
-          <Text style={{ marginTop: 12, fontFamily: font(600), fontSize: 30, letterSpacing: 4.2, color: C.ink }}>
+          <Label style={{ fontSize: 11.5, lineHeight: 16, color: C.muted }}>Your code</Label>
+          <Text style={{ marginTop: 12, fontFamily: font(600), fontSize: 30, lineHeight: 35, letterSpacing: 4.2, color: C.ink }}>
             {CODE}
           </Text>
         </View>
@@ -43,7 +43,7 @@ export default function Referrals() {
                 trailing={
                   p.earned
                     ? <Amount value={p.value} color={S.earnInk} />
-                    : <Small style={{ fontSize: 12.5 }}>{p.value}</Small>
+                    : <Small style={{ fontSize: 12.5, lineHeight: 18 }}>{p.value}</Small>
                 }
               />
             ))}

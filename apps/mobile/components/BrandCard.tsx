@@ -98,12 +98,12 @@ export function BrandCard({
         {name}
       </Text>
       {!tile && sponsored ? (
-        <Text style={{ fontFamily: font(500), fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: fg }}>
+        <Text style={{ fontFamily: font(500), fontSize: 10, lineHeight: 14, letterSpacing: 0.8, textTransform: 'uppercase', color: fg }}>
           Sponsored
         </Text>
       ) : null}
       {!tile && !sponsored && tier ? (
-        <Text style={{ fontFamily: font(500), fontSize: 13, color: fg }}>{tier}</Text>
+        <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>{tier}</Text>
       ) : null}
     </View>
   );
@@ -144,7 +144,7 @@ export function BrandCard({
         <View>
           {amount}
           {tier ? (
-            <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, color: fg }}>{tier}</Text>
+            <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, lineHeight: 15, color: fg }}>{tier}</Text>
           ) : null}
         </View>
       ) : (
@@ -153,7 +153,7 @@ export function BrandCard({
           {footnote || progress !== undefined ? (
             <View style={{ gap: 9 }}>
               {footnote ? (
-                <Text style={{ fontFamily: font(500), fontSize: 13, color: fg }}>{footnote}</Text>
+                <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>{footnote}</Text>
               ) : null}
               {progress !== undefined ? <OnColorBar value={progress} color={color} /> : null}
             </View>
@@ -198,11 +198,11 @@ export function SponsoredOffer({
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 10, color: fg }}>{initial}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 10, lineHeight: 14, color: fg }}>{initial}</Text>
           </View>
-          <Text style={{ fontFamily: font(600), fontSize: 12.5, color: fg }}>{name}</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: fg }}>{name}</Text>
         </View>
-        <Text style={{ fontFamily: font(500), fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: fg }}>
+        <Text style={{ fontFamily: font(500), fontSize: 10, lineHeight: 14, letterSpacing: 0.8, textTransform: 'uppercase', color: fg }}>
           Sponsored
         </Text>
       </View>
@@ -220,7 +220,7 @@ export function SponsoredOffer({
           paddingHorizontal: 16, paddingVertical: 10, borderRadius: R.chip,
         }}
       >
-        <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.ink }}>{cta}</Text>
+        <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: C.ink }}>{cta}</Text>
       </View>
     </View>
   );
@@ -245,7 +245,7 @@ export function AddCardTile({ onPress, style }: { onPress?: () => void; style?: 
         style,
       ]}
     >
-      <Text style={{ fontFamily: font(600), fontSize: 13, color: C.muted }}>Add a card</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.muted }}>Add a card</Text>
     </Pressable>
   );
 }

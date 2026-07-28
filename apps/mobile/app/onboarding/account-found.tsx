@@ -17,8 +17,8 @@ function LinkedRow({ card }: { card: Linked }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <Monogram code={card.code} size={44} radius={14} bg={card.bg} color={card.ink} fontSize={14} />
-      <Text style={{ flex: 1, fontFamily: font(600), fontSize: 15, color: C.ink }}>{card.name}</Text>
-      <Text style={{ fontFamily: font(600), fontSize: 20, letterSpacing: -0.6, color: C.ink }}>{pts(card.points)}</Text>
+      <Text style={{ flex: 1, fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}>{card.name}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 20, lineHeight: 24, letterSpacing: -0.6, color: C.ink }}>{pts(card.points)}</Text>
     </View>
   );
 }

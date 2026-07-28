@@ -15,7 +15,7 @@ export default function LuluLinked() {
           <Image source={require('@/assets/lulu-icon.png')} style={{ width: 48, height: 48, resizeMode: 'contain' }} />
         </Disc>
         <H1 style={{ marginTop: 32, textAlign: 'center' }}>Lulu linked</H1>
-        <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, textAlign: 'center' }}>
+        <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 20, textAlign: 'center' }}>
           •••• 4821 · 1,240 Lulu points today
         </Body>
       </CenterState>

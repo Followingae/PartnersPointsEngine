@@ -25,7 +25,7 @@ export default function LinkLulu() {
           height: 58, borderRadius: R.tile, backgroundColor: C.canvas,
           justifyContent: 'center', paddingHorizontal: 18,
         }}>
-          <Text style={{ fontFamily: font(600), fontSize: 16, color: C.ink }}>+971 50 123 4567</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 16, lineHeight: 22, color: C.ink }}>+971 50 123 4567</Text>
         </View>
 
         <TextInput
@@ -42,7 +42,7 @@ export default function LinkLulu() {
             borderColor: C.hairline,
             paddingHorizontal: 18,
             fontFamily: font(member ? 600 : 500),
-            fontSize: 16,
+            fontSize: 16, lineHeight: 22,
             color: C.ink,
           }}
         />

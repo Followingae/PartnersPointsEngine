@@ -25,8 +25,8 @@ export default function ChallengeDetail() {
           <Segments done={c.done} total={c.total} color={c.color} />
         </View>
         <View style={{ marginTop: 14, flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Small style={{ fontSize: 12.5 }}>{c.footLeft}</Small>
-          <Small style={{ fontSize: 12.5 }}>{c.footRight}</Small>
+          <Small style={{ fontSize: 12.5, lineHeight: 18 }}>{c.footLeft}</Small>
+          <Small style={{ fontSize: 12.5, lineHeight: 18 }}>{c.footRight}</Small>
         </View>
 
         <View style={{ marginTop: 32 }}>

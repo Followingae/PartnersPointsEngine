@@ -83,7 +83,7 @@ export default function EditDetails() {
                     pressed ? { opacity: 0.85 } : null,
                   ]}
                 >
-                  <Text style={{ fontFamily: font(600), fontSize: 13.5, color: on ? '#fff' : C.ink }}>{g}</Text>
+                  <Text style={{ fontFamily: font(600), fontSize: 13.5, lineHeight: 19, color: on ? '#fff' : C.ink }}>{g}</Text>
                 </Pressable>
               );
             })}

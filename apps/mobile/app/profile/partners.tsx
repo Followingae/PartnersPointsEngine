@@ -18,11 +18,11 @@ export default function LinkedPartners() {
       <Card style={{ marginTop: 26, borderRadius: 22 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
           <Tile size={48} radius={R.control} background={C.blue}>
-            <Text style={{ fontFamily: font(800), fontSize: 20, color: '#fff' }}>L</Text>
+            <Text style={{ fontFamily: font(800), fontSize: 20, lineHeight: 24, color: '#fff' }}>L</Text>
           </Tile>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontFamily: font(600), fontSize: 15.5, color: C.ink }}>Lulu Happiness Points</Text>
-            <Small style={{ marginTop: 3, fontSize: 12.5 }}>•••• 4821</Small>
+            <Text style={{ fontFamily: font(600), fontSize: 15.5, lineHeight: 22, color: C.ink }}>Lulu Happiness Points</Text>
+            <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>•••• 4821</Small>
           </View>
           <Chip label="Linked" tone="green" />
         </View>
@@ -62,8 +62,8 @@ export default function LinkedPartners() {
           <Icon name="info" size={22} color={C.soft} />
         </Tile>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 15, color: C.ink }}>More partners soon</Text>
-          <Small style={{ marginTop: 3, fontSize: 12.5 }}>We are adding new programmes to convert into.</Small>
+          <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}>More partners soon</Text>
+          <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>We are adding new programmes to convert into.</Small>
         </View>
       </View>
 

@@ -13,7 +13,7 @@ export default function Redeemed() {
           <Ic name="check" size={40} sw={2.4} />
         </Disc>
         <H1 style={{ marginTop: 32, textAlign: 'center' }}>Voucher ready</H1>
-        <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, textAlign: 'center' }}>
+        <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 20, textAlign: 'center' }}>
           Free flat white · 450 pts · balance 2,030
         </Body>
       </CenterState>

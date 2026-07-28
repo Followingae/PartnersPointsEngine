@@ -49,7 +49,7 @@ export default function JoinConfirm() {
           <View style={{ width: 42, height: 5, borderRadius: 999, backgroundColor: C.hairline }} />
         </View>
 
-        <H2 style={{ marginTop: 22, fontSize: 26, letterSpacing: -0.65 }}>Join {p.name}?</H2>
+        <H2 style={{ marginTop: 22, fontSize: 26, lineHeight: 32, letterSpacing: -0.65 }}>Join {p.name}?</H2>
         <Body tone="muted" style={{ marginTop: 10, fontSize: 14, lineHeight: 21.7 }}>
           Your name and number are shared with the brand. You can leave any time from card settings.
         </Body>
@@ -60,8 +60,8 @@ export default function JoinConfirm() {
               key={r.label}
               style={{ paddingVertical: 18, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.hairline }}
             >
-              <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{r.label}</Text>
-              <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted, marginTop: 3 }}>{r.value}</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{r.label}</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>{r.value}</Text>
             </View>
           ))}
         </View>
@@ -74,7 +74,7 @@ export default function JoinConfirm() {
             style={{ height: 58, borderRadius: 18, backgroundColor: p.tone }}
           />
           <Pressable onPress={() => router.back()} style={{ paddingVertical: 14, alignItems: 'center' }}>
-            <Text style={{ fontFamily: font(600), fontSize: 15, color: C.muted }}>Not now</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.muted }}>Not now</Text>
           </Pressable>
         </View>
       </View>

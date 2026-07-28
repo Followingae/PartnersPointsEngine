@@ -62,8 +62,8 @@ export default function BrandNotifications() {
       </View>
 
       <View style={{ marginTop: 20 }}>
-        <H1 style={{ fontSize: 30, letterSpacing: -0.75 }}>{brand.name}</H1>
-        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5 }}>What this brand can send you</Body>
+        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>{brand.name}</H1>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5, lineHeight: 20 }}>What this brand can send you</Body>
       </View>
 
       <View style={{ marginTop: 24 }}>
@@ -76,8 +76,8 @@ export default function BrandNotifications() {
             }}
           >
             <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{p.title}</Text>
-              <Small style={{ marginTop: 3, fontSize: 12.5 }}>{p.sub}</Small>
+              <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{p.title}</Text>
+              <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{p.sub}</Small>
             </View>
             <Toggle on={p.on} onPress={() => toggle(p.key)} />
           </View>

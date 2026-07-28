@@ -96,15 +96,23 @@ export const font = (w: Weight = 500) => JAKARTA[w];
 /** Font families to register with expo-font's useFonts. */
 export const ALL_FONT_KEYS = Object.values(JAKARTA);
 
-/** Type scale observed in the design. */
+/**
+ * Type scale observed in the design.
+ *
+ * Every entry carries an explicit lineHeight. Without one, React Native sizes
+ * the line box from the font's own metrics, which clips Plus Jakarta Sans's
+ * ascenders and descenders — worst on Android and worst at display sizes.
+ * Display sizes get a tight ratio (~1.15) so headlines stay compact; running
+ * text gets ~1.45 so it stays readable.
+ */
 export const T = {
-  h1: { fontFamily: font(600), fontSize: 32, letterSpacing: -0.96 },
-  h2: { fontFamily: font(600), fontSize: 24, letterSpacing: -0.6 },
-  h3: { fontFamily: font(600), fontSize: 19, letterSpacing: -0.3 },
-  stat: { fontFamily: font(600), fontSize: 44, letterSpacing: -1.3 },
-  body: { fontFamily: font(500), fontSize: 15 },
-  bodyStrong: { fontFamily: font(600), fontSize: 15 },
-  small: { fontFamily: font(500), fontSize: 13 },
-  tiny: { fontFamily: font(500), fontSize: 11.5 },
-  label: { fontFamily: font(500), fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' as const },
+  h1: { fontFamily: font(600), fontSize: 32, lineHeight: 38, letterSpacing: -0.96 },
+  h2: { fontFamily: font(600), fontSize: 24, lineHeight: 29, letterSpacing: -0.6 },
+  h3: { fontFamily: font(600), fontSize: 19, lineHeight: 24, letterSpacing: -0.3 },
+  stat: { fontFamily: font(600), fontSize: 44, lineHeight: 51, letterSpacing: -1.3 },
+  body: { fontFamily: font(500), fontSize: 15, lineHeight: 22 },
+  bodyStrong: { fontFamily: font(600), fontSize: 15, lineHeight: 22 },
+  small: { fontFamily: font(500), fontSize: 13, lineHeight: 19 },
+  tiny: { fontFamily: font(500), fontSize: 11.5, lineHeight: 16 },
+  label: { fontFamily: font(500), fontSize: 11, lineHeight: 15, letterSpacing: 1.5, textTransform: 'uppercase' as const },
 } as const;

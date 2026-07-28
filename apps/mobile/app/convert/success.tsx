@@ -11,8 +11,8 @@ const ELIGIBLE = 3240;
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flex: 1, padding: 18, borderRadius: 18, backgroundColor: C.canvas }}>
-      <Text style={{ fontFamily: font(500), fontSize: 11.5, color: C.muted }}>{label}</Text>
-      <Text style={{ marginTop: 8, fontFamily: font(600), fontSize: 24, letterSpacing: -0.72, color: C.ink }}>
+      <Text style={{ fontFamily: font(500), fontSize: 11.5, lineHeight: 16, color: C.muted }}>{label}</Text>
+      <Text style={{ marginTop: 8, fontFamily: font(600), fontSize: 24, lineHeight: 29, letterSpacing: -0.72, color: C.ink }}>
         {value}
       </Text>
     </View>
@@ -38,7 +38,7 @@ export default function ConvertSuccess() {
           <Ic name="check" size={36} sw={2.4} />
         </View>
 
-        <H1 style={{ marginTop: 28, fontSize: 28, textAlign: 'center' }}>{pts(points)} pts converted</H1>
+        <H1 style={{ marginTop: 28, fontSize: 28, lineHeight: 34, textAlign: 'center' }}>{pts(points)} pts converted</H1>
 
         <View style={{ marginTop: 30, alignSelf: 'stretch', flexDirection: 'row', gap: 12 }}>
           <StatTile label="Partners Points" value={pts(remaining)} />

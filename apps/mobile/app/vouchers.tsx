@@ -37,7 +37,7 @@ function Filter({ label, selected, onPress }: { label: string; selected: boolean
     >
       <Text style={{
         fontFamily: font(selected ? 600 : 500),
-        fontSize: 12.5,
+        fontSize: 12.5, lineHeight: 18,
         color: selected ? '#fff' : C.ink,
       }}>
         {label}

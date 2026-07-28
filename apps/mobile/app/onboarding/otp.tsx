@@ -26,7 +26,7 @@ function Cell({ children, filled }: { children?: ReactNode; filled?: boolean }) 
 }
 
 function Digit({ value }: { value: string }) {
-  return <Text style={{ fontFamily: font(600), fontSize: 24, color: C.ink }}>{value}</Text>;
+  return <Text style={{ fontFamily: font(600), fontSize: 24, lineHeight: 29, color: C.ink }}>{value}</Text>;
 }
 
 /** 04 · OTP. */
@@ -58,7 +58,7 @@ export default function Otp() {
         <Cell />
       </View>
 
-      <Small style={{ marginTop: 26, fontSize: 13.5, textAlign: 'center' }}>Resend in 0:24</Small>
+      <Small style={{ marginTop: 26, fontSize: 13.5, lineHeight: 19, textAlign: 'center' }}>Resend in 0:24</Small>
 
       <Footer>
         <Button label="Verify" onPress={onVerify} />

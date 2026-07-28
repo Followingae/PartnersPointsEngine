@@ -35,11 +35,11 @@ function BrandRow({ brand, onPress, onJoin }: { brand: Brand; onPress: () => voi
       style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 14 }, pressed ? { opacity: 0.75 } : null]}
     >
       <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: brand.tile, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontFamily: font(600), fontSize: 15, color: brand.fg }}>{brand.code}</Text>
+        <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: brand.fg }}>{brand.code}</Text>
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 15, color: C.ink }}>{brand.name}</Text>
-        <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted, marginTop: 3 }}>{brand.meta}</Text>
+        <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}>{brand.name}</Text>
+        <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>{brand.meta}</Text>
       </View>
       {brand.joined ? (
         <Chip label="Joined" tone="neutral" style={{ paddingHorizontal: 16, paddingVertical: 10 }} />
@@ -73,7 +73,7 @@ export default function DiscoverTab() {
           <Circle cx={11} cy={11} r={7} />
           <Path d="M20 20l-3.2-3.2" />
         </Svg>
-        <Text style={{ flex: 1, fontFamily: font(500), fontSize: 14.5, color: C.soft }}>Search brands</Text>
+        <Text style={{ flex: 1, fontFamily: font(500), fontSize: 14.5, lineHeight: 20, color: C.soft }}>Search brands</Text>
         <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.soft} strokeWidth={1.9} strokeLinecap="round">
           <Path d="M4 6h16M7 12h10M10 18h4" />
         </Svg>

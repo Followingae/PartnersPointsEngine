@@ -51,8 +51,8 @@ export default function ConvertProcessing() {
           <PulseDot delay={200} />
           <PulseDot delay={400} />
         </View>
-        <Text style={{ fontFamily: font(600), fontSize: 17, color: C.ink }}>Moving your points</Text>
-        <Small style={{ fontSize: 13.5 }}>Do not close the app</Small>
+        <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: C.ink }}>Moving your points</Text>
+        <Small style={{ fontSize: 13.5, lineHeight: 19 }}>Do not close the app</Small>
       </View>
     </Screen>
   );

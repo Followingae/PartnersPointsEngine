@@ -76,7 +76,7 @@ function Action({ label, icon, primary, onPress }: {
       })}
     >
       {icon(fg)}
-      <Text style={{ fontFamily: font(600), fontSize: 11.5, color: fg }}>{label}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 11.5, lineHeight: 16, color: fg }}>{label}</Text>
     </Pressable>
   );
 }
@@ -92,10 +92,10 @@ function RecentRow({ title, when, amount, color, first }: {
       }}
     >
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{title}</Text>
-        <Small style={{ marginTop: 3, fontSize: 12.5 }}>{when}</Small>
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{title}</Text>
+        <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{when}</Small>
       </View>
-      <Text style={{ fontFamily: font(600), fontSize: 15, color }}>{amount}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color }}>{amount}</Text>
     </View>
   );
 }
@@ -128,11 +128,11 @@ export default function CardDetail() {
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 17, color: fg }}>{brand.initial}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: fg }}>{brand.initial}</Text>
           </View>
           <View>
-            <Text style={{ fontFamily: font(600), fontSize: 19, letterSpacing: -0.38, color: fg }}>{brand.name}</Text>
-            <Text style={{ marginTop: 3, fontFamily: font(500), fontSize: 12.5, color: fg }}>{brand.category}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 19, lineHeight: 23, letterSpacing: -0.38, color: fg }}>{brand.name}</Text>
+            <Text style={{ marginTop: 3, fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: fg }}>{brand.category}</Text>
           </View>
         </View>
 
@@ -140,13 +140,13 @@ export default function CardDetail() {
           <Text style={{ fontFamily: font(600), fontSize: 60, lineHeight: 52, letterSpacing: -2.4, color: fg }}>
             {pts(brand.points)}
           </Text>
-          <Text style={{ fontFamily: font(500), fontSize: 15, color: fg }}>pts</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 15, lineHeight: 21, color: fg }}>pts</Text>
         </View>
 
         <Pressable onPress={() => router.push(`${base}/tiers`)}>
           <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Text style={{ fontFamily: font(500), fontSize: 13.5, color: fg }}>{brand.tier}</Text>
-            <Text style={{ fontFamily: font(500), fontSize: 13, color: fg }}>{brand.footnote}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13.5, lineHeight: 19, color: fg }}>{brand.tier}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>{brand.footnote}</Text>
           </View>
           <View style={{ marginTop: 10 }}>
             <OnColorBar value={brand.progress ?? 0} color={brand.color} />
@@ -174,7 +174,7 @@ export default function CardDetail() {
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <Label>Recent</Label>
-            <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.muted }}>All</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: C.muted }}>All</Text>
           </Pressable>
 
           <RecentRow first title="Earned · JLT branch" when="Today · 2:41 PM" amount="+120" color={S.earnInk} />
@@ -187,13 +187,13 @@ export default function CardDetail() {
             onPress={() => router.push(`${base}/earn`)}
             style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: R.chip, backgroundColor: C.wash }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.ink }}>How you earn</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: C.ink }}>How you earn</Text>
           </Pressable>
           <Pressable
             onPress={() => router.push(`${base}/expiring`)}
             style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: R.chip, backgroundColor: C.wash }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 12.5, color: C.ink }}>Expiring points</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: C.ink }}>Expiring points</Text>
           </Pressable>
         </View>
       </View>

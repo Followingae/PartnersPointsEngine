@@ -24,7 +24,7 @@ function BrandTile({ brand }: { brand: Nearby }) {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
         <Monogram code={brand.code} size={26} radius={9} bg={brand.badge} color={brand.ink} fontSize={10} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: font(600), fontSize: 12.5, color: brand.ink }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: brand.ink }}>
           {brand.name}
         </Text>
       </View>
@@ -32,9 +32,9 @@ function BrandTile({ brand }: { brand: Nearby }) {
       <View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
           <Text style={{ fontFamily: font(600), fontSize: 26, lineHeight: 24, letterSpacing: -0.78, color: brand.ink }}>0</Text>
-          <Text style={{ fontFamily: font(500), fontSize: 11, color: brand.ink }}>pts</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 11, lineHeight: 15, color: brand.ink }}>pts</Text>
         </View>
-        <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, color: brand.ink }}>{brand.meta}</Text>
+        <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, lineHeight: 15, color: brand.ink }}>{brand.meta}</Text>
       </View>
     </View>
   );

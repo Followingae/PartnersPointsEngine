@@ -112,8 +112,8 @@ export function ListRow({
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{title}</Text>
-        {sub ? <Small style={{ marginTop: 3, fontSize: 12.5 }}>{sub}</Small> : null}
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{title}</Text>
+        {sub ? <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{sub}</Small> : null}
       </View>
       {value ? (
         <Text style={{
@@ -162,7 +162,7 @@ export function Footer({ children }: { children: ReactNode }) {
 export function TextAction({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [{ paddingVertical: 14 }, pressed ? { opacity: 0.6 } : null]}>
-      <Text style={{ fontFamily: font(600), fontSize: 15, color: C.muted, textAlign: 'center' }}>{label}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.muted, textAlign: 'center' }}>{label}</Text>
     </Pressable>
   );
 }
@@ -176,7 +176,7 @@ export function NotePill({ label }: { label: string }) {
       backgroundColor: 'rgba(0,179,126,.14)',
     }}>
       <Ic name="check" size={15} color={C.greenDeep} sw={2.4} />
-      <Text style={{ fontFamily: font(600), fontSize: 13, color: C.greenDeep }}>{label}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.greenDeep }}>{label}</Text>
     </View>
   );
 }
@@ -210,7 +210,7 @@ export function SheetScreen({
         <View style={{ alignItems: 'center' }}>
           <View style={{ width: 42, height: 5, borderRadius: R.chip, backgroundColor: 'rgba(21,21,15,.08)' }} />
         </View>
-        <H2 style={{ marginTop: 22, fontSize: 26 }}>{title}</H2>
+        <H2 style={{ marginTop: 22, fontSize: 26, lineHeight: 32 }}>{title}</H2>
         {children}
       </View>
     </View>

@@ -55,7 +55,7 @@ export default function DiscoverFilters() {
             <Circle cx={11} cy={11} r={7} />
             <Path d="M20 20l-3.2-3.2" />
           </Svg>
-          <Text style={{ fontFamily: font(500), fontSize: 14.5, color: C.ink }}>coff</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 14.5, lineHeight: 20, color: C.ink }}>coff</Text>
           <Caret />
         </View>
 
@@ -83,14 +83,14 @@ export default function DiscoverFilters() {
               ]}
             >
               <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: r.tile, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: font(600), fontSize: 13, color: r.fg }}>{r.code}</Text>
+                <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: r.fg }}>{r.code}</Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{r.name}</Text>
-                <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted, marginTop: 3 }}>{r.meta}</Text>
+                <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{r.name}</Text>
+                <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>{r.meta}</Text>
               </View>
               {r.joined ? (
-                <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted }}>Joined</Text>
+                <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted }}>Joined</Text>
               ) : (
                 <Pressable onPress={() => router.push(`/join/${r.id}`)} hitSlop={6}>
                   <Chip label="Join" tone="ink" style={{ paddingHorizontal: 14, paddingVertical: 9 }} />

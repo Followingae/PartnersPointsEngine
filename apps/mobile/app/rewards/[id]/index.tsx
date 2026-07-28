@@ -24,13 +24,13 @@ export default function RewardDetail() {
         <Ic name="cup" size={64} sw={1.3} />
       </View>
 
-      <H1 style={{ fontSize: 28 }}>{reward.name}</H1>
+      <H1 style={{ fontSize: 28, lineHeight: 34 }}>{reward.name}</H1>
 
       <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={{ paddingVertical: 7, paddingHorizontal: 13, borderRadius: R.chip, backgroundColor: C.canvas }}>
-          <Text style={{ fontFamily: font(600), fontSize: 13, color: C.ink }}>{reward.cost}</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.ink }}>{reward.cost}</Text>
         </View>
-        <Small style={{ fontSize: 13.5 }}>{reward.balanceAfter}</Small>
+        <Small style={{ fontSize: 13.5, lineHeight: 19 }}>{reward.balanceAfter}</Small>
       </View>
 
       <Body tone="muted" style={{ marginTop: 20, fontSize: 14.5, lineHeight: 23 }}>

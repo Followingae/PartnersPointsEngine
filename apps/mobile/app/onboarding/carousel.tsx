@@ -28,18 +28,18 @@ function StackCard({ w, top, depth }: { w: Wallet; top: number; depth: number })
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 }}>
             <Monogram code={w.code} size={38} radius={12} bg={w.badge} color={w.ink} fontSize={13} />
-            <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 17, letterSpacing: -0.17, color: w.ink }}>
+            <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: -0.17, color: w.ink }}>
               {w.name}
             </Text>
           </View>
-          <Text style={{ fontFamily: font(500), fontSize: 13, color: w.ink }}>{w.tier}</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: w.ink }}>{w.tier}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
           <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 44, letterSpacing: -1.44, color: w.ink }}>
             {pts(w.points)}
           </Text>
-          <Text style={{ fontFamily: font(500), fontSize: 14, color: w.ink }}>pts</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: w.ink }}>pts</Text>
         </View>
       </View>
     </View>
@@ -55,7 +55,7 @@ export default function Carousel() {
     <Screen scroll={false} background={C.surface} bottomGap={18}>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
         <Pressable onPress={next} hitSlop={10}>
-          <Text style={{ fontFamily: font(600), fontSize: 14, color: C.muted }}>Skip</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: C.muted }}>Skip</Text>
         </Pressable>
       </View>
 

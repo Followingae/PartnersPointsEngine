@@ -35,7 +35,7 @@ export default function Streak() {
         </View>
         <View style={{ flexDirection: 'row', gap: 9, marginTop: 10 }}>
           {DAYS.map((d) => (
-            <Text key={d.label} style={[T.tiny, { flex: 1, fontSize: 11, textAlign: 'center', color: C.soft }]}>
+            <Text key={d.label} style={[T.tiny, { flex: 1, fontSize: 11, lineHeight: 15, textAlign: 'center', color: C.soft }]}>
               {d.label}
             </Text>
           ))}

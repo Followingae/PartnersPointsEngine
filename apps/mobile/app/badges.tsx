@@ -26,7 +26,7 @@ function BadgeTile({ b, onPress }: { b: Badge; onPress: () => void }) {
           marginTop: 10,
           textAlign: 'center',
           fontFamily: font(b.unlocked ? 600 : 500),
-          fontSize: 12,
+          fontSize: 12, lineHeight: 17,
           color: b.unlocked ? C.ink : C.soft,
         }}
       >
@@ -48,7 +48,7 @@ export default function Badges() {
       <BackBar fallback="/home" />
       <View style={{ marginTop: 20 }}>
         <H1>Badges</H1>
-        <Small style={{ marginTop: 8, fontSize: 14 }}>{EARNED_SUMMARY}</Small>
+        <Small style={{ marginTop: 8, fontSize: 14, lineHeight: 20 }}>{EARNED_SUMMARY}</Small>
       </View>
 
       <View style={{ marginTop: SP.gutter, gap: SP.gap }}>

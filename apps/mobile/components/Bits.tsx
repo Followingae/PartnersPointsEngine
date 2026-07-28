@@ -164,8 +164,8 @@ export function ListRow({
     >
       {lead}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{title}</Text>
-        {sub ? <Small style={{ marginTop: 3, fontSize: 12.5 }}>{sub}</Small> : null}
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{title}</Text>
+        {sub ? <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{sub}</Small> : null}
       </View>
       {trailing ?? <Icon name="chevron" size={18} color={C.soft} weight={2} />}
     </View>
@@ -177,14 +177,14 @@ export function ListRow({
 
 /** Trailing amount on an activity/referral row. */
 export function Amount({ value, color = C.ink }: { value: string; color?: string }) {
-  return <Text style={{ fontFamily: font(600), fontSize: 15, color }}>{value}</Text>;
+  return <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color }}>{value}</Text>;
 }
 
 /** Centred low-emphasis text action that sits under a primary button. */
 export function TextAction({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => (pressed ? { opacity: 0.6 } : null)}>
-      <Text style={{ textAlign: 'center', fontFamily: font(600), fontSize: 15, color: C.muted, padding: 14 }}>
+      <Text style={{ textAlign: 'center', fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.muted, padding: 14 }}>
         {label}
       </Text>
     </Pressable>

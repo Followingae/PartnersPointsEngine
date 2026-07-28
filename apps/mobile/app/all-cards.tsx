@@ -39,8 +39,8 @@ export default function AllCards() {
       </View>
 
       <View style={{ marginTop: 20 }}>
-        <H1 style={{ fontSize: 30, letterSpacing: -0.75 }}>All cards</H1>
-        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5 }}>Hold and drag to reorder</Body>
+        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>All cards</H1>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5, lineHeight: 20 }}>Hold and drag to reorder</Body>
       </View>
 
       <View style={{ marginTop: 26, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>

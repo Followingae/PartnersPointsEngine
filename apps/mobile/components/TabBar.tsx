@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
-  label: { fontFamily: font(600), fontSize: 9.5 },
+  label: { fontFamily: font(600), fontSize: 9.5, lineHeight: 13 },
   scan: {
     position: 'absolute',
     alignSelf: 'center',

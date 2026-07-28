@@ -32,7 +32,7 @@ export default function Phone() {
             paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.canvas,
           }}
         >
-          <Text style={{ fontFamily: font(600), fontSize: 16, color: C.ink }}>+971</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 16, lineHeight: 22, color: C.ink }}>+971</Text>
           <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.soft} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M6 9l6 6 6-6" />
           </Svg>
@@ -44,7 +44,7 @@ export default function Phone() {
             paddingHorizontal: 18, borderRadius: 16, backgroundColor: C.canvas,
           }}
         >
-          <Text style={{ fontFamily: font(600), fontSize: 17, color: C.ink }}>50 123 4567</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: C.ink }}>50 123 4567</Text>
           <Caret />
         </View>
       </View>

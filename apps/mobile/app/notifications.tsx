@@ -54,8 +54,8 @@ function NotifRow({ icon, tile, title, time, first }: {
         {icon}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{title}</Text>
-        <Small style={{ marginTop: 3, fontSize: 12.5 }}>{time}</Small>
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{title}</Text>
+        <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{time}</Small>
       </View>
     </View>
   );
@@ -73,7 +73,7 @@ export default function Notifications() {
       </View>
 
       <View style={{ marginTop: 20 }}>
-        <H1 style={{ fontSize: 30, letterSpacing: -0.75 }}>Notifications</H1>
+        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>Notifications</H1>
       </View>
 
       {/* TODO(api): notification feed, grouped by day. */}

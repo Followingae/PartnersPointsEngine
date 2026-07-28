@@ -25,7 +25,7 @@ export function TextLink({ label, onPress, style }: { label: string; onPress?: (
       onPress={onPress}
       style={({ pressed }) => [{ paddingVertical: 14, alignItems: 'center', opacity: pressed ? 0.6 : 1 }, style]}
     >
-      <Text style={{ fontFamily: font(600), fontSize: 15, color: C.muted }}>{label}</Text>
+      <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.muted }}>{label}</Text>
     </Pressable>
   );
 }

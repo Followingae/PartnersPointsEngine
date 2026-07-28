@@ -61,15 +61,15 @@ export default function Convert() {
           <Image source={require('@/assets/lulu-icon.png')} style={{ width: 30, height: 30, resizeMode: 'contain' }} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>Lulu Happiness Points</Text>
-          <Small style={{ marginTop: 3, fontSize: 12.5 }}>•••• 4821 · linked</Small>
+          <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>Lulu Happiness Points</Text>
+          <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>•••• 4821 · linked</Small>
         </View>
         <Ic name="check" size={18} color={C.greenDeep} sw={2.2} />
       </View>
 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Label style={{ fontSize: 12, letterSpacing: 1.2 }}>Eligible across your cards</Label>
-        <Text style={{ marginTop: 14, fontFamily: font(600), fontSize: 60, letterSpacing: -2.4, color: C.ink }}>
+        <Label style={{ fontSize: 12, lineHeight: 17, letterSpacing: 1.2 }}>Eligible across your cards</Label>
+        <Text style={{ marginTop: 14, fontFamily: font(600), fontSize: 60, lineHeight: 70, letterSpacing: -2.4, color: C.ink }}>
           {pts(ELIGIBLE)}
         </Text>
 
@@ -77,7 +77,7 @@ export default function Convert() {
           <StepButton icon="minus" onPress={() => clamp(amount - STEP)} disabled={amount <= MIN} />
           <Text style={{
             minWidth: 120, textAlign: 'center',
-            fontFamily: font(600), fontSize: 30, letterSpacing: -0.9, color: C.ink,
+            fontFamily: font(600), fontSize: 30, lineHeight: 35, letterSpacing: -0.9, color: C.ink,
           }}>
             {pts(amount)}
           </Text>
@@ -92,11 +92,11 @@ export default function Convert() {
           marginTop: 30, alignSelf: 'stretch', paddingVertical: 18, paddingHorizontal: 22,
           borderRadius: 20, backgroundColor: C.canvas, alignItems: 'center',
         }}>
-          <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.muted }}>You receive</Text>
-          <Text style={{ marginTop: 8, fontFamily: font(600), fontSize: 34, letterSpacing: -1, color: C.ink }}>
+          <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted }}>You receive</Text>
+          <Text style={{ marginTop: 8, fontFamily: font(600), fontSize: 34, lineHeight: 39, letterSpacing: -1, color: C.ink }}>
             {pts(luluOut)}
           </Text>
-          <Small style={{ marginTop: 6, fontSize: 12.5 }}>Lulu points · {RATE} pts = 1</Small>
+          <Small style={{ marginTop: 6, fontSize: 12.5, lineHeight: 18 }}>Lulu points · {RATE} pts = 1</Small>
         </View>
       </View>
 

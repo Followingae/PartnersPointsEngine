@@ -18,10 +18,10 @@ function ExpiryRow({ amount, when, left, urgent, first }: {
       }}
     >
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{amount}</Text>
-        <Small style={{ marginTop: 3, fontSize: 12.5 }}>{when}</Small>
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{amount}</Text>
+        <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{when}</Small>
       </View>
-      <Text style={{ fontFamily: font(urgent ? 600 : 500), fontSize: 13, color: urgent ? C.amber : C.muted }}>
+      <Text style={{ fontFamily: font(urgent ? 600 : 500), fontSize: 13, lineHeight: 18, color: urgent ? C.amber : C.muted }}>
         {left}
       </Text>
     </View>
@@ -56,8 +56,8 @@ export default function ExpiringPoints() {
     <Screen background={brandScrim(brand.color)} scroll={false} pad={false} bottomGap={0}>
       <SheetShell onDismiss={() => router.back()}>
         {/* TODO(api): expiry buckets from the points ledger. */}
-        <H2 style={{ marginTop: 22, fontSize: 26, letterSpacing: -0.65 }}>180 pts expiring</H2>
-        <Body tone="muted" style={{ marginTop: 10, fontSize: 14 }}>
+        <H2 style={{ marginTop: 22, fontSize: 26, lineHeight: 32, letterSpacing: -0.65 }}>180 pts expiring</H2>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14, lineHeight: 20 }}>
           Points last 12 months from the day they land.
         </Body>
 

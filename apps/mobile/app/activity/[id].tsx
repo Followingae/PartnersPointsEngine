@@ -28,13 +28,13 @@ export default function Transaction() {
       <View style={{ flex: 1, justifyContent: 'center' }}>
         <Card style={{ borderRadius: 22, paddingVertical: 26, paddingHorizontal: 24 }}>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontFamily: font(600), fontSize: 14, color: C.ink }}>{e.title}</Text>
-            <Small style={{ marginTop: 5, fontSize: 12.5 }}>{`${e.when} · ${e.ref}`}</Small>
+            <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: C.ink }}>{e.title}</Text>
+            <Small style={{ marginTop: 5, fontSize: 12.5, lineHeight: 18 }}>{`${e.when} · ${e.ref}`}</Small>
           </View>
 
           <View style={{ marginTop: 26, alignItems: 'center' }}>
-            <Text style={{ fontFamily: font(600), fontSize: 48, letterSpacing: -1.9, color: tone }}>{e.amount}</Text>
-            <Label style={{ marginTop: 6, fontSize: 12, letterSpacing: 1.2 }}>{e.bigLabel}</Label>
+            <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 56, letterSpacing: -1.9, color: tone }}>{e.amount}</Text>
+            <Label style={{ marginTop: 6, fontSize: 12, lineHeight: 17, letterSpacing: 1.2 }}>{e.bigLabel}</Label>
           </View>
 
           <View

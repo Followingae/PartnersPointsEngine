@@ -26,7 +26,7 @@ export default function Splash() {
             resizeMode="contain"
             style={{ width: 232, height: 33 }}
           />
-          <Small style={{ marginTop: 20, fontSize: 14.5 }}>Your points, in one place.</Small>
+          <Small style={{ marginTop: 20, fontSize: 14.5, lineHeight: 20 }}>Your points, in one place.</Small>
         </View>
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8 }}>

@@ -19,7 +19,7 @@ export default function ScanExpired() {
             <Path d="M6 6l12 12M18 6L6 18" />
           </Svg>
         </View>
-        <H1 style={{ marginTop: 32, fontSize: 30, letterSpacing: -0.75, textAlign: 'center' }}>Code expired</H1>
+        <H1 style={{ marginTop: 32, fontSize: 30, lineHeight: 35, letterSpacing: -0.75, textAlign: 'center' }}>Code expired</H1>
         <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 22.5, textAlign: 'center' }}>
           Codes refresh every 12 seconds. Nothing was charged and no points moved.
         </Body>
@@ -28,7 +28,7 @@ export default function ScanExpired() {
       <View style={{ paddingHorizontal: SP.gutter, paddingBottom: 34 + insets.bottom }}>
         <Button label="Show a new code" onPress={() => router.replace('/scan')} style={{ height: 58, borderRadius: 18 }} />
         <Pressable onPress={() => router.replace('/home')} style={{ paddingVertical: 14, alignItems: 'center' }}>
-          <Text style={{ fontFamily: font(600), fontSize: 15, color: C.muted }}>Back to cards</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.muted }}>Back to cards</Text>
         </Pressable>
       </View>
     </View>

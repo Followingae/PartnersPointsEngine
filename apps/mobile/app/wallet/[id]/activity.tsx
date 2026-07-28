@@ -67,8 +67,8 @@ export default function BrandActivity() {
       </View>
 
       <View style={{ marginTop: 20 }}>
-        <H1 style={{ fontSize: 30, letterSpacing: -0.75 }}>{brand.name}</H1>
-        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5 }}>All activity</Body>
+        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>{brand.name}</H1>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5, lineHeight: 20 }}>All activity</Body>
       </View>
 
       <View style={{ marginTop: 24 }}>
@@ -84,10 +84,10 @@ export default function BrandActivity() {
                 }}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: font(600), fontSize: 14.5, color: C.ink }}>{e.title}</Text>
-                  <Small style={{ marginTop: 3, fontSize: 12.5 }}>{e.when}</Small>
+                  <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{e.title}</Text>
+                  <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{e.when}</Small>
                 </View>
-                <Text style={{ fontFamily: font(600), fontSize: 15, color: e.color }}>{e.amount}</Text>
+                <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: e.color }}>{e.amount}</Text>
               </View>
             ))}
           </View>

@@ -38,8 +38,8 @@ export default function PayAndEarn() {
       <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: SP.gutter }}>
         <Card style={{ borderRadius: 22, paddingHorizontal: 24, paddingVertical: 26 }}>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontFamily: font(600), fontSize: 14, color: C.ink }}>{TXN.where}</Text>
-            <Text style={{ fontFamily: font(500), fontSize: 12.5, color: C.soft, marginTop: 5 }}>{TXN.when}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: C.ink }}>{TXN.where}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.soft, marginTop: 5 }}>{TXN.when}</Text>
           </View>
 
           <View style={{ marginTop: 24, paddingTop: 22 }}>
@@ -59,13 +59,13 @@ export default function PayAndEarn() {
           <View style={{ marginTop: 22, paddingTop: 22 }}>
             <View style={{ position: 'absolute', left: 0, right: 0, top: 0 }}><DashedRule /></View>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <Text style={{ fontFamily: font(500), fontSize: 14.5, color: C.muted }}>Balance</Text>
-              <Text style={{ fontFamily: font(600), fontSize: 30, letterSpacing: -0.9, color: C.ink }}>{pts(TXN.balance)}</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 14.5, lineHeight: 20, color: C.muted }}>Balance</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 30, lineHeight: 35, letterSpacing: -0.9, color: C.ink }}>{pts(TXN.balance)}</Text>
             </View>
           </View>
         </Card>
 
-        <Text style={{ marginTop: 20, marginHorizontal: 2, textAlign: 'center', fontFamily: font(500), fontSize: 12.5, color: C.soft }}>
+        <Text style={{ marginTop: 20, marginHorizontal: 2, textAlign: 'center', fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.soft }}>
           The same numbers as your printed receipt.
         </Text>
       </View>

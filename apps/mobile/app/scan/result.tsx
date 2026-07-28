@@ -60,7 +60,7 @@ export default function ScanResult() {
 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SP.gutter }}>
         <Text style={{ fontFamily: font(600), fontSize: 72, lineHeight: 80, letterSpacing: -3.6, color: C.ink }}>+{EARN.points}</Text>
-        <Text style={{ marginTop: 10, fontFamily: font(500), fontSize: 13, letterSpacing: 1.3, textTransform: 'uppercase', color: C.soft }}>points</Text>
+        <Text style={{ marginTop: 10, fontFamily: font(500), fontSize: 13, lineHeight: 18, letterSpacing: 1.3, textTransform: 'uppercase', color: C.soft }}>points</Text>
 
         <View
           style={{
@@ -71,20 +71,20 @@ export default function ScanResult() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(21,21,15,.15)', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: font(600), fontSize: 13, color: C.ink }}>{EARN.code}</Text>
+                <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.ink }}>{EARN.code}</Text>
               </View>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 17, letterSpacing: -0.17, color: C.ink }}>{EARN.brand}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: -0.17, color: C.ink }}>{EARN.brand}</Text>
             </View>
-            <Text style={{ fontFamily: font(500), fontSize: 13, color: C.ink }}>{EARN.tier}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: C.ink }}>{EARN.tier}</Text>
           </View>
 
           <View style={{ gap: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
               <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 48, letterSpacing: -1.44, color: C.ink }}>{pts(EARN.balance)}</Text>
-              <Text style={{ fontFamily: font(500), fontSize: 14, color: C.ink }}>pts</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: C.ink }}>pts</Text>
             </View>
             <View style={{ gap: 9 }}>
-              <Text style={{ fontFamily: font(500), fontSize: 13, color: C.ink }}>{EARN.toNext}</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: C.ink }}>{EARN.toNext}</Text>
               <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(21,21,15,.22)' }}>
                 <View style={{ height: 3, width: `${EARN.progress * 100}%`, borderRadius: 2, backgroundColor: '#fff' }} />
               </View>
@@ -92,7 +92,7 @@ export default function ScanResult() {
           </View>
         </View>
 
-        <Text style={{ marginTop: 24, fontFamily: font(500), fontSize: 14, color: C.muted }}>{EARN.footnote}</Text>
+        <Text style={{ marginTop: 24, fontFamily: font(500), fontSize: 14, lineHeight: 20, color: C.muted }}>{EARN.footnote}</Text>
       </View>
 
       <View style={{ paddingHorizontal: SP.gutter, paddingBottom: 34 + insets.bottom }}>

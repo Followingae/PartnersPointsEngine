@@ -37,7 +37,7 @@ export default function CardsHome() {
             </IconButton>
             <IconButton onPress={() => router.push('/(tabs)/profile')} style={{ borderRadius: 999 }}>
               {/* TODO(api): the signed-in customer's initials. */}
-              <Text style={{ fontFamily: font(600), fontSize: 13, color: C.muted }}>MK</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.muted }}>MK</Text>
             </IconButton>
           </View>
         }

@@ -15,14 +15,14 @@ export default function About() {
           source={require('@/assets/pp-wordmark-dark.png')}
           style={{ width: 200, height: 48, resizeMode: 'contain' }}
         />
-        <Small style={{ marginTop: 16, fontSize: 13 }}>Version 1.0.0 (build 142)</Small>
+        <Small style={{ marginTop: 16, fontSize: 13, lineHeight: 18 }}>Version 1.0.0 (build 142)</Small>
       </View>
 
       <View>
         {LEGAL.map((l) => (
           <ListRow key={l} title={l} />
         ))}
-        <Small style={{ marginTop: 22, textAlign: 'center', color: C.faint, fontSize: 12 }}>
+        <Small style={{ marginTop: 22, textAlign: 'center', color: C.faint, fontSize: 12, lineHeight: 17 }}>
           Made in the UAE · © 2026 Partners Points
         </Small>
       </View>

@@ -98,10 +98,10 @@ export default function MyQrTab() {
             shadowColor: C.ink, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
           }}
         >
-          <Text style={{ fontFamily: font(600), fontSize: 13, color: C.ink }}>My code</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.ink }}>My code</Text>
         </View>
         <Pressable onPress={() => router.push('/scan/camera')} style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
-          <Text style={{ fontFamily: font(500), fontSize: 13, color: C.muted }}>Scan a code</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: C.muted }}>Scan a code</Text>
         </Pressable>
       </View>
 
@@ -119,9 +119,9 @@ export default function MyQrTab() {
           ]}
         >
           <View style={{ width: 26, height: 26, borderRadius: 9, backgroundColor: wallet.tile, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: font(600), fontSize: 10, color: wallet.fg }}>{wallet.code}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 10, lineHeight: 14, color: wallet.fg }}>{wallet.code}</Text>
           </View>
-          <Text style={{ fontFamily: font(600), fontSize: 13, color: C.ink }}>{wallet.name}</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.ink }}>{wallet.name}</Text>
           <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={C.soft} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
             <Path d="M6 9l6 6 6-6" />
           </Svg>
@@ -148,11 +148,11 @@ export default function MyQrTab() {
         <View style={{ width: BOX, marginTop: 26 }}>
           <Progress value={left} total={PERIOD} color={C.ink} height={4} />
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 12 }}>
-            <Text style={{ fontFamily: font(500), fontSize: 13, color: C.muted }}>Refreshes in {left}s</Text>
-            <Text style={{ fontFamily: font(500), fontSize: 13, color: C.soft, letterSpacing: 0.52 }}>{wallet.memberId}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: C.muted }}>Refreshes in {left}s</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: C.soft, letterSpacing: 0.52 }}>{wallet.memberId}</Text>
           </View>
           {/* TODO(api): raise screen brightness while this tab is focused */}
-          <Text style={{ marginTop: 16, textAlign: 'center', fontFamily: font(500), fontSize: 12.5, color: C.soft }}>
+          <Text style={{ marginTop: 16, textAlign: 'center', fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.soft }}>
             Screen brightened for the scanner
           </Text>
         </View>

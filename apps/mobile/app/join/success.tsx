@@ -68,20 +68,20 @@ export default function JoinSuccess() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: font(600), fontSize: 13, color: card.fg }}>{card.code}</Text>
+                <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: card.fg }}>{card.code}</Text>
               </View>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 17, letterSpacing: -0.17, color: card.fg }}>{card.name}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: -0.17, color: card.fg }}>{card.name}</Text>
             </View>
-            <Text style={{ fontFamily: font(500), fontSize: 13, color: card.fg }}>{card.tier}</Text>
+            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: card.fg }}>{card.tier}</Text>
           </View>
 
           <View style={{ gap: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
               <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 48, letterSpacing: -1.44, color: card.fg }}>0</Text>
-              <Text style={{ fontFamily: font(500), fontSize: 14, color: card.fg }}>pts</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: card.fg }}>pts</Text>
             </View>
             <View style={{ gap: 9 }}>
-              <Text style={{ fontFamily: font(500), fontSize: 13, color: card.fg }}>{card.earn}</Text>
+              <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: card.fg }}>{card.earn}</Text>
               <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,.26)' }}>
                 <View style={{ height: 3, width: '0%', borderRadius: 2, backgroundColor: '#fff' }} />
               </View>
@@ -89,7 +89,7 @@ export default function JoinSuccess() {
           </View>
         </View>
 
-        <H1 style={{ marginTop: 36, fontSize: 30, letterSpacing: -0.75 }}>Card added</H1>
+        <H1 style={{ marginTop: 36, fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>Card added</H1>
         <Body tone="muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 22.5 }}>
           Keep it on your phone so the till can find you without the app.
         </Body>
@@ -101,14 +101,14 @@ export default function JoinSuccess() {
             alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <Text style={{ fontFamily: font(500), fontSize: 11.5, color: C.soft }}>Add to Apple Wallet · official badge</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 11.5, lineHeight: 16, color: C.soft }}>Add to Apple Wallet · official badge</Text>
         </View>
       </View>
 
       <View style={{ paddingHorizontal: SP.gutter, paddingBottom: 34 + insets.bottom }}>
         <Button label="Show my QR" onPress={() => router.replace('/scan')} style={{ height: 58, borderRadius: 18 }} />
         <Pressable onPress={() => router.replace('/home')} style={{ paddingVertical: 14, alignItems: 'center' }}>
-          <Text style={{ fontFamily: font(600), fontSize: 15, color: C.muted }}>Back to cards</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.muted }}>Back to cards</Text>
         </Pressable>
       </View>
     </View>

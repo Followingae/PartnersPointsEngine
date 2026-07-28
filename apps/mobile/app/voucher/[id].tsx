@@ -44,11 +44,11 @@ export default function Voucher() {
               width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(21,21,15,.17)',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontFamily: font(600), fontSize: 12, color: C.ink }}>{voucher.badge}</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 12, lineHeight: 17, color: C.ink }}>{voucher.badge}</Text>
             </View>
             <View>
-              <Text style={{ fontFamily: font(600), fontSize: 16, color: C.ink }}>{voucher.title}</Text>
-              <Text style={{ marginTop: 2, fontFamily: font(500), fontSize: 12, color: C.ink }}>{voucher.where}</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 16, lineHeight: 22, color: C.ink }}>{voucher.title}</Text>
+              <Text style={{ marginTop: 2, fontFamily: font(500), fontSize: 12, lineHeight: 17, color: C.ink }}>{voucher.where}</Text>
             </View>
           </View>
 
@@ -57,10 +57,10 @@ export default function Voucher() {
 
           <View style={{ paddingTop: 26, paddingHorizontal: 22, paddingBottom: 24, alignItems: 'center', gap: 20 }}>
             <QrPlaceholder size={150} seed={(id ?? 'v').length + 3} />
-            <Text style={{ fontFamily: font(600), fontSize: 17, letterSpacing: 2.4, color: C.ink }}>
+            <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: 2.4, color: C.ink }}>
               {voucher.code}
             </Text>
-            <Small style={{ fontSize: 13 }}>{voucher.expiry}</Small>
+            <Small style={{ fontSize: 13, lineHeight: 18 }}>{voucher.expiry}</Small>
           </View>
         </View>
       </View>

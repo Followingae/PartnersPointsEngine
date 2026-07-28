@@ -46,7 +46,7 @@ export default function Security() {
               divider={i > 0}
               title={s.device}
               sub={s.where}
-              trailing={<Small style={{ fontSize: 12.5 }}>Sign out</Small>}
+              trailing={<Small style={{ fontSize: 12.5, lineHeight: 18 }}>Sign out</Small>}
             />
           ))}
         </View>
