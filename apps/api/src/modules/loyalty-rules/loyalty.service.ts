@@ -469,6 +469,47 @@ export class LoyaltyService {
     });
   }
 
+  // ── redemption valuation ("pay with points") ─────────────────────────────
+
+  async getRedemptionConfig(ctx: TenantContext) {
+    return this.tenants.run(ctx, async (tx) => {
+      const cfg = await tx.redemptionConfig.findUnique({ where: { brandId: ctx.brandId! } });
+      return serializeRedemptionConfig(cfg ?? null);
+    });
+  }
+
+  async updateRedemptionConfig(
+    ctx: TenantContext,
+    dto: {
+      enabled?: boolean;
+      ratePoints?: number;
+      rateValueMinor?: number;
+      minRedeemPoints?: number;
+      maxPercentOfBillBps?: number;
+      roundToMinor?: number;
+      presetsPoints?: number[];
+    },
+  ) {
+    return this.tenants.run(ctx, async (tx) => {
+      const data = {
+        ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
+        ...(dto.ratePoints !== undefined ? { ratePoints: BigInt(dto.ratePoints) } : {}),
+        ...(dto.rateValueMinor !== undefined ? { rateValueMinor: BigInt(dto.rateValueMinor) } : {}),
+        ...(dto.minRedeemPoints !== undefined ? { minRedeemPoints: BigInt(dto.minRedeemPoints) } : {}),
+        ...(dto.maxPercentOfBillBps !== undefined ? { maxPercentOfBillBps: dto.maxPercentOfBillBps } : {}),
+        ...(dto.roundToMinor !== undefined ? { roundToMinor: dto.roundToMinor } : {}),
+        ...(dto.presetsPoints !== undefined ? { presetsPoints: dto.presetsPoints as Prisma.InputJsonValue } : {}),
+      };
+      const cfg = await tx.redemptionConfig.upsert({
+        where: { brandId: ctx.brandId! },
+        update: data,
+        create: { brandId: ctx.brandId!, groupId: ctx.groupId!, platformId: ctx.platformId, ...data },
+      });
+      await this.audit.record(tx, ctx, { action: 'redemption_config.update', targetType: 'redemption_config', targetId: cfg.id, data: { fields: Object.keys(dto) } });
+      return serializeRedemptionConfig(cfg);
+    });
+  }
+
   async getSettings(ctx: TenantContext) {
     return this.tenants.run(ctx, async (tx) => {
       const b = await tx.brand.findFirst({
@@ -688,4 +729,77 @@ export class LoyaltyService {
       return { code: v.code, status: 'redeemed' };
     });
   }
+}
+
+// ── redemption valuation helpers (single source of truth for points → money) ──
+
+export interface RedemptionConfigView {
+  enabled: boolean;
+  ratePoints: string;
+  rateValueMinor: string;
+  minRedeemPoints: string;
+  maxPercentOfBillBps: number;
+  roundToMinor: number;
+  presetsPoints: number[];
+  configured: boolean;
+}
+
+export const DEFAULT_REDEMPTION_CONFIG: RedemptionConfigView = {
+  enabled: true,
+  ratePoints: '100',
+  rateValueMinor: '100',
+  minRedeemPoints: '0',
+  maxPercentOfBillBps: 10000,
+  roundToMinor: 1,
+  presetsPoints: [500, 1000, 2000],
+  configured: false,
+};
+
+export function serializeRedemptionConfig(
+  cfg: {
+    enabled: boolean;
+    ratePoints: bigint;
+    rateValueMinor: bigint;
+    minRedeemPoints: bigint;
+    maxPercentOfBillBps: number;
+    roundToMinor: number;
+    presetsPoints: unknown;
+  } | null,
+): RedemptionConfigView {
+  if (!cfg) return DEFAULT_REDEMPTION_CONFIG;
+  return {
+    enabled: cfg.enabled,
+    ratePoints: cfg.ratePoints.toString(),
+    rateValueMinor: cfg.rateValueMinor.toString(),
+    minRedeemPoints: cfg.minRedeemPoints.toString(),
+    maxPercentOfBillBps: cfg.maxPercentOfBillBps,
+    roundToMinor: cfg.roundToMinor,
+    presetsPoints: Array.isArray(cfg.presetsPoints) ? (cfg.presetsPoints as number[]) : [],
+    configured: true,
+  };
+}
+
+/**
+ * Value of `points` in minor currency units under a config: floored integer
+ * conversion, rounded DOWN to the rounding step, capped at the configured
+ * percentage of the bill when a bill amount is given. Never over-values.
+ */
+export function redemptionValueMinor(cfg: RedemptionConfigView, points: bigint, amountMinor?: bigint): bigint {
+  const ratePoints = BigInt(cfg.ratePoints);
+  if (!cfg.enabled || ratePoints <= 0n || points <= 0n) return 0n;
+  let value = (points * BigInt(cfg.rateValueMinor)) / ratePoints;
+  const step = BigInt(Math.max(cfg.roundToMinor, 1));
+  value = (value / step) * step;
+  if (amountMinor !== undefined && amountMinor >= 0n) {
+    const cap = (amountMinor * BigInt(cfg.maxPercentOfBillBps)) / 10000n;
+    if (value > cap) value = cap;
+  }
+  return value;
+}
+
+/** Points needed to fund a discount of `valueMinor` (ceiling division). */
+export function redemptionPointsForValue(cfg: RedemptionConfigView, valueMinor: bigint): bigint {
+  const rateValue = BigInt(cfg.rateValueMinor);
+  if (rateValue <= 0n) return 0n;
+  return (valueMinor * BigInt(cfg.ratePoints) + rateValue - 1n) / rateValue;
 }

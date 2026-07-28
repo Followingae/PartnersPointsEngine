@@ -14,6 +14,12 @@ export class ResolveDto {
   value!: string;
 }
 
+export class MemberContextDto {
+  @ApiProperty()
+  @IsString()
+  memberToken!: string;
+}
+
 class CartItemDto {
   @ApiProperty()
   @IsString()

@@ -887,6 +887,29 @@ model LoyaltyEarnRule {
   @@map("earn_rule")
 }
 
+// Brand-level "pay with points" valuation — the single source of truth every
+// surface (terminal, customer app, console) uses to turn points into money.
+// Expressed as a rate pair (ratePoints ↔ rateValueMinor) so non-decimal rates
+// like 250 pts = AED 1 stay exact integers.
+model RedemptionConfig {
+  id                  String   @id @default(uuid(7))
+  brandId             String   @unique @map("brand_id")
+  groupId             String   @map("group_id")
+  platformId          String   @map("platform_id")
+  enabled             Boolean  @default(true)
+  ratePoints          BigInt   @default(100) @map("rate_points") // this many points…
+  rateValueMinor      BigInt   @default(100) @map("rate_value_minor") // …are worth this much (minor units)
+  minRedeemPoints     BigInt   @default(0) @map("min_redeem_points")
+  maxPercentOfBillBps Int      @default(10000) @map("max_percent_of_bill_bps") // 10000 = 100%
+  roundToMinor        Int      @default(1) @map("round_to_minor") // discount rounding step (e.g. 25 fils)
+  presetsPoints       Json     @default("[]") @map("presets_points") // quick-pick chips for the POS
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([brandId])
+  @@map("redemption_config")
+}
+
 model Tier {
   id         String   @id @default(uuid(7))
   brandId    String   @map("brand_id")

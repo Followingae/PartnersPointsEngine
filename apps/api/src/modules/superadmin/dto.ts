@@ -105,6 +105,13 @@ export class CreateTerminalDto {
   label!: string;
 }
 
+export class IssueTerminalKeyDto {
+  @ApiProperty({ required: false, description: 'Terminal API base URL embedded in the provisioning QR payload' })
+  @IsOptional()
+  @IsString()
+  baseUrl?: string;
+}
+
 export class PlatformSettingsDto {
   @ApiPropertyOptional()
   @IsOptional()

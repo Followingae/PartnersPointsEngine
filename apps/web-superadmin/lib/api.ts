@@ -118,6 +118,17 @@ export const createTerminal = (brandId: string, body: { branchId: string; label:
   api(`/admin/brands/${brandId}/terminals`, { method: 'POST', body: JSON.stringify(body) });
 export const setTerminalStatus = (terminalId: string, status: string) =>
   api(`/admin/terminals/${terminalId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export interface TerminalKeyIssued {
+  id: string;
+  publishableId: string;
+  secret: string;
+  createdAt: string;
+  provisioning: { baseUrl: string | null; publishableKeyId: string; secret: string; label: string };
+}
+export const issueTerminalKey = (terminalId: string, baseUrl?: string) =>
+  api<TerminalKeyIssued>(`/admin/terminals/${terminalId}/keys`, { method: 'POST', body: JSON.stringify({ baseUrl }) });
+export const revokeTerminalKeys = (terminalId: string) =>
+  api(`/admin/terminals/${terminalId}/keys/revoke`, { method: 'POST', body: JSON.stringify({}) });
 
 export interface SearchResults {
   groups: Array<{ id: string; name: string }>;

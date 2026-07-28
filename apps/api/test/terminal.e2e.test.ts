@@ -87,6 +87,40 @@ describe('Terminal gateway (Phase 4)', () => {
     expect(typeof memberToken).toBe('string');
   });
 
+  it('serves terminal boot config with the brand redemption valuation', async () => {
+    await prisma.redemptionConfig.create({
+      data: { brandId, groupId, platformId, ratePoints: 100n, rateValueMinor: 100n, minRedeemPoints: 200n, maxPercentOfBillBps: 5000, roundToMinor: 25, presetsPoints: [500, 1000] },
+    });
+    const cfg = await terminal.config(ctx);
+    expect(cfg.brand.name).toBe('B');
+    expect(cfg.redemption.configured).toBe(true);
+    expect(cfg.redemption.ratePoints).toBe('100');
+    expect(cfg.redemption.presetsPoints).toEqual([500, 1000]);
+  });
+
+  it('quotes redemption value in money, capped and rounded per config', async () => {
+    const { memberToken } = await terminal.resolve(ctx, 'phone', phone);
+    // bill AED 20.00; 550 pts @ 100pts=AED1 → AED 5.50 → rounded down to 25-fils step = 5.50; cap 50% = 10.00
+    const q = await terminal.quote(ctx, { memberToken, amountMinor: 2000, redeemPoints: 550 });
+    expect(q.redeem?.valueMinor).toBe('550');
+    expect(q.redeem?.belowMinimum).toBe(false);
+    // 130 pts → AED 1.30 → rounds down to 1.25; below the 200-pt minimum
+    const q2 = await terminal.quote(ctx, { memberToken, amountMinor: 2000, redeemPoints: 130 });
+    expect(q2.redeem?.valueMinor).toBe('125');
+    expect(q2.redeem?.belowMinimum).toBe(true);
+    // huge redeem vs small bill: cap at 50% of AED 2.00 = 100 fils
+    const q3 = await terminal.quote(ctx, { memberToken, amountMinor: 200, redeemPoints: 10000 });
+    expect(q3.redeem?.valueMinor).toBe('100');
+  });
+
+  it('returns a member snapshot for the cashier screen', async () => {
+    const { memberToken } = await terminal.resolve(ctx, 'phone', phone);
+    const snapshot = await terminal.memberContext(ctx, memberToken);
+    expect(snapshot.loyaltyId).toBe('M-1');
+    expect(snapshot.displayName).toBe('Member'); // no fullName on the seeded person
+    expect(typeof snapshot.balance.available).toBe('string');
+  });
+
   it('earns at the POS (single-step capture) and reflects the balance', async () => {
     const { memberToken } = await terminal.resolve(ctx, 'phone', phone);
     const txn = await terminal.transaction(ctx, { intent: 'earn', memberToken, idempotencyKey: 'pos-earn-1', amountMinor: 10000 });

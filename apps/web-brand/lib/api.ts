@@ -210,6 +210,27 @@ export interface CustomerProfile {
 }
 
 // earn rules
+export interface RedemptionConfig {
+  enabled: boolean;
+  ratePoints: string;
+  rateValueMinor: string;
+  minRedeemPoints: string;
+  maxPercentOfBillBps: number;
+  roundToMinor: number;
+  presetsPoints: number[];
+  configured: boolean;
+}
+export const getRedemptionConfig = () => api<RedemptionConfig>('/manage/redemption-config');
+export const updateRedemptionConfig = (body: {
+  enabled?: boolean;
+  ratePoints?: number;
+  rateValueMinor?: number;
+  minRedeemPoints?: number;
+  maxPercentOfBillBps?: number;
+  roundToMinor?: number;
+  presetsPoints?: number[];
+}) => api<RedemptionConfig>('/manage/redemption-config', { method: 'PATCH', body: JSON.stringify(body) });
+
 export const getEarnRules = (p?: ListParams) => api<ListResult<EarnRuleRow>>(`/manage/earn-rules${qs(p)}`);
 export const getEarnRule = (id: string) => api<EarnRuleRow>(`/manage/earn-rules/${id}`);
 export const createEarnRule = (body: { name: string; priority?: number; enabled?: boolean; definition: Record<string, unknown> }) =>

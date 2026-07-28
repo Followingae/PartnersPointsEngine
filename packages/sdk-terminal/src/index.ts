@@ -44,6 +44,10 @@ export class TerminalClient {
     return this.post('/members/resolve', { type, value });
   }
 
+  memberContext(memberToken: string) {
+    return this.post('/members/context', { memberToken });
+  }
+
   quote(body: { memberToken: string; amountMinor?: number; items?: CartItem[]; isVisit?: boolean; redeemPoints?: number }) {
     return this.post('/quotes', body);
   }

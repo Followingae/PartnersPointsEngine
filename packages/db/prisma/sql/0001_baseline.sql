@@ -593,6 +593,25 @@ CREATE TABLE "earn_rule" (
 );
 
 -- CreateTable
+CREATE TABLE "redemption_config" (
+    "id" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "rate_points" BIGINT NOT NULL DEFAULT 100,
+    "rate_value_minor" BIGINT NOT NULL DEFAULT 100,
+    "min_redeem_points" BIGINT NOT NULL DEFAULT 0,
+    "max_percent_of_bill_bps" INTEGER NOT NULL DEFAULT 10000,
+    "round_to_minor" INTEGER NOT NULL DEFAULT 1,
+    "presets_points" JSONB NOT NULL DEFAULT '[]',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "redemption_config_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "tier" (
     "id" TEXT NOT NULL,
     "brand_id" TEXT NOT NULL,
@@ -1174,6 +1193,12 @@ CREATE INDEX "cost_rule_group_id_effective_from_idx" ON "cost_rule"("group_id", 
 
 -- CreateIndex
 CREATE INDEX "earn_rule_brand_id_priority_idx" ON "earn_rule"("brand_id", "priority");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "redemption_config_brand_id_key" ON "redemption_config"("brand_id");
+
+-- CreateIndex
+CREATE INDEX "redemption_config_brand_id_idx" ON "redemption_config"("brand_id");
 
 -- CreateIndex
 CREATE INDEX "tier_brand_id_threshold_idx" ON "tier"("brand_id", "threshold");

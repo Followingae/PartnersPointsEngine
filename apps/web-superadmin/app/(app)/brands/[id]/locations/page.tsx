@@ -1,16 +1,19 @@
 'use client';
 
-import { ArrowLeft, MapPin, Plus, Cpu } from 'lucide-react';
+import { ArrowLeft, MapPin, Plus, Cpu, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Field, PageHeader, Select } from '@/components/form';
+import QRCode from 'qrcode';
+import { Button, Field, Modal, PageHeader, Select } from '@/components/form';
 import { Badge, Card, EmptyState, SectionTitle, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import {
-  createBranch, createTerminal, getBranches, getBrandsDirectory, getTerminals, setBranchStatus, setTerminalStatus,
-  type AdminBranch, type AdminTerminal,
+  createBranch, createTerminal, getBranches, getBrandsDirectory, getTerminals, issueTerminalKey, setBranchStatus, setTerminalStatus,
+  type AdminBranch, type AdminTerminal, type TerminalKeyIssued,
 } from '@/lib/api';
+
+const TERMINAL_API_BASE = process.env.NEXT_PUBLIC_TERMINAL_API_BASE ?? 'https://api.partnerspoints.ae/v1/terminal';
 
 export default function BrandLocationsPage() {
   const params = useParams<{ id: string }>();
@@ -24,6 +27,16 @@ export default function BrandLocationsPage() {
   const [newTerminal, setNewTerminal] = useState('');
   const [termBranch, setTermBranch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [issued, setIssued] = useState<TerminalKeyIssued | null>(null);
+  const [issuedFor, setIssuedFor] = useState<AdminTerminal | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!issued) { setQrDataUrl(null); return; }
+    QRCode.toDataURL(JSON.stringify(issued.provisioning), { margin: 1, width: 280 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null));
+  }, [issued]);
 
   const load = useCallback(() => Promise.all([getBranches(brandId), getTerminals(brandId)])
     .then(([b, t]) => { setBranches(b); setTerminals(t); setTermBranch((cur) => cur || b[0]?.id || ''); })
@@ -40,6 +53,12 @@ export default function BrandLocationsPage() {
   const addTerminal = () => newTerminal.trim() && termBranch && run(async () => { await createTerminal(brandId, { branchId: termBranch, label: newTerminal.trim() }); setNewTerminal(''); toast('success', 'Terminal registered'); });
   const toggleBranch = (b: AdminBranch) => run(() => setBranchStatus(b.id, b.status === 'active' ? 'inactive' : 'active'));
   const toggleTerminal = (t: AdminTerminal) => run(() => setTerminalStatus(t.id, t.status === 'active' ? 'inactive' : 'active'));
+  const issueKey = (t: AdminTerminal) => run(async () => {
+    const key = await issueTerminalKey(t.id, TERMINAL_API_BASE);
+    setIssued(key);
+    setIssuedFor(t);
+    toast('success', 'Key issued — previous keys revoked');
+  });
 
   const activeBranches = branches?.filter((b) => b.status === 'active').length ?? 0;
 
@@ -97,7 +116,10 @@ export default function BrandLocationsPage() {
                       <p className="text-sm font-semibold">{t.label}</p>
                       <p className="text-xs text-muted-foreground">{t.branchName} · {t.pairedAt ? 'paired' : 'not paired'}</p>
                     </div>
-                    <button disabled={busy} onClick={() => toggleTerminal(t)} title="Toggle status"><Badge tone={t.status === 'active' ? 'lime' : 'neutral'}>{t.status}</Badge></button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => issueKey(t)} loading={busy}><KeyRound size={13} /> Issue key</Button>
+                      <button disabled={busy} onClick={() => toggleTerminal(t)} title="Toggle status"><Badge tone={t.status === 'active' ? 'lime' : 'neutral'}>{t.status}</Badge></button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -115,6 +137,38 @@ export default function BrandLocationsPage() {
           </Card>
         </div>
       )}
+
+      <Modal
+        open={issued !== null}
+        onClose={() => { setIssued(null); setIssuedFor(null); }}
+        title="Terminal key issued"
+        subtitle={issuedFor ? `${issuedFor.label} · ${issuedFor.branchName}` : undefined}
+      >
+        {issued ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Scan this QR on the terminal app&apos;s pairing screen. The secret is shown <span className="font-semibold text-foreground">once</span> — issuing again revokes it.
+            </p>
+            {qrDataUrl ? (
+              <div className="flex justify-center rounded-2xl border border-border/70 bg-white p-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt="Terminal provisioning QR" className="h-[280px] w-[280px]" />
+              </div>
+            ) : null}
+            <div className="space-y-2 rounded-2xl bg-muted/40 p-3 font-mono text-xs">
+              <p><span className="text-muted-foreground">key&nbsp;&nbsp;&nbsp;&nbsp;</span>{issued.publishableId}</p>
+              <p className="break-all"><span className="text-muted-foreground">secret&nbsp;</span>{issued.secret}</p>
+              <p className="break-all"><span className="text-muted-foreground">api&nbsp;&nbsp;&nbsp;&nbsp;</span>{TERMINAL_API_BASE}</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => { navigator.clipboard?.writeText(JSON.stringify(issued.provisioning)); toast('success', 'Provisioning JSON copied'); }}
+            >
+              Copy provisioning JSON
+            </Button>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

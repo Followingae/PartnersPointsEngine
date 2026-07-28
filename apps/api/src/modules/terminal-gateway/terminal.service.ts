@@ -4,7 +4,7 @@ import { ledger, type Prisma } from '@rfm-loyalty/db';
 import { EarnRule, evaluateEarn, type CustomerIdentifierType, type TenantContext } from '@rfm-loyalty/shared';
 import { TokenService, type MemberTokenClaims } from '../../auth/tokens/token.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
-import { LoyaltyService, scheduleContext } from '../loyalty-rules/loyalty.service';
+import { LoyaltyService, redemptionValueMinor, scheduleContext } from '../loyalty-rules/loyalty.service';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
@@ -76,6 +76,53 @@ export class TerminalService {
     });
   }
 
+  /**
+   * Terminal boot config: brand identity + the redemption valuation every POS
+   * surface must agree on. Cached client-side; re-fetched on each app start.
+   */
+  async config(ctx: TenantContext) {
+    const redemption = await this.loyalty.getRedemptionConfig(ctx);
+    return this.tenants.run(ctx, async (tx) => {
+      const brand = await tx.brand.findFirst({
+        where: { id: ctx.brandId! },
+        select: { name: true, currency: true, pointsCurrencyCode: true, branding: true },
+      });
+      const terminal = ctx.actor.type === 'terminal'
+        ? await tx.terminal.findFirst({ where: { id: ctx.actor.id }, select: { label: true, branch: { select: { name: true } } } })
+        : null;
+      return {
+        brand: {
+          name: brand?.name ?? '',
+          currency: brand?.currency ?? 'AED',
+          pointsCurrencyCode: brand?.pointsCurrencyCode ?? 'PTS',
+          branding: (brand?.branding ?? {}) as Record<string, unknown>,
+        },
+        terminal: terminal ? { label: terminal.label, branchName: terminal.branch.name } : null,
+        redemption,
+      };
+    });
+  }
+
+  /** Member snapshot for the cashier-facing recognition screen. */
+  async memberContext(ctx: TenantContext, memberToken: string) {
+    const claims = await this.member(memberToken, ctx);
+    const bal = await this.loyalty.balance(ctx, claims.membershipId);
+    return this.tenants.run(ctx, async (tx) => {
+      const m = await tx.customerMembership.findFirst({
+        where: { id: claims.membershipId, brandId: ctx.brandId! },
+        select: { loyaltyId: true, joinedAt: true, person: { select: { fullName: true } } },
+      });
+      if (!m) throw new NotFoundException('member not found');
+      return {
+        displayName: m.person.fullName ?? 'Member',
+        loyaltyId: m.loyaltyId,
+        tier: bal.tier?.name ?? null,
+        balance: { active: bal.available, available: bal.available, pending: bal.pending, lifetime: bal.lifetime },
+        joinedAt: m.joinedAt,
+      };
+    });
+  }
+
   /** Preview earn/redeem for a cart without mutating the ledger. */
   async quote(ctx: TenantContext, dto: { memberToken: string; amountMinor?: number; items?: Array<{ sku: string; qty: number }>; isVisit?: boolean; redeemPoints?: number }) {
     const claims = await this.member(dto.memberToken, ctx);
@@ -87,10 +134,25 @@ export class TerminalService {
       });
       const decision = evaluateEarn(rules, { session: { amountMinor: dto.amountMinor, isVisit: dto.isVisit, channel: 'in_store', ...scheduleContext() }, items: dto.items });
 
-      let redeem: { points: number; affordable: boolean } | undefined;
+      let redeem:
+        | { points: number; affordable: boolean; valueMinor: string; belowMinimum: boolean }
+        | undefined;
       if (dto.redeemPoints && dto.redeemPoints > 0) {
-        const bal = await this.loyalty.balance(ctx, claims.membershipId);
-        redeem = { points: dto.redeemPoints, affordable: BigInt(bal.available) >= BigInt(dto.redeemPoints) };
+        const [bal, cfg] = await Promise.all([
+          this.loyalty.balance(ctx, claims.membershipId),
+          this.loyalty.getRedemptionConfig(ctx),
+        ]);
+        const value = redemptionValueMinor(
+          cfg,
+          BigInt(dto.redeemPoints),
+          dto.amountMinor != null ? BigInt(dto.amountMinor) : undefined,
+        );
+        redeem = {
+          points: dto.redeemPoints,
+          affordable: BigInt(bal.available) >= BigInt(dto.redeemPoints),
+          valueMinor: value.toString(),
+          belowMinimum: BigInt(dto.redeemPoints) < BigInt(cfg.minRedeemPoints),
+        };
       }
       return { earn: { points: decision.points, base: decision.base, multiplier: decision.multiplier }, redeem };
     });

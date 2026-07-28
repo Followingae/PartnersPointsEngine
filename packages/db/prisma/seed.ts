@@ -283,6 +283,12 @@ async function seedDemoActivity() {
     if (!(await prisma.loyaltyEarnRule.findFirst({ where: { brandId: brand.id } }))) {
       await prisma.loyaltyEarnRule.create({ data: { ...scopeIds, name: '1 pt / AED', definition: { actions: [{ type: 'perAmount', pointsPerUnit: 1, unitMinor: 100 }] } } });
     }
+    // "Pay with points" valuation: 100 pts = AED 1, max half the bill in points.
+    await prisma.redemptionConfig.upsert({
+      where: { brandId: brand.id },
+      update: {},
+      create: { ...scopeIds, ratePoints: 100n, rateValueMinor: 100n, minRedeemPoints: 100n, maxPercentOfBillBps: 5000, roundToMinor: 25, presetsPoints: [500, 1000, 2000] },
+    });
     if (!(await prisma.tier.findFirst({ where: { brandId: brand.id } }))) {
       await prisma.tier.createMany({
         data: [

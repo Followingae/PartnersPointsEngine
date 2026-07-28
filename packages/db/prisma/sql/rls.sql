@@ -90,7 +90,7 @@ BEGIN
     'customer_membership','customer_identifier',
     'outbox','idempotency_key','audit_log',
     'ledger_account','journal','entry','account_balance',
-    'earn_rule','tier','reward_catalog_item','voucher',
+    'earn_rule','tier','reward_catalog_item','voucher','redemption_config',
     'terminal_transaction',
     'campaign','badge','badge_award','challenge','challenge_progress',
     'referral','webhook_endpoint','webhook_delivery',

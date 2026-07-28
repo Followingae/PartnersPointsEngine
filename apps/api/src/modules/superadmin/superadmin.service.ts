@@ -2,7 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
+import { createHash } from 'node:crypto';
 import { ROLE_PERMISSIONS } from '../../auth/authz/authz.service';
+import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { PasswordService } from '../../auth/crypto/password.service';
 import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
@@ -49,6 +51,7 @@ export class SuperadminService {
     private readonly audit: AuditService,
     private readonly tokens: TokenService,
     private readonly passwords: PasswordService,
+    private readonly crypto: EnvelopeCryptoService,
   ) {}
 
   // ── platform team management (W7) ────────────────────────────────────────
@@ -392,6 +395,62 @@ export class SuperadminService {
       });
       await this.audit.record(tx, ctx, { action: 'terminal.create', targetType: 'terminal', targetId: t.id, data: { label: t.label, branchId: dto.branchId } });
       return t;
+    });
+  }
+
+  /**
+   * Issue (or re-issue) the HMAC signing key for a terminal. The secret is shown
+   * exactly once — the device stores it in its hardware keystore; we keep only
+   * hash + envelope-encrypted copies. Also returns a provisioning payload the
+   * console can render as a QR for the terminal app's pairing screen.
+   */
+  async issueTerminalKey(ctx: TenantContext, terminalId: string, baseUrl?: string) {
+    const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+    const publishableId = `pk_${randomBytes(12).toString('base64url')}`;
+    const secret = `sk_${randomBytes(24).toString('base64url')}`;
+    return this.tenants.run(ctx, async (tx) => {
+      const t = await tx.terminal.findFirst({
+        where: { id: terminalId, platformId: ctx.platformId },
+        select: { id: true, label: true, brandId: true, groupId: true, branchId: true },
+      });
+      if (!t) throw new NotFoundException('terminal not found');
+      // one active key per terminal: revoke previous keys on re-issue
+      await tx.apiKey.updateMany({ where: { terminalId: t.id, status: 'active' }, data: { status: 'revoked' } });
+      const key = await tx.apiKey.create({
+        data: {
+          publishableId,
+          secretHash: sha256(secret),
+          secretEnc: this.crypto.encrypt(secret),
+          platformId: ctx.platformId,
+          groupId: t.groupId,
+          brandId: t.brandId,
+          branchId: t.branchId,
+          terminalId: t.id,
+        },
+        select: { id: true, publishableId: true, createdAt: true },
+      });
+      await tx.terminal.update({ where: { id: t.id }, data: { pairedAt: new Date() } });
+      await this.audit.record(tx, ctx, { action: 'terminal.key.issue', targetType: 'terminal', targetId: t.id, data: { keyId: key.id } });
+      return {
+        ...key,
+        secret, // shown once
+        provisioning: {
+          baseUrl: baseUrl ?? null,
+          publishableKeyId: publishableId,
+          secret,
+          label: t.label,
+        },
+      };
+    });
+  }
+
+  async revokeTerminalKeys(ctx: TenantContext, terminalId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const t = await tx.terminal.findFirst({ where: { id: terminalId, platformId: ctx.platformId }, select: { id: true } });
+      if (!t) throw new NotFoundException('terminal not found');
+      const { count } = await tx.apiKey.updateMany({ where: { terminalId: t.id, status: 'active' }, data: { status: 'revoked' } });
+      await this.audit.record(tx, ctx, { action: 'terminal.key.revoke', targetType: 'terminal', targetId: t.id, data: { revoked: count } });
+      return { terminalId: t.id, revoked: count };
     });
   }
 

@@ -13,6 +13,7 @@ import {
   CreateGroupDto,
   CreateTerminalDto,
   EntityStatusDto,
+  IssueTerminalKeyDto,
   GroupStatusDto,
   InviteTeamDto,
   PlatformSettingsDto,
@@ -169,6 +170,20 @@ export class SuperadminController {
   @ApiOperation({ summary: 'Enable / disable a POS terminal.' })
   setTerminalStatus(@CurrentTenant() ctx: TenantContext, @Param('terminalId') terminalId: string, @Body() dto: EntityStatusDto) {
     return this.superadmin.setTerminalStatus(ctx, terminalId, dto.status);
+  }
+
+  @Post('terminals/:terminalId/keys')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Issue the HMAC signing key for a terminal (secret shown once; revokes prior keys).' })
+  issueTerminalKey(@CurrentTenant() ctx: TenantContext, @Param('terminalId') terminalId: string, @Body() dto: IssueTerminalKeyDto) {
+    return this.superadmin.issueTerminalKey(ctx, terminalId, dto.baseUrl);
+  }
+
+  @Post('terminals/:terminalId/keys/revoke')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Revoke all active keys for a terminal.' })
+  revokeTerminalKeys(@CurrentTenant() ctx: TenantContext, @Param('terminalId') terminalId: string) {
+    return this.superadmin.revokeTerminalKeys(ctx, terminalId);
   }
 
   @Post('groups/:groupId/wallet/topup')

@@ -22,6 +22,7 @@ import {
   UpdateChallengeDto,
   UpdateCustomerProfileDto,
   UpdateEarnRuleDto,
+  UpdateRedemptionConfigDto,
   UpdateSettingsDto,
   UpdateTierDto,
 } from './dto';
@@ -311,6 +312,21 @@ export class ManageController {
   @ApiOperation({ summary: 'This brand’s module entitlements (drives console nav).' })
   modules(@CurrentTenant() ctx: TenantContext) {
     return this.loyalty.getModuleAccess(ctx);
+  }
+
+  // ── redemption valuation ("pay with points") ─────────────────────────────
+  @Get('redemption-config')
+  @RequirePermissions('brand.report.read')
+  @ApiOperation({ summary: 'Brand redemption valuation (points → money rate, caps, presets).' })
+  getRedemptionConfig(@CurrentTenant() ctx: TenantContext) {
+    return this.loyalty.getRedemptionConfig(ctx);
+  }
+
+  @Patch('redemption-config')
+  @RequirePermissions('brand.manage')
+  @ApiOperation({ summary: 'Update the brand redemption valuation.' })
+  updateRedemptionConfig(@CurrentTenant() ctx: TenantContext, @Body() dto: UpdateRedemptionConfigDto) {
+    return this.loyalty.updateRedemptionConfig(ctx, dto);
   }
 
   // ── settings ─────────────────────────────────────────────────────────────

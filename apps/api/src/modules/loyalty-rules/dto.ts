@@ -334,6 +334,50 @@ export class UpdateChallengeDto {
   enabled?: boolean;
 }
 
+export class UpdateRedemptionConfigDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'This many points…' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  ratePoints?: number;
+
+  @ApiPropertyOptional({ description: '…are worth this much in minor currency units' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  rateValueMinor?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  minRedeemPoints?: number;
+
+  @ApiPropertyOptional({ description: 'Max share of the bill payable in points (basis points, 10000 = 100%)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  maxPercentOfBillBps?: number;
+
+  @ApiPropertyOptional({ description: 'Discount rounding step in minor units (e.g. 25 fils)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  roundToMinor?: number;
+
+  @ApiPropertyOptional({ type: [Number], description: 'Quick-pick point amounts shown at the POS' })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  presetsPoints?: number[];
+}
+
 export class UpdateSettingsDto {
   @ApiPropertyOptional({ description: 'Brand display name' })
   @IsOptional()

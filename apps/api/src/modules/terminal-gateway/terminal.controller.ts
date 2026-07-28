@@ -3,7 +3,7 @@ import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { TerminalHmacGuard } from '../../auth/guards/terminal-hmac.guard';
-import { BatchDto, QuoteDto, ResolveDto, TransactionDto } from './dto';
+import { BatchDto, MemberContextDto, QuoteDto, ResolveDto, TransactionDto } from './dto';
 import { TerminalService } from './terminal.service';
 
 /**
@@ -17,10 +17,22 @@ import { TerminalService } from './terminal.service';
 export class TerminalController {
   constructor(private readonly terminal: TerminalService) {}
 
+  @Get('config')
+  @ApiOperation({ summary: 'Terminal boot config: brand identity + redemption valuation.' })
+  config(@CurrentTenant() ctx: TenantContext) {
+    return this.terminal.config(ctx);
+  }
+
   @Post('members/resolve')
   @ApiOperation({ summary: 'Resolve a customer identifier to an opaque member token.' })
   resolve(@CurrentTenant() ctx: TenantContext, @Body() dto: ResolveDto) {
     return this.terminal.resolve(ctx, dto.type, dto.value);
+  }
+
+  @Post('members/context')
+  @ApiOperation({ summary: 'Member snapshot for the cashier screen (name, tier, balance).' })
+  memberContext(@CurrentTenant() ctx: TenantContext, @Body() dto: MemberContextDto) {
+    return this.terminal.memberContext(ctx, dto.memberToken);
   }
 
   @Post('quotes')
