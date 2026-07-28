@@ -5,10 +5,10 @@
     "scheme": "partnerspoints",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#070459"
+      "backgroundColor": "#F4F3EF"
     },
     "ios": {
       "supportsTablet": false,
