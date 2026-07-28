@@ -605,6 +605,135 @@ export class SuperadminService {
     }
   }
 
+  // ── vouchers (platform-wide) ─────────────────────────────────────────────
+
+  /** Every reward voucher on the platform, newest first. */
+  async listVouchers(ctx: TenantContext, query: { q?: string; status?: string; brandId?: string; limit?: number; offset?: number }) {
+    const take = Math.min(query.limit ?? 50, 200);
+    const skip = query.offset ?? 0;
+    return this.tenants.run(ctx, async (tx) => {
+      const where: Prisma.VoucherWhereInput = {
+        platformId: ctx.platformId,
+        ...(query.brandId ? { brandId: query.brandId } : {}),
+        ...(query.status ? { status: query.status as never } : {}),
+        ...(query.q ? { code: { contains: query.q.trim().toUpperCase() } } : {}),
+      };
+      const [rows, total] = await Promise.all([
+        tx.voucher.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take,
+          skip,
+          select: {
+            id: true, code: true, status: true, pointsSpent: true, createdAt: true,
+            redeemedAt: true, expiresAt: true, brandId: true, membershipId: true,
+            catalogItem: { select: { name: true } },
+          },
+        }),
+        tx.voucher.count({ where }),
+      ]);
+      const brandIds = [...new Set(rows.map((v) => v.brandId))];
+      const membershipIds = [...new Set(rows.map((v) => v.membershipId))];
+      const [brands, members] = await Promise.all([
+        brandIds.length ? tx.brand.findMany({ where: { id: { in: brandIds } }, select: { id: true, name: true } }) : [],
+        membershipIds.length
+          ? tx.customerMembership.findMany({
+              where: { id: { in: membershipIds } },
+              select: { id: true, loyaltyId: true, person: { select: { fullName: true } } },
+            })
+          : [],
+      ]);
+      const brandName = new Map(brands.map((b) => [b.id, b.name]));
+      const member = new Map(members.map((m) => [m.id, m]));
+      return {
+        rows: rows.map((v) => ({
+          id: v.id,
+          code: v.code,
+          status: v.status,
+          rewardName: v.catalogItem?.name ?? 'Reward',
+          brandName: brandName.get(v.brandId) ?? '—',
+          customerName: member.get(v.membershipId)?.person?.fullName ?? null,
+          loyaltyId: member.get(v.membershipId)?.loyaltyId ?? null,
+          pointsSpent: v.pointsSpent.toString(),
+          createdAt: v.createdAt,
+          redeemedAt: v.redeemedAt,
+          expiresAt: v.expiresAt,
+        })),
+        total,
+      };
+    });
+  }
+
+  /** Reward catalogue for a brand — the picker when issuing a voucher. */
+  async listBrandRewards(ctx: TenantContext, brandId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.rewardCatalogItem.findMany({
+        where: { brandId, platformId: ctx.platformId, status: 'active' },
+        select: { id: true, name: true, pointsCost: true, kind: true },
+        orderBy: { pointsCost: 'asc' },
+      });
+      return rows.map((r) => ({ ...r, pointsCost: r.pointsCost.toString() }));
+    });
+  }
+
+  /**
+   * Issue a voucher to a customer as a goodwill gesture — no points are spent.
+   * Support and recovery use this ("sorry about your visit, here's a coffee").
+   */
+  async issueVoucherForCustomer(
+    ctx: TenantContext,
+    dto: { membershipId: string; catalogItemId: string; expiresInDays?: number; reason?: string },
+  ) {
+    return this.tenants.run(ctx, async (tx) => {
+      const membership = await tx.customerMembership.findFirst({
+        where: { id: dto.membershipId, platformId: ctx.platformId },
+        select: { id: true, brandId: true, groupId: true },
+      });
+      if (!membership) throw new NotFoundException('membership not found');
+      const item = await tx.rewardCatalogItem.findFirst({
+        where: { id: dto.catalogItemId, brandId: membership.brandId, status: 'active' },
+        select: { id: true, name: true },
+      });
+      if (!item) throw new BadRequestException('reward not available for this brand');
+
+      const code = randomBytes(6).toString('hex').toUpperCase();
+      const voucher = await tx.voucher.create({
+        data: {
+          brandId: membership.brandId,
+          groupId: membership.groupId,
+          platformId: ctx.platformId,
+          catalogItemId: item.id,
+          membershipId: membership.id,
+          code,
+          pointsSpent: 0n, // gifted, not purchased
+          expiresAt: dto.expiresInDays
+            ? new Date(Date.now() + dto.expiresInDays * 86_400_000)
+            : null,
+        },
+        select: { id: true, code: true, status: true, expiresAt: true },
+      });
+      await this.audit.record(tx, ctx, {
+        action: 'voucher.issue_on_behalf',
+        targetType: 'voucher',
+        targetId: voucher.id,
+        data: { membershipId: membership.id, reward: item.name, reason: dto.reason ?? null },
+      });
+      return { ...voucher, rewardName: item.name };
+    });
+  }
+
+  /** Void an unused voucher (issued in error / fraud). */
+  async cancelVoucher(ctx: TenantContext, voucherId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const v = await tx.voucher.findFirst({ where: { id: voucherId, platformId: ctx.platformId }, select: { id: true, status: true } });
+      if (!v) throw new NotFoundException('voucher not found');
+      if (v.status !== 'issued') throw new BadRequestException(`voucher is ${v.status}`);
+      await tx.voucher.update({ where: { id: v.id }, data: { status: 'void' } });
+      await this.audit.record(tx, ctx, { action: 'voucher.cancel', targetType: 'voucher', targetId: v.id });
+      return { id: v.id, status: 'void' };
+    });
+  }
+
   /** eReceipt engagement: volumes, scan-through rate, ad clicks (per brand + total). */
   async receiptStats(ctx: TenantContext) {
     return this.tenants.run(ctx, async (tx) => {

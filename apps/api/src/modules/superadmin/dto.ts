@@ -105,6 +105,27 @@ export class CreateTerminalDto {
   label!: string;
 }
 
+export class IssueVoucherDto {
+  @ApiProperty({ description: 'The customer membership receiving the voucher' })
+  @IsString()
+  membershipId!: string;
+
+  @ApiProperty({ description: 'Reward catalogue item to grant' })
+  @IsString()
+  catalogItemId!: string;
+
+  @ApiPropertyOptional({ description: 'Expiry in days from now' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expiresInDays?: number;
+
+  @ApiPropertyOptional({ description: 'Why it was issued (recorded in the audit log)' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
 export class IssueTerminalKeyDto {
   @ApiProperty({ required: false, description: 'Terminal API base URL embedded in the provisioning QR payload' })
   @IsOptional()

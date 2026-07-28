@@ -15,6 +15,7 @@ import {
   CreateTerminalDto,
   EntityStatusDto,
   IssueTerminalKeyDto,
+  IssueVoucherDto,
   GroupStatusDto,
   InviteTeamDto,
   PlatformSettingsDto,
@@ -185,6 +186,38 @@ export class SuperadminController {
   @ApiOperation({ summary: 'One customer across all their brand memberships.' })
   customerDetail(@CurrentTenant() ctx: TenantContext, @Param('personId') personId: string) {
     return this.superadmin.customerDetail(ctx, personId);
+  }
+
+  @Get('vouchers')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'All reward vouchers across the platform.' })
+  listVouchers(
+    @CurrentTenant() ctx: TenantContext,
+    @Query() query: AdminListQueryDto,
+    @Query('brandId') brandId?: string,
+  ) {
+    return this.superadmin.listVouchers(ctx, { ...query, brandId });
+  }
+
+  @Get('brands/:brandId/rewards')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'A brand’s reward catalogue (for issuing vouchers).' })
+  listBrandRewards(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string) {
+    return this.superadmin.listBrandRewards(ctx, brandId);
+  }
+
+  @Post('vouchers')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Issue a voucher to a customer on their behalf (no points spent).' })
+  issueVoucher(@CurrentTenant() ctx: TenantContext, @Body() dto: IssueVoucherDto) {
+    return this.superadmin.issueVoucherForCustomer(ctx, dto);
+  }
+
+  @Post('vouchers/:voucherId/cancel')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Cancel an unused voucher.' })
+  cancelVoucher(@CurrentTenant() ctx: TenantContext, @Param('voucherId') voucherId: string) {
+    return this.superadmin.cancelVoucher(ctx, voucherId);
   }
 
   @Get('receipt-stats')

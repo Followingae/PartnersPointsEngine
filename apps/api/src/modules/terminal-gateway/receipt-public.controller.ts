@@ -203,6 +203,25 @@ interface BrandProfile {
   address?: string; city?: string; instagram?: string; facebook?: string; tiktok?: string; x?: string;
 }
 
+/**
+ * Pick readable text for a brand-coloured surface. A lime or pastel brand needs
+ * ink; a navy or maroon needs white. Relative luminance per WCAG.
+ */
+function onColor(hex: string): { fg: string; dim: string; chip: string } {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return { fg: '#fff', dim: 'rgba(255,255,255,.82)', chip: 'rgba(255,255,255,.18)' };
+  const int = parseInt(m[1]!, 16);
+  const srgb = [(int >> 16) & 255, (int >> 8) & 255, int & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const lum = 0.2126 * srgb[0]! + 0.7152 * srgb[1]! + 0.0722 * srgb[2]!;
+  // contrast against white vs against near-black ink
+  return lum > 0.42
+    ? { fg: '#15150F', dim: 'rgba(21,21,15,.68)', chip: 'rgba(21,21,15,.10)' }
+    : { fg: '#fff', dim: 'rgba(255,255,255,.82)', chip: 'rgba(255,255,255,.18)' };
+}
+
 /** Normalize a handle or URL into a full link. */
 function socialUrl(base: string, v: string): string {
   const s = v.trim().replace(/^@/, '');
@@ -232,50 +251,61 @@ function receiptBody(
     : `<div style="width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:rgba(255,255,255,.22);color:#fff;font:800 18px 'Bricolage Grotesque',sans-serif;line-height:40px;text-align:center">${esc(r.brandName.slice(0, 1))}</div>`;
 
   // ── hero: identity + total + loyalty, one compact block ──────────────────
+  // Text colour is derived from the brand colour so a lime brand doesn't get
+  // unreadable white text.
+  const ink = onColor(color);
+  const paidWithPoints = r.netMinor === 0n && r.discountMinor > 0n;
   const hero = `
-  <div class="card" style="border:0;background:linear-gradient(155deg, ${color} 0%, ${color}D0 60%, #131310 210%);color:#fff">
-    <div style="padding:18px 20px 16px">
+  <div class="card" style="border:0;background:linear-gradient(150deg, ${color} 0%, ${color} 55%, ${color}D8 100%);color:${ink.fg}">
+    <div style="padding:18px 20px 17px">
       <div style="display:flex;align-items:center;gap:12px">
         ${logo}
         <div style="min-width:0;flex:1">
-          <div class="display" style="font-size:18px;font-weight:800;line-height:1.15">${esc(r.brandName)}</div>
-          <div class="tiny" style="opacity:.8">${esc(when)}</div>
+          <div class="display" style="font-size:19px;font-weight:800;line-height:1.15;color:${ink.fg}">${esc(r.brandName)}</div>
+          <div class="tiny" style="color:${ink.dim}">${esc(when)}</div>
         </div>
-        ${!isSale ? `<span class="mono" style="background:rgba(0,0,0,.3);border-radius:999px;padding:4px 10px;font-size:11px;letter-spacing:.1em">${r.kind.toUpperCase()}</span>` : ''}
+        ${!isSale ? `<span class="mono" style="background:${ink.chip};border-radius:999px;padding:4px 10px;font-size:11px;letter-spacing:.1em;color:${ink.fg}">${r.kind.toUpperCase()}</span>` : ''}
       </div>
-      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:14px;gap:10px">
-        <div>
-          <div class="tiny" style="opacity:.75;text-transform:uppercase;letter-spacing:.1em">Total paid</div>
-          <div class="display" style="font-size:38px;font-weight:800;line-height:1">${money(r.netMinor, r.currency)}</div>
-          <div class="tiny" style="opacity:.8">${esc(tender)}</div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:16px;gap:10px">
+        <div style="min-width:0">
+          <div class="tiny" style="color:${ink.dim};text-transform:uppercase;letter-spacing:.1em">${paidWithPoints ? 'Paid with points' : 'Total paid'}</div>
+          <div class="display" style="font-size:36px;font-weight:800;line-height:1.05;color:${ink.fg}">${money(r.netMinor, r.currency)}</div>
+          <div class="tiny" style="color:${ink.dim}">${esc(tender)}</div>
         </div>
-        ${r.earnedPoints > 0n ? `<div style="text-align:right;background:rgba(255,255,255,.16);border-radius:16px;padding:10px 14px">
-            <div class="tiny" style="opacity:.85">Earned</div>
-            <div class="display" style="font-size:26px;font-weight:800;line-height:1.05">+${pts(r.earnedPoints)}</div>
-            <div class="tiny" style="opacity:.85">${esc(r.pointsCode)}</div>
+        ${r.earnedPoints > 0n ? `<div style="text-align:right;background:${ink.chip};border-radius:16px;padding:10px 14px;flex:none">
+            <div class="tiny" style="color:${ink.dim}">Earned</div>
+            <div class="display" style="font-size:26px;font-weight:800;line-height:1.05;color:${ink.fg}">+${pts(r.earnedPoints)}</div>
+            <div class="tiny" style="color:${ink.dim}">${esc(r.pointsCode)}</div>
           </div>` : ''}
       </div>
     </div>
   </div>`;
 
   // ── sponsored: directly under the hero, the highest-value slot ───────────
-  // Full-bleed image on top, exactly like the console preview. Accept http(s)
-  // and hide the <img> if the host refuses it rather than leaving a broken box.
+  // Full-bleed image on top, like the console preview. A dead URL removes the
+  // whole <img> (a hidden-but-present element still showed a broken frame).
   const adImg = ad?.imageUrl && /^https?:\/\//i.test(ad.imageUrl)
     ? `<img src="${esc(ad.imageUrl)}" alt="" loading="lazy"
-           onerror="this.style.display='none'"
-           style="display:block;width:100%;height:180px;object-fit:cover;background:var(--line)">`
+           onerror="this.remove()"
+           style="display:block;width:100%;height:180px;object-fit:cover">`
     : '';
-  const adBlock = ad?.headline
-    ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit;margin-top:12px;overflow:hidden">
+  // Only render a call-to-action when there is somewhere to go.
+  const hasAdLink = Boolean(ad?.ctaUrl && /^https?:\/\//i.test(ad.ctaUrl));
+  const adCta = hasAdLink
+    ? `<div style="display:inline-block;background:var(--lime);color:#15150F;font-weight:700;font-size:13.5px;border-radius:999px;padding:7px 15px;margin-top:11px">${esc(ad!.ctaLabel ?? 'Learn more')} →</div>`
+    : '';
+  const adInner = `
         ${adImg}
         <div style="padding:15px 18px">
           <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em">Sponsored</div>
-          <div style="font-weight:700;font-size:17px;margin-top:2px">${esc(ad.headline)}</div>
-          ${ad.body ? `<div class="sm muted" style="margin-top:2px">${esc(ad.body)}</div>` : ''}
-          <div style="display:inline-block;background:var(--lime);color:#15150F;font-weight:700;font-size:13.5px;border-radius:999px;padding:7px 15px;margin-top:11px">${esc(ad.ctaLabel ?? 'Learn more')} →</div>
-        </div>
-       </a>`
+          <div style="font-weight:700;font-size:17px;margin-top:2px">${esc(ad?.headline ?? '')}</div>
+          ${ad?.body ? `<div class="sm muted" style="margin-top:2px">${esc(ad.body)}</div>` : ''}
+          ${adCta}
+        </div>`;
+  const adBlock = ad?.headline
+    ? (hasAdLink
+        ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit;margin-top:12px;overflow:hidden">${adInner}</a>`
+        : `<div class="card no-print" style="margin-top:12px;overflow:hidden">${adInner}</div>`)
     : '';
 
   // ── details: payment + loyalty in a single tight card ────────────────────
@@ -292,8 +322,9 @@ function receiptBody(
     ${r.discountMinor > 0n ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points discount</span><span style="color:var(--blush)">−${money(r.discountMinor, r.currency)}</span></div>` : ''}
     <div class="row sm" style="margin-top:5px"><span class="muted">Paid</span><span style="font-weight:700">${money(r.netMinor, r.currency)}</span></div>
     ${loyaltyRows}
-    <div class="row tiny faint mono" style="margin-top:12px">
-      <span>${r.authNo ? `Auth ${esc(r.authNo)}` : ''}</span><span>${esc(r.orderNo)}</span>
+    <div class="row tiny mono" style="margin-top:12px;color:var(--faint)">
+      <span style="color:var(--faint)">${r.authNo ? `Auth ${esc(r.authNo)}` : ''}</span>
+      <span style="color:var(--faint)">${esc(r.orderNo)}</span>
     </div>
   </div></div>`;
 
