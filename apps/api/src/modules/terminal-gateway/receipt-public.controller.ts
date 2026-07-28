@@ -27,9 +27,11 @@ export class ReceiptPublicController {
     const ad = (adRows[0]?.ad ?? null) as {
       enabled?: boolean; headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string;
     } | null;
-    // merchant's own profile (website / socials) — same source the customer app uses
+    // Merchant's own profile (website / socials). Read through a definer
+    // function: this page has no tenant context, so a direct select is
+    // RLS-filtered to nothing.
     const brandRows = await this.prisma.$queryRaw<{ branding: unknown }[]>`
-      SELECT branding FROM brand WHERE id = ${r.brandId}`;
+      SELECT ereceipt_brand(${r.brandId}) AS branding`;
     const brand = (brandRows[0]?.branding ?? {}) as BrandProfile;
     res.status(200).type('html').send(
       shell(`${esc(r.brandName)} — Receipt`, receiptBody(r, ad?.enabled ? ad : null, brand)),
@@ -141,84 +143,93 @@ function receiptBody(
   const isSale = r.kind === 'sale';
 
   const logo = brand.logoUrl && /^https:\/\//.test(brand.logoUrl)
-    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(r.brandName)}" style="height:46px;width:auto;max-width:180px;object-fit:contain;border-radius:10px;background:#fff;padding:4px">`
-    : `<div style="width:56px;height:56px;border-radius:18px;background:rgba(255,255,255,.22);color:#fff;font:800 24px 'Bricolage Grotesque',sans-serif;line-height:56px;text-align:center">${esc(r.brandName.slice(0, 1))}</div>`;
+    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(r.brandName)}" style="height:40px;width:40px;flex:0 0 40px;object-fit:contain;border-radius:12px;background:#fff;padding:3px">`
+    : `<div style="width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:rgba(255,255,255,.22);color:#fff;font:800 18px 'Bricolage Grotesque',sans-serif;line-height:40px;text-align:center">${esc(r.brandName.slice(0, 1))}</div>`;
 
-  // hero — brand colour, the receipt's identity
+  // ── hero: identity + total + loyalty, one compact block ──────────────────
   const hero = `
-  <div class="card" style="border:0;background:linear-gradient(150deg, ${color} 0%, ${color}CC 55%, #131310 190%);color:#fff">
-    <div class="pad" style="padding:26px 22px 22px;text-align:center">
-      <div style="display:flex;justify-content:center;margin-bottom:12px">${logo}</div>
-      <div class="display" style="font-size:23px;font-weight:800">${esc(r.brandName)}</div>
-      <div class="sm" style="opacity:.82;margin-top:2px">${esc(when)}</div>
-      ${!isSale ? `<div class="mono" style="margin-top:10px;display:inline-block;background:rgba(0,0,0,.28);border-radius:999px;padding:5px 14px;font-size:12px;letter-spacing:.12em">${r.kind.toUpperCase()}</div>` : ''}
-      <div class="display" style="font-size:46px;font-weight:800;margin-top:14px;line-height:1">${money(r.netMinor, r.currency)}</div>
-      <div class="sm" style="opacity:.82">${esc(tender)}</div>
+  <div class="card" style="border:0;background:linear-gradient(155deg, ${color} 0%, ${color}D0 60%, #131310 210%);color:#fff">
+    <div style="padding:18px 20px 16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        ${logo}
+        <div style="min-width:0;flex:1">
+          <div class="display" style="font-size:18px;font-weight:800;line-height:1.15">${esc(r.brandName)}</div>
+          <div class="tiny" style="opacity:.8">${esc(when)}</div>
+        </div>
+        ${!isSale ? `<span class="mono" style="background:rgba(0,0,0,.3);border-radius:999px;padding:4px 10px;font-size:11px;letter-spacing:.1em">${r.kind.toUpperCase()}</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:14px;gap:10px">
+        <div>
+          <div class="tiny" style="opacity:.75;text-transform:uppercase;letter-spacing:.1em">Total paid</div>
+          <div class="display" style="font-size:38px;font-weight:800;line-height:1">${money(r.netMinor, r.currency)}</div>
+          <div class="tiny" style="opacity:.8">${esc(tender)}</div>
+        </div>
+        ${r.earnedPoints > 0n ? `<div style="text-align:right;background:rgba(255,255,255,.16);border-radius:16px;padding:10px 14px">
+            <div class="tiny" style="opacity:.85">Earned</div>
+            <div class="display" style="font-size:26px;font-weight:800;line-height:1.05">+${pts(r.earnedPoints)}</div>
+            <div class="tiny" style="opacity:.85">${esc(r.pointsCode)}</div>
+          </div>` : ''}
+      </div>
     </div>
   </div>`;
 
-  const breakdown = `
-  <div class="card" style="margin-top:14px"><div class="pad">
-    <div class="row muted sm"><span>Subtotal</span><span>${money(r.grossMinor, r.currency)}</span></div>
-    ${r.discountMinor > 0n ? `<div class="row sm" style="color:var(--blush);margin-top:6px"><span>Points discount</span><span>−${money(r.discountMinor, r.currency)}</span></div>` : ''}
-    <hr class="dash">
-    <div class="row"><span style="font-weight:700">Total paid</span><span class="display" style="font-size:24px;font-weight:800">${money(r.netMinor, r.currency)}</span></div>
-    ${r.authNo ? `<div class="row tiny faint mono" style="margin-top:10px"><span>Auth ${esc(r.authNo)}</span><span>${esc(r.orderNo)}</span></div>` : `<div class="tiny faint mono" style="margin-top:10px;text-align:right">${esc(r.orderNo)}</div>`}
-  </div></div>`;
-
-  const loyalty = r.memberName
-    ? `<div class="card" style="margin-top:14px;border-color:${color}44">
-        <div class="pad" style="text-align:center">
-          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em">Loyalty</div>
-          <div style="font-weight:700;margin-top:2px">${esc(r.memberName)}</div>
-          ${r.earnedPoints > 0n ? `<div class="display" style="font-size:44px;font-weight:800;color:var(--lime-deep);margin:8px 0 0;line-height:1">+${pts(r.earnedPoints)}<span style="font-size:15px;margin-left:5px">${esc(r.pointsCode)}</span></div>` : ''}
-          ${r.redeemedPoints > 0n ? `<div style="color:var(--blush);font-weight:600;margin-top:4px">−${pts(r.redeemedPoints)} ${esc(r.pointsCode)} redeemed</div>` : ''}
-          ${r.balanceAfter != null ? `<div class="divider"></div><div class="row sm"><span class="muted">Balance</span><span style="font-weight:700">${pts(r.balanceAfter)} ${esc(r.pointsCode)}</span></div>` : ''}
-        </div>
-       </div>`
-    : `<div class="card" style="margin-top:14px"><div class="pad" style="text-align:center">
-        <div style="font-weight:700">Not earning points yet?</div>
-        <div class="sm muted" style="margin-top:2px">Give your mobile number at the till and start earning on every visit.</div>
-       </div></div>`;
-
-  // merchant contact + socials
-  const socials: string[] = [];
-  if (brand.website) socials.push(`<a href="${esc(socialUrl('https://', brand.website))}" target="_blank" rel="noopener">🌐 Website</a>`);
-  if (brand.instagram) socials.push(`<a href="${esc(socialUrl('https://instagram.com/', brand.instagram))}" target="_blank" rel="noopener">Instagram</a>`);
-  if (brand.facebook) socials.push(`<a href="${esc(socialUrl('https://facebook.com/', brand.facebook))}" target="_blank" rel="noopener">Facebook</a>`);
-  if (brand.tiktok) socials.push(`<a href="${esc(socialUrl('https://tiktok.com/@', brand.tiktok))}" target="_blank" rel="noopener">TikTok</a>`);
-  if (brand.x) socials.push(`<a href="${esc(socialUrl('https://x.com/', brand.x))}" target="_blank" rel="noopener">X</a>`);
-  if (brand.publicPhone) socials.push(`<a href="tel:${esc(brand.publicPhone)}">📞 ${esc(brand.publicPhone)}</a>`);
-
-  const merchantBlock = (socials.length || brand.address)
-    ? `<div class="card" style="margin-top:14px"><div class="pad">
-        <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em">Stay in touch</div>
-        ${brand.address ? `<div class="sm muted" style="margin-top:6px">${esc([brand.address, brand.city].filter(Boolean).join(', '))}</div>` : ''}
-        ${socials.length ? `<div class="social" style="margin-top:12px">${socials.join('')}</div>` : ''}
-      </div></div>`
-    : '';
-
-  const actions = `
-  <div class="no-print" style="margin-top:14px;display:grid;gap:10px">
-    <button class="btn" onclick="savePdf()">⬇︎ Save as PDF</button>
-  </div>`;
-
-  // ad sits at the bottom, after the receipt content
+  // ── sponsored: directly under the hero, the highest-value slot ───────────
   const adBlock = ad?.headline
-    ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit;margin-top:18px">
-        ${ad.imageUrl && /^https:\/\//.test(ad.imageUrl) ? `<img src="${esc(ad.imageUrl)}" alt="" style="width:100%;display:block;max-height:170px;object-fit:cover">` : ''}
-        <div class="pad" style="padding:16px 20px">
+    ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:flex;align-items:stretch;text-decoration:none;color:inherit;margin-top:12px;overflow:hidden">
+        ${ad.imageUrl && /^https:\/\//.test(ad.imageUrl)
+          ? `<img src="${esc(ad.imageUrl)}" alt="" style="width:96px;flex:0 0 96px;object-fit:cover">`
+          : `<div style="width:6px;flex:0 0 6px;background:var(--lime)"></div>`}
+        <div style="padding:13px 15px;min-width:0;flex:1">
           <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em">Sponsored</div>
-          <div style="font-weight:700;margin-top:3px">${esc(ad.headline)}</div>
-          ${ad.body ? `<div class="sm muted" style="margin-top:2px">${esc(ad.body)}</div>` : ''}
-          <div style="display:inline-block;background:var(--lime);color:#131310;font-weight:700;font-size:13px;border-radius:999px;padding:7px 16px;margin-top:12px">${esc(ad.ctaLabel ?? 'Learn more')}</div>
+          <div style="font-weight:700;font-size:15px;margin-top:1px">${esc(ad.headline)}</div>
+          ${ad.body ? `<div class="tiny muted" style="margin-top:1px">${esc(ad.body)}</div>` : ''}
+          <div style="display:inline-block;background:var(--lime);color:#131310;font-weight:700;font-size:12px;border-radius:999px;padding:5px 12px;margin-top:9px">${esc(ad.ctaLabel ?? 'Learn more')} →</div>
         </div>
        </a>`
     : '';
 
-  return `${hero}${breakdown}${loyalty}${merchantBlock}${actions}${adBlock}
-  <div style="text-align:center;margin-top:26px" class="tiny faint">
-    Digital receipt · keep it, no paper needed<br>
-    Powered by <b style="color:var(--muted)">Partners Points</b>
+  // ── details: payment + loyalty in a single tight card ────────────────────
+  const loyaltyRows = r.memberName
+    ? `<hr class="dash">
+       <div class="row sm"><span class="muted">Member</span><span style="font-weight:600">${esc(r.memberName)}</span></div>
+       ${r.redeemedPoints > 0n ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points used</span><span style="color:var(--blush);font-weight:600">−${pts(r.redeemedPoints)}</span></div>` : ''}
+       ${r.balanceAfter != null ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points balance</span><span style="font-weight:700">${pts(r.balanceAfter)} ${esc(r.pointsCode)}</span></div>` : ''}`
+    : `<hr class="dash"><div class="tiny muted" style="text-align:center">Give your mobile number at the till next time and earn on every visit.</div>`;
+
+  const details = `
+  <div class="card" style="margin-top:12px"><div style="padding:16px 18px">
+    <div class="row sm"><span class="muted">Subtotal</span><span>${money(r.grossMinor, r.currency)}</span></div>
+    ${r.discountMinor > 0n ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points discount</span><span style="color:var(--blush)">−${money(r.discountMinor, r.currency)}</span></div>` : ''}
+    <div class="row sm" style="margin-top:5px"><span class="muted">Paid</span><span style="font-weight:700">${money(r.netMinor, r.currency)}</span></div>
+    ${loyaltyRows}
+    <div class="row tiny faint mono" style="margin-top:12px">
+      <span>${r.authNo ? `Auth ${esc(r.authNo)}` : ''}</span><span>${esc(r.orderNo)}</span>
+    </div>
+  </div></div>`;
+
+  // ── merchant links ───────────────────────────────────────────────────────
+  const socials: string[] = [];
+  if (brand.website) socials.push(`<a href="${esc(socialUrl('https://', brand.website))}" target="_blank" rel="noopener">Website</a>`);
+  if (brand.instagram) socials.push(`<a href="${esc(socialUrl('https://instagram.com/', brand.instagram))}" target="_blank" rel="noopener">Instagram</a>`);
+  if (brand.facebook) socials.push(`<a href="${esc(socialUrl('https://facebook.com/', brand.facebook))}" target="_blank" rel="noopener">Facebook</a>`);
+  if (brand.tiktok) socials.push(`<a href="${esc(socialUrl('https://tiktok.com/@', brand.tiktok))}" target="_blank" rel="noopener">TikTok</a>`);
+  if (brand.x) socials.push(`<a href="${esc(socialUrl('https://x.com/', brand.x))}" target="_blank" rel="noopener">X</a>`);
+  if (brand.publicPhone) socials.push(`<a href="tel:${esc(brand.publicPhone)}">Call</a>`);
+
+  const merchantBlock = (socials.length || brand.address)
+    ? `<div style="margin-top:12px;text-align:center">
+        ${brand.address ? `<div class="tiny muted">${esc([brand.address, brand.city].filter(Boolean).join(', '))}</div>` : ''}
+        ${socials.length ? `<div class="social" style="justify-content:center;margin-top:8px">${socials.join('')}</div>` : ''}
+      </div>`
+    : '';
+
+  const actions = `
+  <div class="no-print" style="margin-top:12px">
+    <button type="button" class="btn" onclick="window.print()">⬇︎ Save as PDF</button>
+  </div>`;
+
+  return `${hero}${adBlock}${details}${merchantBlock}${actions}
+  <div style="text-align:center;margin-top:18px" class="tiny faint">
+    Digital receipt · Powered by <b style="color:var(--muted)">Partners Points</b>
   </div>`;
 }

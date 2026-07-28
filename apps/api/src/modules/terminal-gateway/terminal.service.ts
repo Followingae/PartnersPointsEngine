@@ -217,6 +217,46 @@ export class TerminalService {
     });
   }
 
+  /**
+   * Redeem a reward voucher at the till (the customer shows a code/QR from the
+   * app or a printed slip). Returns what the cashier must hand over, and the
+   * money value when the reward is a discount.
+   */
+  async redeemVoucher(ctx: TenantContext, code: string, memberToken?: string) {
+    const normalized = code.trim().toUpperCase();
+    return this.tenants.run(ctx, async (tx) => {
+      const v = await tx.voucher.findUnique({
+        where: { code: normalized },
+        include: { catalogItem: { select: { name: true, kind: true, payload: true } } },
+      });
+      if (!v || v.brandId !== ctx.brandId) throw new NotFoundException('voucher not found');
+      if (v.expiresAt && v.expiresAt < new Date()) {
+        await tx.voucher.update({ where: { id: v.id }, data: { status: 'expired' } });
+        throw new BadRequestException('This voucher has expired');
+      }
+      if (v.status === 'redeemed') throw new BadRequestException('This voucher was already used');
+      if (v.status !== 'issued') throw new BadRequestException(`This voucher is ${v.status}`);
+
+      // If the cashier already identified the member, make sure it's their voucher.
+      if (memberToken) {
+        const claims = await this.member(memberToken, ctx);
+        if (claims.membershipId !== v.membershipId) {
+          throw new BadRequestException('This voucher belongs to a different member');
+        }
+      }
+
+      await tx.voucher.update({ where: { id: v.id }, data: { status: 'redeemed', redeemedAt: new Date() } });
+      const payload = (v.catalogItem?.payload ?? {}) as { discountMinor?: number };
+      return {
+        code: v.code,
+        status: 'redeemed',
+        rewardName: v.catalogItem?.name ?? 'Reward',
+        kind: v.catalogItem?.kind ?? 'voucher',
+        discountMinor: typeof payload.discountMinor === 'number' ? payload.discountMinor : 0,
+      };
+    });
+  }
+
   /** Member snapshot for the cashier-facing recognition screen. */
   async memberContext(ctx: TenantContext, memberToken: string) {
     const claims = await this.member(memberToken, ctx);
@@ -302,7 +342,12 @@ export class TerminalService {
             sourceEvent: dto.sourceEvent ?? null,
           },
         });
-        return mapTxn(created);
+        // Hand the till everything worth celebrating + printing on the slip.
+        return {
+          ...mapTxn(created),
+          completed: r.gamification.completed ?? [],
+          stamps: r.gamification.stamps ?? [],
+        };
       }
 
       // redeem → authorize a hold (captured later)

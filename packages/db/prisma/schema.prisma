@@ -1103,6 +1103,10 @@ model Challenge {
   target       BigInt
   rewardPoints BigInt    @default(0) @map("reward_points")
   badgeId      String?   @map("badge_id")
+  // Stamp cards: a repeatable `visits` challenge that issues a reward voucher
+  // each time it fills (buy 9, get the 10th free) and then starts over.
+  repeatable   Boolean   @default(false)
+  rewardItemId String?   @map("reward_item_id") // RewardCatalogItem issued on completion
   enabled      Boolean   @default(true)
   startsAt     DateTime? @map("starts_at")
   endsAt       DateTime? @map("ends_at")
@@ -1123,6 +1127,7 @@ model ChallengeProgress {
   membershipId String    @map("membership_id")
   progress     BigInt    @default(0)
   completedAt  DateTime? @map("completed_at")
+  completions  Int       @default(0) // stamp cards filled so far
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)

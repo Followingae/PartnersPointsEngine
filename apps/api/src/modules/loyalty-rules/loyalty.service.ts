@@ -168,7 +168,12 @@ export class LoyaltyService {
       };
       const decision = evaluateEarn(rules, evalCtx);
       if (decision.points <= 0) {
-        return { decision, journalId: null, balance: null, gamification: { completedChallengeIds: [] } };
+        // No points, but the visit still happened — stamp cards must still tick.
+        const gamification = await this.gamification.onEarnWithTx(tx, ctx, input.membershipId, 0n, {
+          isVisit: input.isVisit,
+          amountMinor: input.amountMinor,
+        });
+        return { decision, journalId: null, balance: null, gamification };
       }
       const result = await ledger.earnPoints(tx, {
         scope: { platformId: ctx.platformId, groupId: ctx.groupId!, brandId: ctx.brandId!, customerId: input.membershipId },
@@ -182,7 +187,10 @@ export class LoyaltyService {
       });
       // Evaluate gamification on the updated lifetime (badges/challenges), same tx.
       const { lifetime } = await this.lifetimeAndTier(tx, ctx, input.membershipId);
-      const gamification = await this.gamification.onEarnWithTx(tx, ctx, input.membershipId, lifetime);
+      const gamification = await this.gamification.onEarnWithTx(tx, ctx, input.membershipId, lifetime, {
+        isVisit: input.isVisit,
+        amountMinor: input.amountMinor,
+      });
       return {
         decision,
         journalId: result.journalId,

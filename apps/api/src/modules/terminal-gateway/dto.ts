@@ -20,6 +20,17 @@ export class MemberContextDto {
   memberToken!: string;
 }
 
+export class RedeemVoucherDto {
+  @ApiProperty({ description: 'Voucher code shown by the customer' })
+  @IsString()
+  code!: string;
+
+  @ApiProperty({ required: false, description: 'Verify the voucher belongs to this member' })
+  @IsOptional()
+  @IsString()
+  memberToken?: string;
+}
+
 export class EnrollDto {
   @ApiProperty({ description: 'E.164 phone (+9715xxxxxxxx)' })
   @IsString()

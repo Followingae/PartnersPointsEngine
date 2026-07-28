@@ -138,6 +138,48 @@ describe('Terminal gateway (Phase 4)', () => {
     expect(row?.netMinor).toBe(1900n);
   });
 
+  it('fills a stamp card across visits, issues a voucher, and rolls over', async () => {
+    const item = await prisma.rewardCatalogItem.create({
+      data: { brandId, groupId, platformId, name: 'Free coffee', pointsCost: 0n, kind: 'free_item' },
+    });
+    const stamp = await prisma.challenge.create({
+      data: {
+        brandId, groupId, platformId, name: 'Coffee card', kind: 'visits',
+        target: 3n, repeatable: true, rewardItemId: item.id, enabled: true,
+      },
+    });
+    // its own member, so the shared balance assertions stay untouched
+    const { memberToken } = await terminal.enroll(ctx, { phone: '+971500111222', fullName: 'Stamp Tester' });
+
+    // two visits — card not full yet
+    for (let i = 0; i < 2; i++) {
+      await terminal.transaction(ctx, { intent: 'earn', memberToken, idempotencyKey: `stamp-${i}`, amountMinor: 1000, isVisit: true });
+    }
+    let progress = await prisma.challengeProgress.findFirstOrThrow({ where: { challengeId: stamp.id } });
+    expect(progress.progress).toBe(2n);
+    expect(progress.completions).toBe(0);
+
+    // third visit fills it: voucher issued, card rolls back to zero
+    const third = await terminal.transaction(ctx, { intent: 'earn', memberToken, idempotencyKey: 'stamp-2', amountMinor: 1000, isVisit: true }) as {
+      completed: Array<{ name: string; voucherCode: string | null }>; stamps: Array<{ progress: number; target: number }>;
+    };
+    expect(third.completed.map((c) => c.name)).toContain('Coffee card');
+    const code = third.completed.find((c) => c.name === 'Coffee card')?.voucherCode;
+    expect(code).toBeTruthy();
+    progress = await prisma.challengeProgress.findFirstOrThrow({ where: { challengeId: stamp.id } });
+    expect(progress.progress).toBe(0n);
+    expect(progress.completions).toBe(1);
+    expect(third.stamps.find((s) => s.target === 3)?.progress).toBe(0);
+
+    // the till can redeem that voucher, once
+    const redeemed = await terminal.redeemVoucher(ctx, code!.toLowerCase());
+    expect(redeemed.status).toBe('redeemed');
+    expect(redeemed.rewardName).toBe('Free coffee');
+    await expect(terminal.redeemVoucher(ctx, code!)).rejects.toThrow(/already used/);
+
+    await prisma.challenge.update({ where: { id: stamp.id }, data: { enabled: false } });
+  });
+
   it('returns a member snapshot for the cashier screen', async () => {
     const { memberToken } = await terminal.resolve(ctx, 'phone', phone);
     const snapshot = await terminal.memberContext(ctx, memberToken);

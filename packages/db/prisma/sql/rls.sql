@@ -296,3 +296,11 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
 $$;
 REVOKE ALL ON FUNCTION public.ereceipt_ad(text) FROM public;
 GRANT EXECUTE ON FUNCTION public.ereceipt_ad(text) TO loyalty_app;
+
+-- Public eReceipt brand profile (website/socials) — the page has no tenant GUCs.
+CREATE OR REPLACE FUNCTION public.ereceipt_brand(p_brand_id text) RETURNS jsonb
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(branding, '{}'::jsonb) FROM brand WHERE id = p_brand_id
+$$;
+REVOKE ALL ON FUNCTION public.ereceipt_brand(text) FROM public;
+GRANT EXECUTE ON FUNCTION public.ereceipt_brand(text) TO loyalty_app;

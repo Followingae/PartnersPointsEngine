@@ -3,7 +3,7 @@ import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { TerminalHmacGuard } from '../../auth/guards/terminal-hmac.guard';
-import { BatchDto, CreateReceiptDto, EnrollDto, MemberContextDto, QuoteDto, ResolveDto, TransactionDto } from './dto';
+import { BatchDto, CreateReceiptDto, EnrollDto, MemberContextDto, QuoteDto, RedeemVoucherDto, ResolveDto, TransactionDto } from './dto';
 import { TerminalService } from './terminal.service';
 
 /**
@@ -39,6 +39,12 @@ export class TerminalController {
   @ApiOperation({ summary: 'Persist an eReceipt for the printed QR (idempotent by token).' })
   createReceipt(@CurrentTenant() ctx: TenantContext, @Body() dto: CreateReceiptDto) {
     return this.terminal.createReceipt(ctx, dto);
+  }
+
+  @Post('vouchers/redeem')
+  @ApiOperation({ summary: 'Redeem a reward voucher at the till (code from the app or a slip).' })
+  redeemVoucher(@CurrentTenant() ctx: TenantContext, @Body() dto: RedeemVoucherDto) {
+    return this.terminal.redeemVoucher(ctx, dto.code, dto.memberToken);
   }
 
   @Post('members/context')

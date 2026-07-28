@@ -781,6 +781,8 @@ CREATE TABLE "challenge" (
     "target" BIGINT NOT NULL,
     "reward_points" BIGINT NOT NULL DEFAULT 0,
     "badge_id" TEXT,
+    "repeatable" BOOLEAN NOT NULL DEFAULT false,
+    "reward_item_id" TEXT,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "starts_at" TIMESTAMP(3),
     "ends_at" TIMESTAMP(3),
@@ -799,6 +801,7 @@ CREATE TABLE "challenge_progress" (
     "membership_id" TEXT NOT NULL,
     "progress" BIGINT NOT NULL DEFAULT 0,
     "completed_at" TIMESTAMP(3),
+    "completions" INTEGER NOT NULL DEFAULT 0,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "challenge_progress_pkey" PRIMARY KEY ("id")

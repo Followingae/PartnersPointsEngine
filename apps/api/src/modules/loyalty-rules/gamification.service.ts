@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ledger, type Prisma } from '@rfm-loyalty/db';
 import { pointsAsset, type TenantContext } from '@rfm-loyalty/shared';
@@ -5,10 +6,35 @@ import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { sortClause, type ListQuery, type ListResult } from './list';
 
+export interface CompletedChallenge {
+  id: string;
+  name: string;
+  kind: string;
+  rewardPoints: string;
+  badgeName: string | null;
+  voucherCode: string | null;
+}
+
+/** A stamp card's live state for the till and the customer app. */
+export interface StampProgress {
+  id: string;
+  name: string;
+  progress: number;
+  target: number;
+  completions: number;
+}
+
+export interface GamificationOutcome {
+  completedChallengeIds: string[];
+  completed: CompletedChallenge[];
+  stamps: StampProgress[];
+}
+
 /**
- * Gamification (Phase 5): lifetime-points challenges that award a badge + bonus
- * points when crossed (one-time, idempotent). Bonus earns are tagged so they
- * don't recursively re-trigger challenge evaluation. Plus a brand leaderboard.
+ * Gamification: challenges (lifetime points / visits / spend) that award badges,
+ * bonus points and reward vouchers. Repeatable visit challenges are stamp cards
+ * — they roll over each time they fill. Bonus earns are tagged so they don't
+ * recursively re-trigger evaluation. Plus a brand leaderboard.
  */
 @Injectable()
 export class GamificationService {
@@ -17,41 +43,143 @@ export class GamificationService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Evaluate lifetime-points challenges after an earn (within the earn tx). */
+  /**
+   * Evaluate every challenge kind after an earn (within the earn tx):
+   *   lifetime_points — absolute lifetime balance
+   *   visits          — +1 per earning visit  (stamp cards live here)
+   *   spend           — + the amount spent
+   *
+   * A repeatable challenge is a stamp card: when it fills it awards its reward
+   * (points / badge / a voucher for a catalogue item) and rolls over, carrying
+   * any surplus into the next card.
+   */
   async onEarnWithTx(
     tx: Prisma.TransactionClient,
     ctx: TenantContext,
     membershipId: string,
     lifetime: bigint,
-  ): Promise<{ completedChallengeIds: string[] }> {
+    event: { isVisit?: boolean; amountMinor?: number } = {},
+  ): Promise<GamificationOutcome> {
+    const now = new Date();
     const challenges = await tx.challenge.findMany({
-      where: { brandId: ctx.brandId!, enabled: true, kind: 'lifetime_points' },
+      where: {
+        brandId: ctx.brandId!,
+        enabled: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
     });
-    const completed: string[] = [];
+
+    const completed: CompletedChallenge[] = [];
+    const stamps: StampProgress[] = [];
+
     for (const ch of challenges) {
-      if (lifetime < ch.target) continue;
       const existing = await tx.challengeProgress.findUnique({
         where: { challengeId_membershipId: { challengeId: ch.id, membershipId } },
       });
-      if (existing?.completedAt) continue;
-      await tx.challengeProgress.upsert({
-        where: { challengeId_membershipId: { challengeId: ch.id, membershipId } },
-        update: { progress: lifetime, completedAt: new Date() },
-        create: {
-          brandId: ctx.brandId!,
-          groupId: ctx.groupId!,
-          platformId: ctx.platformId,
-          challengeId: ch.id,
-          membershipId,
-          progress: lifetime,
-          completedAt: new Date(),
-        },
-      });
-      if (ch.rewardPoints > 0n) await this.bonus(tx, ctx, membershipId, ch.rewardPoints, `challenge:${ch.id}`);
-      if (ch.badgeId) await this.awardBadge(tx, ctx, membershipId, ch.badgeId);
-      completed.push(ch.id);
+
+      // how far along is the member after this event?
+      const increment =
+        ch.kind === 'visits' ? (event.isVisit === false ? 0n : 1n)
+          : ch.kind === 'spend' ? BigInt(event.amountMinor ?? 0)
+            : 0n;
+      let progress = ch.kind === 'lifetime_points' ? lifetime : (existing?.progress ?? 0n) + increment;
+      let completions = existing?.completions ?? 0;
+      let completedAt = existing?.completedAt ?? null;
+
+      const alreadyDone = completedAt !== null && !ch.repeatable;
+      if (!alreadyDone && ch.target > 0n && progress >= ch.target) {
+        // award — possibly several times if a big spend fills more than one card
+        const fills = ch.repeatable ? Number(progress / ch.target) : 1;
+        for (let i = 0; i < fills; i++) {
+          const suffix = ch.repeatable ? `:${completions + i + 1}` : '';
+          if (ch.rewardPoints > 0n) {
+            await this.bonus(tx, ctx, membershipId, ch.rewardPoints, `challenge:${ch.id}${suffix}`);
+          }
+          if (ch.badgeId) await this.awardBadge(tx, ctx, membershipId, ch.badgeId);
+          const voucherCode = ch.rewardItemId
+            ? await this.issueVoucher(tx, ctx, membershipId, ch.rewardItemId)
+            : null;
+          const badgeName = ch.badgeId
+            ? (await tx.badge.findUnique({ where: { id: ch.badgeId }, select: { name: true } }))?.name ?? null
+            : null;
+          completed.push({
+            id: ch.id,
+            name: ch.name,
+            kind: ch.kind,
+            rewardPoints: ch.rewardPoints.toString(),
+            badgeName,
+            voucherCode,
+          });
+        }
+        completions += fills;
+        if (ch.repeatable) {
+          progress -= ch.target * BigInt(fills); // carry the surplus into the next card
+          completedAt = null;
+        } else {
+          completedAt = now;
+        }
+      }
+
+      if (increment > 0n || existing == null || ch.kind === 'lifetime_points') {
+        await tx.challengeProgress.upsert({
+          where: { challengeId_membershipId: { challengeId: ch.id, membershipId } },
+          update: { progress, completedAt, completions },
+          create: {
+            brandId: ctx.brandId!,
+            groupId: ctx.groupId!,
+            platformId: ctx.platformId,
+            challengeId: ch.id,
+            membershipId,
+            progress,
+            completedAt,
+            completions,
+          },
+        });
+      }
+
+      // stamp cards are what the till prints — surface their live state
+      if (ch.repeatable && ch.kind === 'visits') {
+        stamps.push({
+          id: ch.id,
+          name: ch.name,
+          progress: Number(progress),
+          target: Number(ch.target),
+          completions,
+        });
+      }
     }
-    return { completedChallengeIds: completed };
+
+    return { completedChallengeIds: completed.map((c) => c.id), completed, stamps };
+  }
+
+  /** Issue a reward voucher with no points cost (a challenge/stamp payout). */
+  private async issueVoucher(
+    tx: Prisma.TransactionClient,
+    ctx: TenantContext,
+    membershipId: string,
+    catalogItemId: string,
+  ): Promise<string | null> {
+    const item = await tx.rewardCatalogItem.findFirst({
+      where: { id: catalogItemId, brandId: ctx.brandId!, status: 'active' },
+      select: { id: true },
+    });
+    if (!item) return null;
+    const code = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+    await tx.voucher.create({
+      data: {
+        brandId: ctx.brandId!,
+        groupId: ctx.groupId!,
+        platformId: ctx.platformId,
+        catalogItemId: item.id,
+        membershipId,
+        code,
+        pointsSpent: 0n, // earned, not bought
+      },
+    });
+    return code;
   }
 
   async awardBadge(tx: Prisma.TransactionClient, ctx: TenantContext, membershipId: string, badgeId: string): Promise<void> {
