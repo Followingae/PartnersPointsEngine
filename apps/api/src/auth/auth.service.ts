@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ApiSurface, ScopeLevel } from '@rfm-loyalty/shared';
 import { AuthPrismaService } from './auth-prisma.service';
@@ -110,8 +110,20 @@ export class AuthService {
 
   // ── Customer (phone OTP) ────────────────────────────────────────────────────
 
-  requestOtp(phone: string): { sent: true } {
-    this.otp.issue(phone);
+  /**
+   * Send a sign-in code.
+   *
+   * The response is deliberately the same whether or not the number belongs to
+   * anyone: telling the caller would turn this into a way to test which phone
+   * numbers are customers. Rate limiting is the one thing it does report, since
+   * the caller needs to know when to try again.
+   */
+  async requestOtp(phone: string): Promise<{ sent: boolean; retryAfterSeconds?: number }> {
+    const r = await this.otp.issue(phone);
+    if (!r.sent) throw new HttpException(
+      { message: `Too many codes requested. Try again in ${Math.ceil((r.retryAfterSeconds ?? 60) / 60)} minutes.` },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
     return { sent: true };
   }
 
@@ -124,7 +136,7 @@ export class AuthService {
    * before any tenant context exists.
    */
   async verifyOtpForWallet(phone: string, code: string): Promise<TokenPair & { personId: string }> {
-    if (!this.otp.verify(phone, code)) throw new UnauthorizedException('invalid or expired code');
+    if (!(await this.otp.verify(phone, code))) throw new UnauthorizedException('invalid or expired code');
     const rows = await this.db.$queryRaw<{ person: WalletPerson | null }[]>`
       SELECT wallet_person_by_phone(${sha256(phone)}) AS person`;
     const person = rows[0]?.person ?? null;
@@ -179,7 +191,7 @@ export class AuthService {
   }
 
   async verifyOtp(phone: string, code: string, brandId: string): Promise<TokenPair> {
-    if (!this.otp.verify(phone, code)) throw new UnauthorizedException('invalid or expired code');
+    if (!(await this.otp.verify(phone, code))) throw new UnauthorizedException('invalid or expired code');
     const phoneHash = sha256(phone);
     const person = await this.db.person.findUnique({ where: { phoneHash } });
     if (!person) throw new UnauthorizedException('not a member');

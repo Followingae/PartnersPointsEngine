@@ -1,32 +1,27 @@
 /**
- * Sample badge wall for screens 45/46.
+ * Presentation for the badge wall.
  *
- * TODO(api): replace with GET /customer/badges — earned badges carry an
- * `unlockedAt` and the bonus that was credited.
+ * The API returns awards only — `GET /customer/badges` lists what a member has
+ * actually earned for one brand, with no catalogue of the locked ones and no
+ * colour of its own. So the tile fill is derived from the badge's name, which
+ * keeps a badge the same colour on the wall and on its detail screen.
  */
 import { C } from '@/lib/tokens';
+import type { BadgeAward } from '@/lib/api';
 
-export interface Badge {
-  id: string;
-  name: string;
-  /** Tile fill once earned. */
-  color: string;
-  /** The purple tile needs a light glyph; the rest keep the ink one. */
-  glyph: string;
-  unlocked: boolean;
-  blurb: string;
+const TILES = [C.orange, C.purple, C.green, C.pink, C.blue, C.lime];
+
+/** Fills dark enough to need a light glyph. */
+const ON_DARK: string[] = [C.purple, C.blue];
+
+export function badgeColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return TILES[Math.abs(h) % TILES.length]!;
 }
 
-export const BADGES: Badge[] = [
-  { id: 'early-bird', name: 'Early bird', color: C.orange, glyph: C.ink, unlocked: true, blurb: 'Ten visits before 9 AM. +150 pts added to Camel Bean.' },
-  { id: 'converter', name: 'Converter', color: C.purple, glyph: '#fff', unlocked: true, blurb: 'Five conversions to Lulu Happiness. +150 pts added to your balance.' },
-  { id: 'regular', name: 'Regular', color: C.green, glyph: C.ink, unlocked: true, blurb: 'Twenty visits to a single brand. +200 pts added to Camel Bean.' },
-  { id: 'birthday', name: 'Birthday', color: C.pink, glyph: C.ink, unlocked: true, blurb: 'You spent your birthday with us. +250 pts added to your balance.' },
-  { id: 'explorer', name: 'Explorer', color: C.wash, glyph: C.soft, unlocked: false, blurb: 'Earn at five different brands to unlock this one.' },
-  { id: 'streak-10', name: 'Streak 10', color: C.wash, glyph: C.soft, unlocked: false, blurb: 'Keep a ten-week streak alive at any brand to unlock this one.' },
-];
+export const badgeGlyph = (color: string) => (ON_DARK.includes(color) ? '#fff' : C.ink);
 
-export const EARNED_SUMMARY = '8 of 16 earned';
-
-export const findBadge = (id?: string | string[]) =>
-  BADGES.find((b) => b.id === (Array.isArray(id) ? id[0] : id)) ?? BADGES[0];
+/** Awards carry no id, so a badge is addressed by its name. */
+export const findAward = (awards: BadgeAward[] | undefined, name: string | undefined) =>
+  awards?.find((a) => a.badge.name === name);

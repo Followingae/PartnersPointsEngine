@@ -34,7 +34,7 @@ export default function WalletsEmpty() {
 
         <Button
           label="Browse brands"
-          onPress={() => router.push('/(tabs)/discover')}
+          onPress={() => router.push('/discover')}
           style={{ marginTop: 26, alignSelf: 'stretch', height: 58, borderRadius: 18 }}
         />
       </View>

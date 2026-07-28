@@ -14,6 +14,7 @@ import { HmacService } from './crypto/hmac.service';
 import { NonceStoreService } from './nonce-store.service';
 import { PasswordService } from './crypto/password.service';
 import { OtpStoreService } from './otp/otp-store.service';
+import { SmsSenderService } from './otp/sms-sender.service';
 import { TotpService } from './totp/totp.service';
 import { TokenService } from './tokens/token.service';
 import { AuthzService } from './authz/authz.service';
@@ -38,6 +39,7 @@ import { TerminalHmacGuard } from './guards/terminal-hmac.guard';
     HmacService,
     EnvelopeCryptoService,
     OtpStoreService,
+    SmsSenderService,
     TokenService,
     AuthzService,
     NonceStoreService,

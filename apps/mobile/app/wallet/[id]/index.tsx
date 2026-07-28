@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { OnColorBar, brandFg, getBrand } from '@/components/BrandCard';
-import { IconButton, Label, Screen, Small, pts } from '@/components/UI';
+import { OnColorBar, brandColor, brandFg, brandInitials } from '@/components/BrandCard';
+import { EmptyState, ErrorState, IconButton, Label, Loading, Screen, Small, pts } from '@/components/UI';
+import { getActivity, getCards } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
 import { C, R, S, SP, font } from '@/lib/tokens';
 
 /** 13 · Card detail — brand-coloured head over a white sheet. */
@@ -100,17 +102,90 @@ function RecentRow({ title, when, amount, color, first }: {
   );
 }
 
+/** "Today · 2:41 PM" for today, "12 Jul · 8:40 AM" before that. */
+function whenLabel(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return `Today · ${time}`;
+  return `${d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} · ${time}`;
+}
+
+/** Loading, failure and not-found all still need a way back. */
+function Fallback({ children, onBack }: { children: ReactNode; onBack: () => void }) {
+  return (
+    <Screen background={C.surface}>
+      <View style={{ marginTop: 2 }}>
+        <IconButton onPress={onBack} style={{ borderRadius: 999 }}>
+          <BackIcon color={C.ink} />
+        </IconButton>
+      </View>
+      {children}
+    </Screen>
+  );
+}
+
 export default function CardDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const brandId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
-  // TODO(api): GET /me/cards/:id — balance, tier, recent ledger entries.
-  const brand = getBrand(id);
-  const fg = brandFg(brand.color);
+
+  const { data: cards, loading, refreshing, error, signedOut, refresh } = useAsync(getCards, []);
+  // Kept separate from the card fetch: a failed activity read should cost the
+  // preview list, not the balance the customer came here for.
+  const activity = useAsync(() => getActivity(40), []);
+
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+  }, [signedOut, router]);
+
+  const card = cards?.find((c) => c.brandId === brandId);
+
+  if (loading) return <Fallback onBack={() => router.back()}><Loading /></Fallback>;
+
+  if (error && !cards) {
+    return (
+      <Fallback onBack={() => router.back()}>
+        <ErrorState message={error} onRetry={refresh} />
+      </Fallback>
+    );
+  }
+
+  if (!card) {
+    return (
+      <Fallback onBack={() => router.back()}>
+        <EmptyState
+          title="Card not found"
+          body="This card isn’t in your wallet."
+          actionLabel="Browse brands"
+          onAction={() => router.push('/discover')}
+        />
+      </Fallback>
+    );
+  }
+
+  const color = brandColor(card.brandId, card.branding);
+  const fg = brandFg(color);
   const chrome = fg === '#fff' ? 'rgba(255,255,255,.18)' : 'rgba(21,21,15,.15)';
-  const base = `/wallet/${brand.id}`;
+  const base = `/wallet/${card.brandId}`;
+  const joined = new Date(card.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const footnote = card.nextTier && card.toNextTier
+    ? `${pts(Number(card.toNextTier))} to ${card.nextTier}`
+    : null;
+  const recent = (activity.data ?? []).filter((e) => e.brandId === card.brandId).slice(0, 3);
+
+  const refreshAll = () => {
+    refresh();
+    activity.refresh();
+  };
 
   return (
-    <Screen background={brand.color} pad={false} bottomGap={0}>
+    <Screen
+      background={color}
+      pad={false}
+      bottomGap={0}
+      refreshing={refreshing || activity.refreshing}
+      onRefresh={refreshAll}
+    >
       <View style={{ paddingHorizontal: SP.gutter }}>
         <View style={{ marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <IconButton onPress={() => router.back()} style={{ borderRadius: 999, backgroundColor: chrome }}>
@@ -128,30 +203,37 @@ export default function CardDetail() {
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: fg }}>{brand.initial}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: fg }}>{brandInitials(card.brandName)}</Text>
           </View>
           <View>
-            <Text style={{ fontFamily: font(600), fontSize: 19, lineHeight: 23, letterSpacing: -0.38, color: fg }}>{brand.name}</Text>
-            <Text style={{ marginTop: 3, fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: fg }}>{brand.category}</Text>
+            <Text style={{ fontFamily: font(600), fontSize: 19, lineHeight: 23, letterSpacing: -0.38, color: fg }}>{card.brandName}</Text>
+            <Text style={{ marginTop: 3, fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: fg }}>Member since {joined}</Text>
           </View>
         </View>
 
         <View style={{ marginTop: 34, flexDirection: 'row', alignItems: 'baseline', gap: 9 }}>
           <Text style={{ fontFamily: font(600), fontSize: 60, lineHeight: 69, letterSpacing: -2.4, color: fg }}>
-            {pts(brand.points)}
+            {pts(Number(card.available))}
           </Text>
           <Text style={{ fontFamily: font(500), fontSize: 15, lineHeight: 21, color: fg }}>pts</Text>
         </View>
 
-        <Pressable onPress={() => router.push(`${base}/tiers`)}>
-          <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Text style={{ fontFamily: font(500), fontSize: 13.5, lineHeight: 19, color: fg }}>{brand.tier}</Text>
-            <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>{brand.footnote}</Text>
-          </View>
-          <View style={{ marginTop: 10 }}>
-            <OnColorBar value={brand.progress ?? 0} color={brand.color} />
-          </View>
-        </Pressable>
+        {/* A brand with no tier programme gets no tier line and no empty bar. */}
+        {card.tier || card.nextTier ? (
+          <Pressable onPress={() => router.push(`${base}/tiers`)}>
+            <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: font(500), fontSize: 13.5, lineHeight: 19, color: fg }}>{card.tier ?? ''}</Text>
+              {footnote ? (
+                <Text style={{ fontFamily: font(500), fontSize: 13, lineHeight: 18, color: fg }}>{footnote}</Text>
+              ) : null}
+            </View>
+            {card.nextTier ? (
+              <View style={{ marginTop: 10 }}>
+                <OnColorBar value={card.progressPct / 100} color={color} />
+              </View>
+            ) : null}
+          </Pressable>
+        ) : null}
       </View>
 
       <View
@@ -162,8 +244,16 @@ export default function CardDetail() {
       >
         <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: SP.gutter }}>
           <Action label="Show QR" primary icon={(c) => <QrIcon color={c} />} onPress={() => router.push('/(tabs)/scan')} />
-          <Action label="Rewards" icon={(c) => <RewardsIcon color={c} />} onPress={() => router.push('/rewards')} />
-          <Action label="Convert" icon={(c) => <ConvertIcon color={c} />} onPress={() => router.push('/convert')} />
+          <Action
+            label="Rewards"
+            icon={(c) => <RewardsIcon color={c} />}
+            onPress={() => router.push({ pathname: '/rewards', params: { brandId: card.brandId } })}
+          />
+          <Action
+            label="Convert"
+            icon={(c) => <ConvertIcon color={c} />}
+            onPress={() => router.push({ pathname: '/convert', params: { brandId: card.brandId } })}
+          />
           {/* TODO(api): add-to-Apple/Google-Wallet pass issuance. */}
           <Action label="Wallet" icon={(c) => <WalletIcon color={c} />} />
         </View>
@@ -177,9 +267,21 @@ export default function CardDetail() {
             <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: C.muted }}>All</Text>
           </Pressable>
 
-          <RecentRow first title="Earned · JLT branch" when="Today · 2:41 PM" amount="+120" color={S.earnInk} />
-          <RecentRow title="Redeemed · free flat white" when="Mon · 8:40 AM" amount="−450" color={S.spend} />
-          <RecentRow title="Converted to Lulu" when="Sat · 2:40 PM" amount="−1,000" color={C.electric} />
+          {recent.map((e, i) => (
+            <RecentRow
+              key={e.id}
+              first={i === 0}
+              title={e.title}
+              when={whenLabel(e.at)}
+              amount={e.points ?? ''}
+              color={e.direction === 'credit' ? S.earnInk : e.direction === 'debit' ? S.spend : C.muted}
+            />
+          ))}
+          {recent.length === 0 ? (
+            <Small style={{ paddingVertical: 18 }}>
+              {activity.loading ? 'Loading…' : 'Nothing on this card yet.'}
+            </Small>
+          ) : null}
         </View>
 
         <View style={{ paddingHorizontal: SP.gutter, paddingTop: 8, flexDirection: 'row', gap: 10 }}>

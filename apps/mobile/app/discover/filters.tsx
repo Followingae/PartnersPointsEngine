@@ -1,38 +1,47 @@
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { Button, Chip, IconButton, Label, Screen } from '@/components/UI';
-import { C, R, SP, font } from '@/lib/tokens';
+import { Button, Chip, EmptyState, ErrorState, IconButton, Label, Loading, Screen } from '@/components/UI';
+import { brandFg } from '@/components/BrandCard';
+import { getDiscoverBrands } from '@/lib/api';
+import { brandColor, brandInitials } from '@/lib/brand';
+import { useAsync } from '@/lib/useAsync';
+import { C, R, SP, T, font } from '@/lib/tokens';
 
 /** 21 · Search & filters — live query, filter pills, results, sticky apply. */
 
-const FILTERS = ['Near me', 'Open now', '2 pts / AED', 'Stamp cards', 'Joined'];
-
-type Result = { id: string; code: string; name: string; meta: string; tile: string; fg: string; joined: boolean };
-
-// TODO(api): GET /customer/discover/search?q={query}&filters={filters}
-const RESULTS: Result[] = [
-  { id: 'camel-bean', code: 'CB', name: 'Camel Bean', meta: 'Coffee · 0.4 km', tile: C.orange, fg: C.ink, joined: true },
-  { id: 'bloom-coffee', code: 'BC', name: 'Bloom Coffee', meta: 'Coffee · 0.8 km', tile: C.blue, fg: '#fff', joined: false },
-];
-
-/** The design shows a blinking text caret sitting after the typed query. */
-function Caret() {
-  const [on, setOn] = useState(true);
-  useEffect(() => {
-    const id = setInterval(() => setOn((v) => !v), 530);
-    return () => clearInterval(id);
-  }, []);
-  return <View style={{ width: 2, height: 18, marginBottom: -3, backgroundColor: on ? C.ink : 'transparent' }} />;
-}
+/**
+ * The design's pills (Near me, Open now, 2 pts / AED, Stamp cards) all need
+ * data the brand list does not carry — no location, no earn rate, no stamp
+ * programme. Membership is the one real axis, so it is the one kept.
+ */
+const FILTERS = ['Joined', 'To join'] as const;
+type Filter = (typeof FILTERS)[number];
 
 export default function DiscoverFilters() {
   const router = useRouter();
-  const [active, setActive] = useState<string[]>(['Near me', 'Open now']);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState<Filter[]>([]);
+  const { data, loading, error, signedOut, refresh } = useAsync(getDiscoverBrands);
 
-  const toggle = (f: string) =>
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+  }, [signedOut, router]);
+
+  const toggle = (f: Filter) =>
     setActive((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]));
+
+  const q = query.trim().toLowerCase();
+  // Both pills together mean "either", which is the same as neither.
+  const wantJoined = active.includes('Joined');
+  const wantOpen = active.includes('To join');
+  const results = (data ?? []).filter((b) => {
+    if (q && !b.brandName.toLowerCase().includes(q) && !b.brandSlug.toLowerCase().includes(q)) return false;
+    if (wantJoined && !wantOpen) return b.joined;
+    if (wantOpen && !wantJoined) return !b.joined;
+    return true;
+  });
 
   return (
     <Screen scroll={false} bottomGap={34} background={C.surface}>
@@ -55,8 +64,17 @@ export default function DiscoverFilters() {
             <Circle cx={11} cy={11} r={7} />
             <Path d="M20 20l-3.2-3.2" />
           </Svg>
-          <Text style={{ fontFamily: font(500), fontSize: 14.5, lineHeight: 20, color: C.ink }}>coff</Text>
-          <Caret />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            placeholder="Search brands"
+            placeholderTextColor={C.soft}
+            style={[T.body, { flex: 1, padding: 0, fontSize: 14.5, lineHeight: 20, color: C.ink }]}
+          />
         </View>
 
         <Label style={{ marginTop: 26 }}>Filters</Label>
@@ -69,39 +87,57 @@ export default function DiscoverFilters() {
         </View>
 
         <Label style={{ marginTop: 30 }}>Results</Label>
-        <View style={{ marginTop: 8 }}>
-          {RESULTS.map((r, i) => (
-            <Pressable
-              key={r.id}
-              onPress={() => router.push(`/merchant/${r.id}`)}
-              style={({ pressed }) => [
-                {
-                  flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18,
-                  borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.hairline,
-                },
-                pressed ? { opacity: 0.75 } : null,
-              ]}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: r.tile, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: r.fg }}>{r.code}</Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{r.name}</Text>
-                <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>{r.meta}</Text>
-              </View>
-              {r.joined ? (
-                <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted }}>Joined</Text>
-              ) : (
-                <Pressable onPress={() => router.push(`/join/${r.id}`)} hitSlop={6}>
-                  <Chip label="Join" tone="ink" style={{ paddingHorizontal: 14, paddingVertical: 9 }} />
+        {loading ? (
+          <Loading />
+        ) : error && !data ? (
+          <ErrorState message={error} onRetry={refresh} />
+        ) : results.length === 0 ? (
+          <EmptyState title="No matches" body="Try a different name or clear the filters." />
+        ) : (
+          // The real list runs past the fold; the design only ever showed two.
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ marginTop: 8 }} showsVerticalScrollIndicator={false}>
+            {results.map((r, i) => {
+              const tile = brandColor(r.branding, r.brandId);
+              return (
+                <Pressable
+                  key={r.brandId}
+                  onPress={() => router.push(`/merchant/${r.brandId}`)}
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18,
+                      borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.hairline,
+                    },
+                    pressed ? { opacity: 0.75 } : null,
+                  ]}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: tile, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: brandFg(tile) }}>{brandInitials(r.brandName)}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{r.brandName}</Text>
+                    <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted, marginTop: 3 }}>{r.pointsCode}</Text>
+                  </View>
+                  {r.joined ? (
+                    <Text style={{ fontFamily: font(500), fontSize: 12.5, lineHeight: 18, color: C.muted }}>Joined</Text>
+                  ) : (
+                    <Pressable onPress={() => router.push(`/join/${r.brandId}`)} hitSlop={6}>
+                      <Chip label="Join" tone="ink" style={{ paddingHorizontal: 14, paddingVertical: 9 }} />
+                    </Pressable>
+                  )}
                 </Pressable>
-              )}
-            </Pressable>
-          ))}
-        </View>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
-      <Button label="Show 6 brands" onPress={() => router.back()} style={{ height: 58, borderRadius: 18 }} />
+      {/* Search lives entirely on this screen, so the sticky action just closes
+          it — there is no query to hand back to the Discover tab. */}
+      <Button
+        label={results.length === 1 ? 'Show 1 brand' : `Show ${results.length} brands`}
+        onPress={() => router.back()}
+        style={{ height: 58, borderRadius: 18 }}
+      />
     </Screen>
   );
 }

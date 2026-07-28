@@ -3,38 +3,61 @@ import { Stack, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TextAction } from '@/components/Bits';
-import { Button, Chip, H2, Label } from '@/components/UI';
+import { Button, Chip, H2, Label, Small } from '@/components/UI';
 import { C, R, SP } from '@/lib/tokens';
+import {
+  DIRECTION_OPTIONS, NO_FILTERS, TYPE_OPTIONS, setFilters, useActivityFilters, useBrandOptions,
+} from '@/app/activity/_filters';
 
-const TYPES = ['All', 'Earned', 'Redeemed', 'Converted', 'Expired'];
-const CARDS = ['All cards', 'Camel Bean', 'Núr', 'Verde'];
-
-function ChipRow({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+function ChipRow<K extends string | null>({
+  options, value, onChange,
+}: {
+  options: { key: K; label: string }[];
+  value: K;
+  onChange: (v: K) => void;
+}) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
       {options.map((o) => (
-        <Pressable key={o} onPress={() => onChange(o)} style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}>
-          <Chip label={o} tone={o === value ? 'ink' : 'neutral'} style={{ paddingHorizontal: 15, paddingVertical: 9 }} />
+        <Pressable
+          key={o.key ?? '*'}
+          onPress={() => onChange(o.key)}
+          style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
+        >
+          <Chip
+            label={o.label}
+            tone={o.key === value ? 'ink' : 'neutral'}
+            style={{ paddingHorizontal: 15, paddingVertical: 9 }}
+          />
         </Pressable>
       ))}
     </View>
   );
 }
 
-/** 50 · Filter activity — the sheet the Activity tab's filter button opens. */
+/**
+ * 50 · Filter activity — the sheet the Activity tab's filter button opens.
+ *
+ * Choices are held locally until Apply, so backing out of the sheet leaves the
+ * feed as it was. The cards on offer are the ones the loaded feed mentions.
+ */
 export default function ActivityFilters() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [type, setType] = useState(TYPES[0]);
-  const [card, setCard] = useState(CARDS[0]);
+  const current = useActivityFilters();
+  const brands = useBrandOptions();
+  const [draft, setDraft] = useState(current);
+
+  const cardOptions = [
+    { key: null as string | null, label: 'All cards' },
+    ...brands.map((b) => ({ key: b.id as string | null, label: b.name })),
+  ];
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/activity'));
 
-  // TODO(api): pass the chosen type/card through to GET /customer/activity.
-  const apply = () => close();
-  const reset = () => {
-    setType(TYPES[0]);
-    setCard(CARDS[0]);
+  const apply = () => {
+    setFilters(draft);
+    close();
   };
 
   return (
@@ -61,17 +84,38 @@ export default function ActivityFilters() {
 
         <View style={{ marginTop: 22 }}>
           <Label>Type</Label>
-          <ChipRow options={TYPES} value={type} onChange={setType} />
+          <ChipRow
+            options={TYPE_OPTIONS}
+            value={draft.type}
+            onChange={(type) => setDraft((d) => ({ ...d, type }))}
+          />
+        </View>
+
+        <View style={{ marginTop: 26 }}>
+          <Label>Direction</Label>
+          <ChipRow
+            options={DIRECTION_OPTIONS}
+            value={draft.direction}
+            onChange={(direction) => setDraft((d) => ({ ...d, direction }))}
+          />
         </View>
 
         <View style={{ marginTop: 26 }}>
           <Label>Card</Label>
-          <ChipRow options={CARDS} value={card} onChange={setCard} />
+          {brands.length ? (
+            <ChipRow
+              options={cardOptions}
+              value={draft.brandId}
+              onChange={(brandId) => setDraft((d) => ({ ...d, brandId }))}
+            />
+          ) : (
+            <Small style={{ marginTop: 12 }}>No cards in your recent activity yet.</Small>
+          )}
         </View>
 
         <View style={{ marginTop: 28 }}>
           <Button label="Apply" onPress={apply} style={{ borderRadius: R.card, height: 58 }} />
-          <TextAction label="Reset" onPress={reset} />
+          <TextAction label="Reset" onPress={() => setDraft(NO_FILTERS)} />
         </View>
       </View>
     </View>
