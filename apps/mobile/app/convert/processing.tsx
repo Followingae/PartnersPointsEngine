@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen, Small } from '@/components/UI';
+import { ApiError, convertPoints } from '@/lib/api';
 import { C, R, font } from '@/lib/tokens';
 
 function PulseDot({ delay }: { delay: number }) {
@@ -29,19 +30,73 @@ function PulseDot({ delay }: { delay: number }) {
   );
 }
 
-/** Screen 39, processing state — the transfer is in flight. */
+/**
+ * Where the transfer actually happens.
+ *
+ * The call is fired exactly once per mount and guarded by a ref: `convertPoints`
+ * mints a fresh idempotency key per call, so a second fire would be a second
+ * transfer, not a deduplicated retry. The server settles synchronously and
+ * reports `completed` or `failed`; a failure there has already voided the hold
+ * and refunded the merchant's allowance, so nothing is left half-done.
+ */
 export default function ConvertProcessing() {
   const router = useRouter();
-  const { amount } = useLocalSearchParams<{ amount?: string }>();
+  const { brandId, amount } = useLocalSearchParams<{ brandId?: string; amount?: string }>();
+  const fired = useRef(false);
 
   useEffect(() => {
-    // TODO(api): convert — poll the transfer job instead of this timer.
-    const t = setTimeout(
-      () => router.replace({ pathname: '/convert/success', params: { amount: amount ?? '2000' } }),
-      1800,
-    );
-    return () => clearTimeout(t);
-  }, [router, amount]);
+    if (fired.current) return;
+    fired.current = true;
+
+    const points = Math.max(1, Number(amount ?? 0) || 0);
+
+    (async () => {
+      if (!brandId) {
+        router.replace({ pathname: '/convert/failure', params: { message: 'That transfer is missing its card.' } });
+        return;
+      }
+      try {
+        const result = await convertPoints(brandId, points);
+        if (result.status === 'completed') {
+          router.replace({
+            pathname: '/convert/success',
+            params: {
+              brandId,
+              amount: String(points),
+              partnerPoints: String(result.partnerPoints ?? ''),
+            },
+          });
+          return;
+        }
+        router.replace({
+          pathname: '/convert/failure',
+          params: {
+            brandId,
+            amount: String(points),
+            outcome: 'failed',
+            message: 'The partner did not confirm the transfer.',
+          },
+        });
+      } catch (e) {
+        if (e instanceof ApiError && e.isAuth) {
+          router.replace('/onboarding/phone');
+          return;
+        }
+        // The server rejecting the transfer means nothing moved. A request that
+        // never came back means nobody knows — those are told apart downstream
+        // so the failure screen never promises a refund it can't vouch for.
+        router.replace({
+          pathname: '/convert/failure',
+          params: {
+            brandId,
+            amount: String(points),
+            outcome: e instanceof ApiError && e.status === 0 ? 'unknown' : 'failed',
+            message: e instanceof Error ? e.message : 'Something went wrong',
+          },
+        });
+      }
+    })();
+  }, [brandId, amount, router]);
 
   return (
     <Screen background={C.surface} scroll={false} bottomGap={30}>

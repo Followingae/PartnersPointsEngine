@@ -1,25 +1,64 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { H1, Screen, Small } from '@/components/UI';
+import { EmptyState, ErrorState, H1, Loading, Screen } from '@/components/UI';
 import { C, R, font } from '@/lib/tokens';
 import { IconName, ListRow, TopBar } from '@/components/RewardKit';
+import { getVouchers, type Voucher, type VoucherStatus } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
+import { shortDate } from '@/lib/dates';
+import { brandColor, brandTint } from '@/components/BrandCard';
 
-type Status = 'active' | 'used' | 'expired';
+type Tab = 'active' | 'used' | 'expired';
 
-const FILTERS: { key: Status; label: string }[] = [
+const FILTERS: { key: Tab; label: string }[] = [
   { key: 'active', label: 'Active' },
   { key: 'used', label: 'Used' },
   { key: 'expired', label: 'Expired' },
 ];
 
-const VOUCHERS: {
-  id: string; title: string; sub: string; icon: IconName; iconBg: string; status: Status;
-}[] = [
-  { id: 'cb-9k2d-4417', title: 'Free flat white', sub: 'Camel Bean · expires 11 Aug', icon: 'cup', iconBg: 'rgba(255,74,28,.12)', status: 'active' },
-  { id: 'nur-slice', title: 'Free slice', sub: 'Núr · expires 2 Aug', icon: 'gift', iconBg: 'rgba(123,47,247,.12)', status: 'active' },
-  { id: 'verde-10', title: 'AED 10 off', sub: 'Verde · expires 30 Jul', icon: 'tag', iconBg: 'rgba(0,179,126,.14)', status: 'active' },
-];
+/** A reserved voucher is mid-sale, so it belongs with the ones still spendable. */
+const STATUSES: Record<Tab, VoucherStatus[]> = {
+  active: ['issued', 'reserved'],
+  used: ['redeemed'],
+  expired: ['expired', 'void'],
+};
+
+const EMPTY: Record<Tab, { title: string; body: string }> = {
+  active: { title: 'No vouchers yet', body: 'Rewards you claim will appear here, ready for the till.' },
+  used: { title: 'Nothing used yet', body: 'Vouchers you redeem will be kept here.' },
+  expired: { title: 'Nothing expired', body: 'Vouchers that run out of time will be listed here.' },
+};
+
+/** What this voucher is doing right now — the line a customer reads first. */
+function statusLine(v: Voucher): string {
+  switch (v.status) {
+    case 'reserved':
+      return 'In use at the till';
+    case 'redeemed':
+      return v.redeemedAt ? `Used ${shortDate(v.redeemedAt)}` : 'Used';
+    case 'expired':
+      return v.expiresAt ? `Expired ${shortDate(v.expiresAt)}` : 'Expired';
+    case 'void':
+      return 'Cancelled';
+    default:
+      return v.expiresAt ? `Expires ${shortDate(v.expiresAt)}` : 'No expiry';
+  }
+}
+
+function icon(v: Voucher): IconName {
+  if (v.status === 'reserved') return 'swap';
+  if (v.status === 'redeemed') return 'check';
+  if (v.status === 'expired' || v.status === 'void') return 'alert';
+  // Zero points spent means it was a gift, not a purchase.
+  return v.pointsSpent === '0' ? 'gift' : 'tag';
+}
+
+function iconColors(v: Voucher): { bg: string; fg: string } {
+  if (v.status === 'reserved') return { bg: brandTint(C.orange, 0.14), fg: C.orange };
+  if (v.status === 'expired' || v.status === 'void') return { bg: C.canvas, fg: C.faint };
+  return { bg: brandTint(brandColor(v.brandId, v.branding), 0.14), fg: C.ink };
+}
 
 function Filter({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -48,13 +87,17 @@ function Filter({ label, selected, onPress }: { label: string; selected: boolean
 
 export default function Vouchers() {
   const router = useRouter();
-  const [filter, setFilter] = useState<Status>('active');
+  const [filter, setFilter] = useState<Tab>('active');
+  const { data, loading, refreshing, error, signedOut, refresh } = useAsync(() => getVouchers(), []);
 
-  // TODO(api): list the customer's vouchers; sample rows come from the design.
-  const rows = VOUCHERS.filter((v) => v.status === filter);
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+  }, [signedOut, router]);
+
+  const rows = (data ?? []).filter((v) => STATUSES[filter].includes(v.status));
 
   return (
-    <Screen background={C.surface} bottomGap={30}>
+    <Screen background={C.surface} bottomGap={30} refreshing={refreshing} onRefresh={refresh}>
       <TopBar />
 
       <H1 style={{ marginTop: 20 }}>Vouchers</H1>
@@ -66,21 +109,35 @@ export default function Vouchers() {
       </View>
 
       <View style={{ marginTop: 24 }}>
-        {rows.map((v, i) => (
-          <ListRow
-            key={v.id}
-            icon={v.icon}
-            iconBg={v.iconBg}
-            title={v.title}
-            sub={v.sub}
-            chevron
-            divider={i > 0}
-            onPress={() => router.push(`/voucher/${v.id}`)}
+        {loading ? <Loading /> : null}
+
+        {!loading && error ? <ErrorState message={error} onRetry={refresh} /> : null}
+
+        {!loading && !error && rows.length === 0 ? (
+          <EmptyState
+            title={EMPTY[filter].title}
+            body={EMPTY[filter].body}
+            actionLabel={filter === 'active' ? 'Browse rewards' : undefined}
+            onAction={filter === 'active' ? () => router.push('/rewards') : undefined}
           />
-        ))}
-        {rows.length === 0 ? (
-          <Small style={{ paddingVertical: 24 }}>Nothing here yet.</Small>
         ) : null}
+
+        {rows.map((v, i) => {
+          const { bg, fg } = iconColors(v);
+          return (
+            <ListRow
+              key={v.id}
+              icon={icon(v)}
+              iconBg={bg}
+              iconColor={fg}
+              title={v.rewardName}
+              sub={[v.brandName, statusLine(v)].filter(Boolean).join(' · ')}
+              chevron
+              divider={i > 0}
+              onPress={() => router.push(`/voucher/${encodeURIComponent(v.id)}`)}
+            />
+          );
+        })}
       </View>
     </Screen>
   );

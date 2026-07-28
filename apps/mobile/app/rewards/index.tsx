@@ -85,7 +85,7 @@ export default function Rewards() {
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Small style={{ fontSize: 12, lineHeight: 17 }}>pts at {card.brandName}</Small>
-              {cards.length > 1 ? <Ic name={picking ? 'minus' : 'plus'} size={12} color={C.soft} sw={2.2} /> : null}
+              {cards.length > 1 ? <Ic name="swap" size={12} color={C.soft} sw={2.2} /> : null}
             </View>
           </Pressable>
         ) : null}

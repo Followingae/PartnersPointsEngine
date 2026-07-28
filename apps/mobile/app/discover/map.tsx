@@ -4,9 +4,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { IconButton, Loading, Small } from '@/components/UI';
-import { brandFg } from '@/components/BrandCard';
+import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { getDiscoverBrands } from '@/lib/api';
-import { brandColor, brandInitials } from '@/lib/brand';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, SP, font, shadow } from '@/lib/tokens';
 
@@ -39,11 +38,12 @@ export default function DiscoverMap() {
 
   const brands = (data ?? []).slice(0, SLOTS.length);
   const current = brands[Math.min(selected, Math.max(0, brands.length - 1))];
+  const currentTone = current ? brandColor(current.brandId, current.branding) : C.wash;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       {brands.map((b, i) => {
-        const tile = brandColor(b.branding, b.brandId);
+        const tile = brandColor(b.brandId, b.branding);
         return (
           <Pressable
             key={b.brandId}
@@ -110,11 +110,11 @@ export default function DiscoverMap() {
           <View
             style={{
               width: 46, height: 46, borderRadius: 15,
-              backgroundColor: brandColor(current.branding, current.brandId),
+              backgroundColor: currentTone,
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: brandFg(brandColor(current.branding, current.brandId)) }}>
+            <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: brandFg(currentTone) }}>
               {brandInitials(current.brandName)}
             </Text>
           </View>

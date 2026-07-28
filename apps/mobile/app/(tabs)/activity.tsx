@@ -8,7 +8,7 @@ import { C, R, S } from '@/lib/tokens';
 import { getActivity, type ActivityEvent } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { dayLabel, timeLabel } from '@/lib/dates';
-import { brandColor } from '@/lib/brandColor';
+import { brandColor } from '@/components/BrandCard';
 import {
   applyFilters, brandOptionsFrom, clearFilters, hasFilters, isVoucherEvent, publishBrands,
   useActivityFilters,
@@ -86,7 +86,11 @@ export default function Activity() {
                 divider={i > 0}
                 onPress={() => router.push(`/activity/${encodeURIComponent(e.id)}`)}
                 lead={
-                  <Tile size={40} radius={R.small} background={reward ? C.wash : brandColor(e.brandId)}>
+                  <Tile
+                    size={40}
+                    radius={R.small}
+                    background={reward || !e.brandId ? C.wash : brandColor(e.brandId)}
+                  >
                     {reward ? <Ic name="gift" size={19} color={C.ink} sw={1.6} /> : null}
                   </Tile>
                 }

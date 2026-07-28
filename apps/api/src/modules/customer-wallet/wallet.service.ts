@@ -128,6 +128,21 @@ export class CustomerWalletService {
     return this.call<unknown[]>('wallet_discoverable_brands', [personId]);
   }
 
+  /**
+   * The value the app renders as a QR at the till.
+   *
+   * Registering it as an identifier is what makes the terminal able to resolve
+   * it — scanning alone doesn't help if nothing on the server matches the hash.
+   */
+  async scanCode(personId: string, brandId: string) {
+    const r = await this.call<{ value: string; loyaltyId: string; membershipId: string } | null>(
+      'wallet_scan_code',
+      [personId, brandId],
+    );
+    if (!r) throw new NotFoundException('card not found');
+    return r;
+  }
+
   /** Contact details are stored encrypted; decrypt for the owner only. */
   private reveal(b64: string | null): string | null {
     if (!b64) return null;

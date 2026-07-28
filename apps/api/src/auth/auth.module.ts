@@ -49,6 +49,9 @@ import { TerminalHmacGuard } from './guards/terminal-hmac.guard';
   ],
   exports: [
     TokenService,
+    // The customer wallet trades a wallet session for a brand-scoped token, so
+    // it needs the service that mints them.
+    AuthService,
     AdminJwtGuard,
     CustomerJwtGuard,
     TerminalHmacGuard,

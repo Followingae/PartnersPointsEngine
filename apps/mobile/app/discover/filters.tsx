@@ -3,9 +3,8 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Button, Chip, EmptyState, ErrorState, IconButton, Label, Loading, Screen } from '@/components/UI';
-import { brandFg } from '@/components/BrandCard';
+import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { getDiscoverBrands } from '@/lib/api';
-import { brandColor, brandInitials } from '@/lib/brand';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, SP, T, font } from '@/lib/tokens';
 
@@ -95,9 +94,9 @@ export default function DiscoverFilters() {
           <EmptyState title="No matches" body="Try a different name or clear the filters." />
         ) : (
           // The real list runs past the fold; the design only ever showed two.
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ marginTop: 8 }} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1, marginTop: 8 }} showsVerticalScrollIndicator={false}>
             {results.map((r, i) => {
-              const tile = brandColor(r.branding, r.brandId);
+              const tile = brandColor(r.brandId, r.branding);
               return (
                 <Pressable
                   key={r.brandId}

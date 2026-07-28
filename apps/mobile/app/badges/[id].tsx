@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
-import { Icon, Lede } from '@/components/Bits';
+import { Share, Text, View } from 'react-native';
+import { Icon, Lede, TextAction } from '@/components/Bits';
 import { Button, ErrorState, H1, Loading, Screen } from '@/components/UI';
 import { getBadges } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
-import { R } from '@/lib/tokens';
+import { C, R } from '@/lib/tokens';
 import { badgeColor, badgeGlyph, findAward } from '@/app/badges/_data';
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -56,7 +56,7 @@ export default function BadgeUnlocked() {
             width: 148,
             height: 148,
             borderRadius: 44,
-            backgroundColor: award ? color : undefined,
+            backgroundColor: award ? color : C.wash,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -71,11 +71,21 @@ export default function BadgeUnlocked() {
         </Lede>
       </View>
 
-      <Button
-        label={award ? 'Nice' : 'Got it'}
-        onPress={dismiss}
-        style={{ borderRadius: R.card, height: 58 }}
-      />
+      <View>
+        <Button
+          label={award ? 'Nice' : 'Got it'}
+          onPress={dismiss}
+          style={{ borderRadius: R.card, height: 58 }}
+        />
+        {award ? (
+          <TextAction
+            label="Share"
+            onPress={() => {
+              void Share.share({ message: `I just earned the ${award.badge.name} badge on Partners Points.` });
+            }}
+          />
+        ) : null}
+      </View>
     </Screen>
   );
 }

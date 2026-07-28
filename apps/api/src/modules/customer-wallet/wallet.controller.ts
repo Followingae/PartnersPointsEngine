@@ -58,6 +58,12 @@ export class CustomerWalletController {
     return this.wallet.brands(me.personId);
   }
 
+  @Get('cards/:brandId/scan-code')
+  @ApiOperation({ summary: 'The value to show as a QR at this brand’s till.' })
+  scanCode(@CurrentWallet() me: WalletPrincipal, @Param('brandId') brandId: string) {
+    return this.wallet.scanCode(me.personId, brandId);
+  }
+
   /**
    * Trade the wallet session for a brand-scoped one, so a card's detail screens
    * can use the existing per-brand customer endpoints. Membership is re-checked

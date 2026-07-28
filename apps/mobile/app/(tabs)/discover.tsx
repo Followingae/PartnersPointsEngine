@@ -3,9 +3,8 @@ import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Chip, EmptyState, ErrorState, H1, Loading, Screen } from '@/components/UI';
-import { brandFg } from '@/components/BrandCard';
+import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { getDiscoverBrands, type DiscoverBrand } from '@/lib/api';
-import { brandColor, brandInitials } from '@/lib/brand';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, SP, font } from '@/lib/tokens';
 
@@ -20,7 +19,7 @@ const FILTERS = ['All', 'In your wallet', 'To join'] as const;
 type Filter = (typeof FILTERS)[number];
 
 function BrandRow({ brand, onPress, onJoin }: { brand: DiscoverBrand; onPress: () => void; onJoin: () => void }) {
-  const tile = brandColor(brand.branding, brand.brandId);
+  const tile = brandColor(brand.brandId, brand.branding);
   return (
     <Pressable
       onPress={onPress}

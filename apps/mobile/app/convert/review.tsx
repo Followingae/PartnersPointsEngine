@@ -1,38 +1,94 @@
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Button, Small } from '@/components/UI';
+import { Button, Loading, Small, pts } from '@/components/UI';
 import { C } from '@/lib/tokens';
 import { ListRow, SheetScreen, TextAction } from '@/components/RewardKit';
+import { blockedReason, partnerCurrency, rateLabel, useQuote } from './_data';
 
-const RATE = 5;
-
-/** Screen 40 — last stop before the points leave. */
+/**
+ * Last stop before the points leave.
+ *
+ * Every figure on this screen comes from a fresh preview of this exact amount —
+ * nothing is carried over from the picker — so what is confirmed is what the
+ * server has just quoted.
+ */
 export default function ConvertReview() {
   const router = useRouter();
-  const { amount } = useLocalSearchParams<{ amount?: string }>();
+  const { brandId, amount } = useLocalSearchParams<{ brandId?: string; amount?: string }>();
+  const points = Math.max(1, Number(amount ?? 0) || 0);
 
-  const points = Number(amount ?? 2000) || 2000;
-  const luluOut = Math.floor(points / RATE);
-  const fmt = (v: number) => v.toLocaleString('en-US');
+  const { data, loading, error, signedOut, refresh } = useQuote(brandId, points);
+  const [going, setGoing] = useState(false);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+  }, [signedOut, router]);
+
+  const card = data?.card;
+  const preview = data?.preview;
+  const partnerOut = Number(preview?.partnerPoints ?? 0);
+
+  const blocked = blockedReason(preview);
+  const problem = blocked
+    ?? (preview?.linked === false ? 'Link your partner account before converting.' : null)
+    ?? (card && Number(card.available) < points ? 'You no longer have enough points for this transfer.' : null)
+    ?? (preview && partnerOut <= 0 ? 'That amount is too small to convert.' : null);
+
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/convert'));
+
+  /** The transfer itself is fired once, on the processing screen. */
+  function confirm() {
+    if (!card || started.current) return;
+    started.current = true;
+    setGoing(true);
+    router.replace({
+      pathname: '/convert/processing',
+      params: { brandId: card.brandId, amount: String(points) },
+    });
+  }
 
   return (
     <SheetScreen backdrop={C.electric} title="Confirm transfer">
-      <View style={{ marginTop: 22 }}>
-        {/* TODO(api): the source split comes from the server's allocation plan. */}
-        <ListRow title="From" sub="Camel Bean 1,200 · Núr 800" value={`${fmt(points)} pts`} />
-        <ListRow title="Rate" sub="Fixed today" value={`${RATE} : 1`} divider />
-        <ListRow title="To Lulu" sub="•••• 4821" value={fmt(luluOut)} divider />
-      </View>
+      {loading ? <Loading /> : null}
 
-      <Small tone="faint" style={{ marginTop: 18, fontSize: 12.5, lineHeight: 19 }}>
-        Transfers are final. Lulu points cannot be converted back.
-      </Small>
+      {!loading && !preview ? (
+        <View style={{ marginTop: 22 }}>
+          <Small style={{ fontSize: 13.5, lineHeight: 20 }}>{error ?? 'Could not price this transfer.'}</Small>
+          <View style={{ marginTop: 22 }}>
+            <Button label="Try again" onPress={refresh} />
+            <TextAction label="Back" onPress={back} />
+          </View>
+        </View>
+      ) : null}
 
-      <View style={{ marginTop: 22 }}>
-        {/* TODO(api): convert — POST the transfer, then follow the job to success or failure. */}
-        <Button label="Confirm" onPress={() => router.replace('/convert/processing')} />
-        <TextAction label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/convert'))} />
-      </View>
+      {preview && card ? (
+        <>
+          <View style={{ marginTop: 22 }}>
+            <ListRow
+              title="From"
+              sub={`${card.brandName} · ${pts(Number(card.available))} pts available`}
+              value={`${pts(points)} pts`}
+            />
+            <ListRow title="Rate" sub="Quoted just now" value={rateLabel(preview.ratioBps)} divider />
+            <ListRow title={partnerCurrency(preview)} sub="Credited on confirm" value={pts(partnerOut)} divider />
+          </View>
+
+          <Small tone="faint" style={{ marginTop: 18, fontSize: 12.5, lineHeight: 19 }}>
+            Transfers are final. {partnerCurrency(preview)} cannot be converted back.
+          </Small>
+
+          {problem ? (
+            <Small style={{ marginTop: 14, fontSize: 13, lineHeight: 19, color: C.crimson }}>{problem}</Small>
+          ) : null}
+
+          <View style={{ marginTop: 22 }}>
+            <Button label="Confirm" loading={going} disabled={!!problem} onPress={confirm} />
+            <TextAction label="Back" onPress={going ? undefined : back} />
+          </View>
+        </>
+      ) : null}
     </SheetScreen>
   );
 }
