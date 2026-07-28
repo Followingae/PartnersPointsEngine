@@ -17,6 +17,7 @@ export class ReceiptPublicController {
 
   @Get(':token')
   async view(@Param('token') token: string, @Res() res: Response) {
+    res.setHeader('Content-Security-Policy', RECEIPT_CSP);
     const r = await this.prisma.receipt.findUnique({ where: { token } });
     if (!r) {
       res.status(404).type('html').send(shell('Receipt not found', notFoundBody()));
@@ -128,10 +129,27 @@ const money = (minor: bigint, currency: string) =>
 
 const pts = (v: bigint) => Number(v).toLocaleString('en-US');
 
+/**
+ * The app-wide helmet() CSP is `img-src 'self' data:` and `script-src 'self'`,
+ * which blocks merchants' ad images (hosted on their own CDNs) on this page.
+ * These public pages get their own policy: remote images allowed, scripts
+ * forbidden outright (the page carries no JS at all).
+ */
+const RECEIPT_CSP = [
+  "default-src 'none'",
+  "img-src 'self' data: https:",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com data:",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 function shell(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>${esc(title)}</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -170,11 +188,7 @@ function shell(title: string, body: string): string {
     .card{border:1px solid #ddd;break-inside:avoid}
     @page{margin:14mm}
   }
-</style></head><body><div class="wrap">${body}</div>
-<script>
-  function savePdf(){ window.print(); }
-</script>
-</body></html>`;
+</style></head><body><div class="wrap">${body}</div></body></html>`;
 }
 
 function notFoundBody(): string {
@@ -284,9 +298,10 @@ function receiptBody(
   // ── sponsored: directly under the hero, the highest-value slot ───────────
   // Full-bleed image on top, like the console preview. A dead URL removes the
   // whole <img> (a hidden-but-present element still showed a broken frame).
+  // No inline handlers — the page ships zero JavaScript so the CSP can stay
+  // script-free. A dead URL simply renders nothing.
   const adImg = ad?.imageUrl && /^https?:\/\//i.test(ad.imageUrl)
     ? `<img src="${esc(ad.imageUrl)}" alt="" loading="lazy"
-           onerror="this.remove()"
            style="display:block;width:100%;height:180px;object-fit:cover">`
     : '';
   // Only render a call-to-action when there is somewhere to go.
