@@ -1,32 +1,83 @@
+import { useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { BackBar, Icon, Lede, ListRow, Segments, Tile } from '@/components/Bits';
-import { Button, H1, Label, Screen, Small } from '@/components/UI';
-import { R } from '@/lib/tokens';
-import { findChallenge } from '@/app/challenges/_data';
+import { brandColor } from '@/components/BrandCard';
+import { Button, ErrorState, H1, Label, Loading, Screen, Small } from '@/components/UI';
+import { getCards, getChallenges } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
+import { C, R } from '@/lib/tokens';
 
+/** 44 · One challenge, with where the member has got to. */
 export default function ChallengeDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, brandId } = useLocalSearchParams<{ id: string; brandId?: string }>();
   const router = useRouter();
 
-  // TODO(api): GET /customer/challenges/:id — progress refreshes after each visit.
-  const c = findChallenge(id);
-  const stamp = c.kind === 'stamp';
+  const state = useAsync(async () => {
+    const cards = await getCards();
+    // The list passes the brand through; without it, look across every card.
+    const candidates = brandId ? cards.filter((c) => c.brandId === brandId) : cards;
+    for (const card of candidates) {
+      const found = (await getChallenges(card.brandId)).find((c) => c.id === id);
+      if (found) return { challenge: found, card };
+    }
+    return null;
+  }, [id, brandId]);
+
+  useEffect(() => {
+    if (state.signedOut) router.replace('/onboarding/phone');
+  }, [state.signedOut, router]);
+
+  if (state.loading) {
+    return (
+      <Screen scroll={false} bottomGap={34}>
+        <BackBar fallback="/challenges" />
+        <Loading />
+      </Screen>
+    );
+  }
+
+  if (state.error || !state.data) {
+    return (
+      <Screen scroll={false} bottomGap={34}>
+        <BackBar fallback="/challenges" />
+        <ErrorState
+          message={state.error ?? 'This challenge is no longer running.'}
+          onRetry={state.error ? state.refresh : undefined}
+        />
+      </Screen>
+    );
+  }
+
+  const { challenge: c, card } = state.data;
+  const done = Number(c.progress);
+  const total = Math.max(Number(c.target), 1);
+  const full = done >= total;
+  const color = brandColor(card.brandId, card.branding);
+  const reward = c.rewardName ?? (Number(c.rewardPoints) > 0 ? `${c.rewardPoints} points` : 'A reward');
+
+  const blurb = c.isStampCard
+    ? `Collect ${total} stamps at ${card.brandName} and the next one is on them.`
+    : `Reach ${total} at ${card.brandName} to unlock this.`;
 
   return (
     <Screen scroll={false} bottomGap={34}>
       <BackBar fallback="/challenges" />
 
       <View style={{ flex: 1 }}>
-        <H1 style={{ marginTop: 20 }}>{c.title}</H1>
-        <Lede style={{ marginTop: 12 }}>{c.blurb}</Lede>
+        <H1 style={{ marginTop: 20 }}>{c.name}</H1>
+        <Lede style={{ marginTop: 12 }}>{blurb}</Lede>
 
         <View style={{ marginTop: 30 }}>
-          <Segments done={c.done} total={c.total} color={c.color} />
+          <Segments done={done} total={total} color={color} />
         </View>
         <View style={{ marginTop: 14, flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Small style={{ fontSize: 12.5, lineHeight: 18 }}>{c.footLeft}</Small>
-          <Small style={{ fontSize: 12.5, lineHeight: 18 }}>{c.footRight}</Small>
+          <Small style={{ fontSize: 12.5, lineHeight: 18 }}>
+            {full ? 'Ready to claim' : `${done} of ${total}`}
+          </Small>
+          <Small style={{ fontSize: 12.5, lineHeight: 18 }}>
+            {full ? 'Show your code at the till' : `${total - done} to go`}
+          </Small>
         </View>
 
         <View style={{ marginTop: 32 }}>
@@ -39,16 +90,25 @@ export default function ChallengeDetail() {
                   <Icon name="trophy" size={20} />
                 </Tile>
               }
-              title={c.reward}
-              sub={c.rewardSub}
+              title={reward}
+              sub={card.brandName}
               trailing={<View />}
             />
           </View>
         </View>
+
+        {c.completions > 0 ? (
+          <Small style={{ marginTop: 20, color: C.soft }}>
+            {c.completions === 1
+              ? 'You have completed this once before.'
+              : `You have completed this ${c.completions} times before.`}
+          </Small>
+        ) : null}
       </View>
 
+      {/* Either way the next step is the same: be recognised at the till. */}
       <Button
-        label={stamp && c.done >= c.total ? 'Claim reward' : 'Show my QR'}
+        label={full ? 'Show my code to claim' : 'Show my code'}
         onPress={() => router.push('/scan')}
         style={{ borderRadius: R.card, height: 58 }}
       />
