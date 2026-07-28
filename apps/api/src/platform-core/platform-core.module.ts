@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditService } from './audit/audit.service';
+import { BrandAssetController } from './email/brand-asset.controller';
 import { EmailService } from './email/email.service';
 import { HealthController } from './health/health.controller';
 import { PrismaService } from './prisma/prisma.service';
@@ -14,7 +15,7 @@ import { TenantAlsInterceptor } from './tenancy/tenant-als.interceptor';
  */
 @Global()
 @Module({
-  controllers: [HealthController],
+  controllers: [HealthController, BrandAssetController],
   providers: [
     PrismaService,
     TenantService,
