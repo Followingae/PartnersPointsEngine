@@ -198,6 +198,19 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── redemption ───────────────────────────────────────────────────────────
 
+    /** Direct setter for the slider / custom amount — clamps to balance, bill cap and minimum. */
+    fun setRedeemExact(points: Long) {
+        val s = _state.value
+        val member = s.member ?: return
+        val rate = s.rate
+        if (!rate.enabled) return
+        val capByBalance = member.context?.availablePoints ?: Long.MAX_VALUE
+        val capValueMinor = s.amountMinor * rate.maxPercentOfBillBps / 10000
+        val capByAmount = if (rate.rateValueMinor > 0) capValueMinor * rate.ratePoints / rate.rateValueMinor else Long.MAX_VALUE
+        val clamped = points.coerceIn(0, minOf(capByBalance, capByAmount))
+        _state.update { it.copy(redeemPoints = if (clamped < rate.minRedeemPoints) 0 else clamped) }
+    }
+
     fun selectRedeem(points: Long) {
         val s = _state.value
         val member = s.member ?: return

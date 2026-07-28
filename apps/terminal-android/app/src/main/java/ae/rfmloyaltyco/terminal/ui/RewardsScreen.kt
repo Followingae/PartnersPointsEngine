@@ -83,62 +83,105 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
 
             if (member != null) {
                 val quote = state.quote
-                if (quote != null && quote.earnPoints > 0) {
-                    RfmCard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Earns this sale", style = MaterialTheme.typography.labelMedium, color = RfmColor.MutedFg)
-                                Text(
-                                    "+${formatPoints(quote.earnPoints)} pts",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    color = RfmColor.Lime600,
-                                )
-                            }
-                            if (quote.earnMultiplier > 1.0) {
-                                Text("×${quote.earnMultiplier}", style = MaterialTheme.typography.titleMedium, color = RfmColor.TealDeep)
+                val available = member.context?.availablePoints ?: 0L
+                val worthMinor = rate.valueMinor(available)
+
+                // member header: balance in points AND money — the cashier talks AED
+                RfmCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(member.context?.displayName ?: "Member", style = MaterialTheme.typography.titleMedium, color = RfmColor.Ink)
+                            Text(
+                                "${formatPoints(available)} pts · worth ${formatAmountWithCurrency(worthMinor, cfg.currency)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = RfmColor.MutedFg,
+                            )
+                        }
+                        if (quote != null && quote.earnPoints > 0) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Earns", style = MaterialTheme.typography.labelMedium, color = RfmColor.MutedFg)
+                                Text("+${formatPoints(quote.earnPoints)}", style = MaterialTheme.typography.headlineSmall, color = RfmColor.Lime600)
                             }
                         }
                     }
                 }
 
-                val available = member.context?.availablePoints ?: 0L
                 if (rate.enabled && available >= maxOf(rate.minRedeemPoints, 1L) && rate.rateValueMinor > 0) {
-                    Text("Redeem points", style = MaterialTheme.typography.titleMedium, color = RfmColor.Ink)
-
                     val capValueMinor = state.amountMinor * rate.maxPercentOfBillBps / 10000
-                    val capPointsByBill = capValueMinor * rate.ratePoints / rate.rateValueMinor
+                    val capPointsByBill = if (rate.rateValueMinor > 0) capValueMinor * rate.ratePoints / rate.rateValueMinor else 0L
                     val maxRedeemable = minOf(available, capPointsByBill)
                     val presets = rate.presetsPoints.filter {
                         it in rate.minRedeemPoints..maxRedeemable && rate.valueMinor(it, state.amountMinor) > 0
                     }
 
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        presets.take(3).forEach { p ->
-                            RedeemChip(
-                                points = p,
-                                valueMinor = rate.valueMinor(p, state.amountMinor),
-                                currency = cfg.currency,
-                                selected = state.redeemPoints == p,
-                                modifier = Modifier.weight(1f),
-                            ) { vm.selectRedeem(p) }
+                    // PAY WITH POINTS — the headline act, not a footnote
+                    RfmCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Pay with points", style = MaterialTheme.typography.titleMedium, color = RfmColor.Ink, modifier = Modifier.weight(1f))
+                            if (state.redeemPoints > 0) {
+                                Text(
+                                    "− ${formatAmountWithCurrency(redeemValue, cfg.currency)}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = RfmColor.Blush,
+                                )
+                            }
                         }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            if (state.redeemPoints > 0) "${formatPoints(state.redeemPoints)} pts selected"
+                            else "Slide or tap to give an instant discount",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = RfmColor.MutedFg,
+                        )
+
+                        if (maxRedeemable >= rate.minRedeemPoints) {
+                            // any-amount slider, snapped to the rounding step in money terms
+                            val stepPoints = maxOf(rate.pointsForValue(maxOf(rate.roundToMinor.toLong(), 1L)), 1L)
+                            androidx.compose.material3.Slider(
+                                value = state.redeemPoints.toFloat(),
+                                onValueChange = { raw ->
+                                    val snapped = (raw.toLong() / stepPoints) * stepPoints
+                                    vm.setRedeemExact(snapped)
+                                },
+                                valueRange = 0f..maxRedeemable.toFloat(),
+                                colors = androidx.compose.material3.SliderDefaults.colors(
+                                    thumbColor = RfmColor.Ink,
+                                    activeTrackColor = RfmColor.Lime600,
+                                    inactiveTrackColor = RfmColor.Muted,
+                                ),
+                            )
+                        }
+
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            presets.take(2).forEach { p ->
+                                RedeemChip(
+                                    points = p,
+                                    valueMinor = rate.valueMinor(p, state.amountMinor),
+                                    currency = cfg.currency,
+                                    selected = state.redeemPoints == p,
+                                    modifier = Modifier.weight(1f),
+                                ) { vm.selectRedeem(p) }
+                            }
+                            if (maxRedeemable > 0) {
+                                RedeemChip(
+                                    points = maxRedeemable,
+                                    valueMinor = rate.valueMinor(maxRedeemable, state.amountMinor),
+                                    currency = cfg.currency,
+                                    selected = state.redeemPoints == maxRedeemable,
+                                    label = "Max",
+                                    modifier = Modifier.weight(1f),
+                                ) { vm.selectRedeem(maxRedeemable) }
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "${formatPoints(rate.ratePoints)} pts = ${cfg.currency} ${formatAmount(rate.rateValueMinor)}" +
+                                (if (rate.minRedeemPoints > 0) " · min ${formatPoints(rate.minRedeemPoints)} pts" else "") +
+                                (if (rate.maxPercentOfBillBps < 10000) " · up to ${rate.maxPercentOfBillBps / 100}% of the bill" else ""),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = RfmColor.MutedFg,
+                        )
                     }
-                    if (maxRedeemable >= rate.minRedeemPoints && maxRedeemable > 0) {
-                        RedeemChip(
-                            points = maxRedeemable,
-                            valueMinor = rate.valueMinor(maxRedeemable, state.amountMinor),
-                            currency = cfg.currency,
-                            selected = state.redeemPoints == maxRedeemable && presets.none { it == maxRedeemable },
-                            label = "Max",
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { vm.selectRedeem(maxRedeemable) }
-                    }
-                    Text(
-                        "Balance ${formatPoints(available)} pts · ${formatPoints(rate.ratePoints)} pts = ${cfg.currency} ${formatAmount(rate.rateValueMinor)}" +
-                            if (rate.maxPercentOfBillBps < 10000) " · up to ${rate.maxPercentOfBillBps / 100}% of the bill" else "",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = RfmColor.MutedFg,
-                    )
                 } else if (member.context != null && !rate.enabled) {
                     Text(
                         "Point redemption is disabled for this brand.",

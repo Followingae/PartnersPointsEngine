@@ -142,8 +142,13 @@ class ReceiptRenderer(private val context: Context) {
         // ── QR → hosted eReceipt (falls back to the order reference) ─────────
         runCatching {
             val payload = d.eReceiptUrl ?: d.orderNo
-            val size = 150
-            val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
+            // Big modules survive thermal smudge; EC level M tolerates the rest.
+            val size = 240
+            val hints = mapOf(
+                com.google.zxing.EncodeHintType.MARGIN to 2,
+                com.google.zxing.EncodeHintType.ERROR_CORRECTION to com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M,
+            )
+            val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size, hints)
             val left = (WIDTH - size) / 2
             val top = y.toInt() + 8
             for (qx in 0 until size) {

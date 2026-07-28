@@ -93,6 +93,8 @@ fun CustomerScreen(
                 tier = member.context?.tier,
                 loyaltyId = member.context?.loyaltyId,
                 availablePoints = member.context?.availablePoints,
+                worthMinor = member.context?.availablePoints?.let { state.rate.valueMinor(it) },
+                currency = vm.config.currency,
                 earnPreview = if (balanceMode) null else state.quote?.earnPoints,
             )
             Spacer(Modifier.height(12.dp))
@@ -155,6 +157,8 @@ fun MemberCard(
     loyaltyId: String?,
     availablePoints: Long?,
     earnPreview: Long?,
+    worthMinor: Long? = null,
+    currency: String = "AED",
 ) {
     RfmCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -177,6 +181,13 @@ fun MemberCard(
                     style = MaterialTheme.typography.displayMedium,
                     color = RfmColor.Ink,
                 )
+                if (worthMinor != null && worthMinor > 0) {
+                    Text(
+                        "worth ${formatAmountWithCurrency(worthMinor, currency)}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = RfmColor.Lime600,
+                    )
+                }
             }
             if (earnPreview != null && earnPreview > 0) {
                 Column(horizontalAlignment = Alignment.End) {
