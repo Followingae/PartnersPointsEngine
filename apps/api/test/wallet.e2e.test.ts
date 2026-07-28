@@ -168,6 +168,34 @@ describe('Customer wallet (person-scoped, spans brands)', () => {
     expect(partial.fullName).toBe('Zain Ahmed');
   });
 
+  it('joins a brand from the app, and the till can then recognise the customer', async () => {
+    const outsider = await prisma.person.create({ data: { platformId, fullName: 'New Joiner' } });
+    expect(await wallet.cards(outsider.id)).toHaveLength(0);
+
+    const joined = await wallet.joinBrand(outsider.id, brandB);
+    expect(joined.alreadyMember).toBe(false);
+    expect(joined.loyaltyId).toMatch(/^PP-/);
+
+    const cards = await wallet.cards(outsider.id);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.brandName).toBe('Beta Bakery');
+    expect(cards[0]!.available).toBe('0');
+
+    // Joining in the app is worth nothing if a till can't find them afterwards.
+    const scannable = await prisma.customerIdentifier.findFirst({
+      where: { membershipId: joined.membershipId, type: 'qr' },
+    });
+    expect(scannable).not.toBeNull();
+  });
+
+  it('re-joining a card you already hold is a no-op, not an error', async () => {
+    const again = await wallet.joinBrand(personId, brandA);
+    expect(again.alreadyMember).toBe(true);
+    expect(again.membershipId).toBe(membershipA);
+    // Still one card, not two.
+    expect((await wallet.cards(personId)).filter((c) => c.brandId === brandA)).toHaveLength(1);
+  });
+
   it('lists joinable brands and marks the ones already held', async () => {
     const brands = (await wallet.brands(personId)) as Array<{ brandName: string; joined: boolean }>;
     const alpha = brands.find((b) => b.brandName === 'Alpha Coffee');

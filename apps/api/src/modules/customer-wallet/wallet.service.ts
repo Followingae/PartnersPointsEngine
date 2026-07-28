@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 import { buildCustomerActivity } from '../loyalty-rules/customer-activity';
@@ -126,6 +126,25 @@ export class CustomerWalletService {
   /** Brands to join — what the app shows when the wallet is empty. */
   brands(personId: string) {
     return this.call<unknown[]>('wallet_discoverable_brands', [personId]);
+  }
+
+  /**
+   * Join a brand from the app.
+   *
+   * Also registers the identifiers a till resolves against, so someone who
+   * joined on their phone is recognisable in the shop straight away rather than
+   * having to be enrolled again at the counter.
+   */
+  async joinBrand(personId: string, brandId: string) {
+    const r = await this.call<{
+      ok: boolean; reason?: string; membershipId?: string; loyaltyId?: string; alreadyMember?: boolean;
+    }>('wallet_join_brand', [personId, brandId]);
+    if (!r?.ok) throw new BadRequestException(r?.reason ?? 'could not join this brand');
+    return {
+      membershipId: r.membershipId!,
+      loyaltyId: r.loyaltyId!,
+      alreadyMember: Boolean(r.alreadyMember),
+    };
   }
 
   /**

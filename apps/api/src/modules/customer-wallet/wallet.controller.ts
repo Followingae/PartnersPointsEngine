@@ -58,6 +58,12 @@ export class CustomerWalletController {
     return this.wallet.brands(me.personId);
   }
 
+  @Post('brands/:brandId/join')
+  @ApiOperation({ summary: 'Join a brand from the app and get a card.' })
+  join(@CurrentWallet() me: WalletPrincipal, @Param('brandId') brandId: string) {
+    return this.wallet.joinBrand(me.personId, brandId);
+  }
+
   @Get('cards/:brandId/scan-code')
   @ApiOperation({ summary: 'The value to show as a QR at this brand’s till.' })
   scanCode(@CurrentWallet() me: WalletPrincipal, @Param('brandId') brandId: string) {

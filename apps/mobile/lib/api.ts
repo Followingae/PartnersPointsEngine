@@ -278,6 +278,13 @@ export interface DiscoverBrand {
   joined: boolean;
 }
 
+/** Join a brand and get a card. Safe to call twice — re-joining is a no-op. */
+export const joinBrand = (brandId: string) =>
+  api<{ membershipId: string; loyaltyId: string; alreadyMember: boolean }>(
+    `/customer/wallet/brands/${brandId}/join`,
+    { method: 'POST' },
+  );
+
 /** The value to render as a QR at this brand's till. */
 export const getScanCode = (brandId: string) =>
   api<{ value: string; loyaltyId: string; membershipId: string }>(

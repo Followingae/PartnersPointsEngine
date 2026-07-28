@@ -22,7 +22,7 @@ async function applySql(url: string): Promise<void> {
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    for (const f of ['0001_baseline.sql', 'rls.sql', 'ledger.sql', '2026-07-28_customer_wallet.sql', '2026-07-28_otp_code.sql', '2026-07-28_wallet_scan_code.sql', '2026-07-28_customer_refresh_tokens.sql']) {
+    for (const f of ['0001_baseline.sql', 'rls.sql', 'ledger.sql', '2026-07-28_customer_wallet.sql', '2026-07-28_otp_code.sql', '2026-07-28_wallet_scan_code.sql', '2026-07-28_customer_refresh_tokens.sql', '2026-07-28_wallet_join_brand.sql']) {
       await client.query(readFileSync(join(sqlDir, f), 'utf8'));
     }
   } finally {
