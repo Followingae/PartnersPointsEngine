@@ -1,18 +1,18 @@
 'use client';
 
 import {
-  ArrowDownRight, ArrowUpRight, Ban, Clock, Coins, Gift, Sparkles, Store, Ticket, Undo2, Users,
+  ArrowDownRight, ArrowUpRight, Ban, Clock, Coins, Gift, Sparkles, Store, Ticket, Undo2, Users, XCircle,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Button, Field, Modal, Select } from '@/components/form';
+import { Button, ConfirmDialog, Field, Modal, Select } from '@/components/form';
 import { BackLink, DetailHeader, TabBar, type TabDef } from '@/components/detail-shell';
 import { Badge, Card, EmptyState, SectionTitle, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import {
-  getBrandRewards, getCustomerDetail, issueVoucher,
+  cancelVoucher, getBrandRewards, getCustomerDetail, issueVoucher,
   type AdminCustomerActivity, type AdminCustomerDetail, type AdminCustomerMembership,
-  type AdminRewardItem,
+  type AdminCustomerVoucher, type AdminRewardItem,
 } from '@/lib/api';
 
 const num = (v: string | number) => Number(v).toLocaleString();
@@ -21,7 +21,21 @@ const stamp = (v: string) => new Date(v).toLocaleString('en-GB', { day: 'numeric
 const aed = (minor: string | null) =>
   minor === null ? '—' : `AED ${(Number(minor) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const voucherTone = (s: string) => (s === 'issued' ? 'lime' : s === 'redeemed' ? 'teal' : 'neutral');
+/**
+ * A voucher's status decides both how it reads and what can be done to it.
+ * `reserved` is a live reward held by a sale in progress — the customer still
+ * has it, so it stays revocable, but it must not look like a plain issued one.
+ */
+const VOUCHER_STATUS: Record<string, { tone: 'neutral' | 'lime' | 'coral' | 'teal' | 'ink'; label: string; note?: string }> = {
+  issued: { tone: 'lime', label: 'issued' },
+  reserved: { tone: 'ink', label: 'on a sale', note: 'Held by a sale in progress' },
+  redeemed: { tone: 'teal', label: 'redeemed' },
+  expired: { tone: 'neutral', label: 'expired' },
+  void: { tone: 'neutral', label: 'revoked' },
+};
+const voucherStatus = (s: string) => VOUCHER_STATUS[s] ?? { tone: 'neutral' as const, label: s };
+/** Only a reward the customer still holds can be taken back. */
+const isRevocable = (s: string) => s === 'issued' || s === 'reserved';
 
 type Tab = 'overview' | 'activity' | 'rewards' | 'memberships';
 type Feed = 'all' | 'points' | 'rewards';
@@ -65,6 +79,8 @@ export default function CustomerDetailPage() {
   const [tab, setTab] = useState<Tab>('overview');
   const [feed, setFeed] = useState<Feed>('all');
   const [gifting, setGifting] = useState<{ initial?: string } | null>(null);
+  const [toRevoke, setToRevoke] = useState<AdminCustomerVoucher | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   const load = useCallback(() => {
     getCustomerDetail(personId)
@@ -75,6 +91,19 @@ export default function CustomerDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function doRevoke() {
+    if (!toRevoke) return;
+    setRevoking(true);
+    try {
+      await cancelVoucher(toRevoke.id);
+      toast('success', `Reward ${toRevoke.code} revoked`);
+      setToRevoke(null);
+      load();
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : 'Failed');
+    } finally { setRevoking(false); }
+  }
+
   const tabs: TabDef[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'activity', label: 'Activity', count: d?.activity.length },
@@ -84,7 +113,7 @@ export default function CustomerDetailPage() {
 
   const available = d ? d.memberships.reduce((s, m) => s + Number(m.available), 0) : 0;
   const lifetime = d ? d.memberships.reduce((s, m) => s + Number(m.lifetime), 0) : 0;
-  const liveRewards = d ? d.vouchers.filter((v) => v.status === 'issued').length : 0;
+  const liveRewards = d ? d.vouchers.filter((v) => isRevocable(v.status)).length : 0;
   const activity = d ? d.activity.filter((a) => feed === 'all' || (feed === 'rewards') === isRewardEvent(a.type)) : [];
 
   return (
@@ -269,24 +298,38 @@ export default function CustomerDetailPage() {
                         <th className="px-4 py-3">Issued</th>
                         <th className="px-4 py-3">Used / expires</th>
                         <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/70">
-                      {d.vouchers.map((v) => (
-                        <tr key={v.id} className="hover:bg-muted/40">
-                          <td className="px-4 py-3 font-medium">{v.rewardName}</td>
-                          <td className="px-4 py-3 font-mono text-xs font-semibold">{v.code}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{v.brandName ?? '—'}</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {Number(v.pointsSpent) > 0 ? num(v.pointsSpent) : <span className="inline-flex items-center gap-1"><Gift size={12} /> gifted</span>}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{day(v.issuedAt)}</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {v.redeemedAt ? `Used ${day(v.redeemedAt)}` : v.expiresAt ? `Expires ${day(v.expiresAt)}` : '—'}
-                          </td>
-                          <td className="px-4 py-3"><Badge tone={voucherTone(v.status)}>{v.status}</Badge></td>
-                        </tr>
-                      ))}
+                      {d.vouchers.map((v) => {
+                        const s = voucherStatus(v.status);
+                        return (
+                          <tr key={v.id} className="hover:bg-muted/40">
+                            <td className="px-4 py-3 font-medium">{v.rewardName}</td>
+                            <td className="px-4 py-3 font-mono text-xs font-semibold">{v.code}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{v.brandName ?? '—'}</td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {Number(v.pointsSpent) > 0 ? num(v.pointsSpent) : <span className="inline-flex items-center gap-1"><Gift size={12} /> gifted</span>}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{day(v.issuedAt)}</td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {v.redeemedAt ? `Used ${day(v.redeemedAt)}` : v.expiresAt ? `Expires ${day(v.expiresAt)}` : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge tone={s.tone}>{s.label}</Badge>
+                              {s.note ? <p className="mt-1 text-[11px] text-muted-foreground">{s.note}</p> : null}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {isRevocable(v.status) ? (
+                                <Button variant="outline" size="sm" onClick={() => setToRevoke(v)}>
+                                  <XCircle size={13} /> Revoke
+                                </Button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -348,6 +391,22 @@ export default function CustomerDetailPage() {
           onDone={() => { setGifting(null); load(); }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={toRevoke !== null}
+        onClose={() => setToRevoke(null)}
+        onConfirm={doRevoke}
+        loading={revoking}
+        title="Revoke this reward?"
+        message={
+          toRevoke
+            ? `“${toRevoke.rewardName}” (${toRevoke.code}) disappears from ${d?.fullName ?? 'this customer'}’s app and can no longer be redeemed.${
+                toRevoke.status === 'reserved' ? ' It is currently held by a sale in progress — revoking releases that hold.' : ''
+              }${Number(toRevoke.pointsSpent) > 0 ? ` They spent ${num(toRevoke.pointsSpent)} points on it — refund those separately if needed.` : ''}`
+            : ''
+        }
+        confirmLabel="Revoke reward"
+      />
     </div>
   );
 }

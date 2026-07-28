@@ -358,6 +358,24 @@ export class TerminalService {
         }
       }
 
+      // Rewards don't stack: one per sale. A live hold on any other voucher for
+      // this member means a reward is already on the bill.
+      const otherHold = await tx.voucher.findFirst({
+        where: {
+          brandId: ctx.brandId!,
+          membershipId: v.membershipId,
+          status: 'reserved',
+          id: { not: v.id },
+          reservedAt: { gte: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) },
+        },
+        select: { catalogItem: { select: { name: true } } },
+      });
+      if (otherHold) {
+        throw new BadRequestException(
+          `Only one reward can be used per sale — ${otherHold.catalogItem?.name ?? 'a reward'} is already applied`,
+        );
+      }
+
       // Hold, don't burn. The reward is only spent once a sale captures against
       // it (confirmVoucherHolds); abandon the sale and the hold lapses.
       await tx.voucher.update({ where: { id: v.id }, data: { status: 'reserved', reservedAt: new Date() } });

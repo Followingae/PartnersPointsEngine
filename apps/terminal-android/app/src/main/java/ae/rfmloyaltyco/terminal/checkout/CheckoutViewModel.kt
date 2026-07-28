@@ -403,6 +403,9 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 .put("redeemedPoints", redeemPoints)
                 .apply { balanceAfter?.let { put("balanceAfter", it) } }
                 .put("pointsCode", server?.pointsCode ?: "PTS")
+                // Lets the server attach the rewards used on this sale to the
+                // eReceipt, so the digital copy matches the printed slip.
+                .apply { member?.token?.let { put("memberToken", it) } }
             viewModelScope.launch {
                 runCatching { api.createReceipt(receiptPayload) }
                     .onFailure { outbox.enqueueReceipt(receiptPayload) }
@@ -435,6 +438,9 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 eReceiptUrl = eUrl,
                 stamps = earnTxn?.stamps.orEmpty().map { ReceiptStamp(it.name, it.progress, it.target) },
                 unlocked = earnTxn?.completed.orEmpty().mapNotNull { it.badgeName ?: it.name.takeIf { _ -> it.voucherCode != null } },
+                vouchers = snapshot.redeemedVouchers.map { v ->
+                    ae.rfmloyaltyco.terminal.receipt.ReceiptVoucher(v.code, v.rewardName, v.discountMinor)
+                },
             )
             _state.update {
                 it.copy(

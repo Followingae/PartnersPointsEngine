@@ -786,8 +786,12 @@ export class SuperadminService {
     return this.tenants.run(ctx, async (tx) => {
       const v = await tx.voucher.findFirst({ where: { id: voucherId, platformId: ctx.platformId }, select: { id: true, status: true } });
       if (!v) throw new NotFoundException('voucher not found');
-      if (v.status !== 'issued') throw new BadRequestException(`voucher is ${v.status}`);
-      await tx.voucher.update({ where: { id: v.id }, data: { status: 'void' } });
+      // A reward held by a sale that never completed is revocable too — a stale
+      // hold must not be able to shield a voucher from platform control.
+      if (v.status !== 'issued' && v.status !== 'reserved') {
+        throw new BadRequestException(`voucher is ${v.status}`);
+      }
+      await tx.voucher.update({ where: { id: v.id }, data: { status: 'void', reservedAt: null } });
       await this.audit.record(tx, ctx, { action: 'voucher.cancel', targetType: 'voucher', targetId: v.id });
       return { id: v.id, status: 'void' };
     });

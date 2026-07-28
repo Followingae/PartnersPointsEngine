@@ -183,6 +183,21 @@ describe('Terminal gateway (Phase 4)', () => {
     expect(held.status).toBe('reserved');
     expect(held.redeemedAt).toBeNull();
 
+    // Rewards never stack: a second one can't join the same bill.
+    const second = await prisma.voucher.create({
+      data: {
+        brandId: held.brandId,
+        groupId: held.groupId,
+        platformId: held.platformId,
+        catalogItemId: held.catalogItemId,
+        membershipId: held.membershipId,
+        code: 'STACKTEST01',
+        pointsSpent: 0n,
+      },
+    });
+    await expect(terminal.redeemVoucher(ctx, second.code)).rejects.toThrow(/only one reward/i);
+    await prisma.voucher.delete({ where: { id: second.id } });
+
     await prisma.challenge.update({ where: { id: stamp.id }, data: { enabled: false } });
   });
 

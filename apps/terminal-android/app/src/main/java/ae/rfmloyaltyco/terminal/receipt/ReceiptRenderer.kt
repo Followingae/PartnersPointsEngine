@@ -48,6 +48,15 @@ data class ReceiptData(
     val eReceiptUrl: String? = null,
     val stamps: List<ReceiptStamp> = emptyList(),
     val unlocked: List<String> = emptyList(),
+    /** Rewards handed over on this sale — printed with their numbers. */
+    val vouchers: List<ReceiptVoucher> = emptyList(),
+)
+
+/** A reward applied to the sale, as it appears on the slip. */
+data class ReceiptVoucher(
+    val code: String,
+    val rewardName: String,
+    val discountMinor: Long,
 )
 
 /**
@@ -150,6 +159,13 @@ class ReceiptRenderer(private val context: Context) {
         y += 10f
         y = row(c, "Bill", money(d.grossMinor, d.currency), y, body, 18f)
         if (d.discountMinor > 0) y = row(c, "Points discount", "-" + money(d.discountMinor, d.currency), y, body, 18f)
+        // Each reward gets its own line with its number, so the slip is proof of
+        // which voucher was used here — the customer's and the merchant's copy agree.
+        for (v in d.vouchers) {
+            val amount = if (v.discountMinor > 0) "-" + money(v.discountMinor, d.currency) else "Applied"
+            y = row(c, v.rewardName.take(22), amount, y, body, 18f)
+            y = row(c, "  Voucher ${v.code}", "", y, mono, 16f)
+        }
         y = row(c, "Paid", money(d.netMinor, d.currency), y, heading, 20f)
         y += 8f
         y = rule(c, y)
