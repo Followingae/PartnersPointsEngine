@@ -1,4 +1,3 @@
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -79,10 +78,17 @@ const ICONS: Record<string, string> = {
   profile: 'profile',
 };
 
+/** Minimal shape of what expo-router's Tabs passes to a custom tabBar. */
+type TabRoute = { key: string; name: string };
+type TabBarProps = {
+  state: { index: number; routes: TabRoute[] };
+  navigation: { navigate: (name: string) => void };
+};
+
 /** Floating bar with the raised Scan button in the middle. */
-export function TabBar({ state, navigation }: BottomTabBarProps) {
+export function TabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
-  const routes = state.routes.filter((r) => r.name !== 'scan');
+  const routes = state.routes.filter((r: TabRoute) => r.name !== 'scan');
   const left = routes.slice(0, 2);
   const right = routes.slice(2);
   const activeName = state.routes[state.index]?.name;
@@ -90,7 +96,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const item = (routeName: string, key: string) => (
     <Pressable
       key={key}
-      onPress={() => navigation.navigate(routeName as never)}
+      onPress={() => navigation.navigate(routeName)}
       style={styles.item}
       hitSlop={8}
     >
@@ -109,7 +115,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         {right.map((r) => item(r.name, r.key))}
       </View>
       <Pressable
-        onPress={() => navigation.navigate('scan' as never)}
+        onPress={() => navigation.navigate("scan")}
         style={[styles.scan, { bottom: Math.max(insets.bottom, 10) + 18 }]}
       >
         <ScanGlyph />

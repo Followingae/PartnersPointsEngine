@@ -163,7 +163,9 @@ function shell(title: string, body: string): string {
   *{box-sizing:border-box;margin:0}
   body{background:var(--canvas);color:var(--ink);font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Roboto,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
   /* bottom padding clears the docked sponsored bar */
-  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 116px}
+  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 40px}
+  /* only reserve clearance when a sponsored banner is actually docked */
+  .wrap:has(.adbar){padding-bottom:calc(30vh + 56px)}
   .display{font-family:'Bricolage Grotesque','Hanken Grotesk',sans-serif;letter-spacing:-.02em}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -188,7 +190,7 @@ function shell(title: string, body: string): string {
     padding:0 14px calc(14px + env(safe-area-inset-bottom));
   }
   .adbar > *{
-    display:block;background:var(--card);border:1px solid var(--line);
+    display:block;position:relative;background:var(--card);border:1px solid var(--line);
     border-radius:18px;overflow:hidden;
     box-shadow:0 10px 30px -12px rgba(21,21,15,.28);
   }
@@ -313,23 +315,26 @@ function receiptBody(
   // Compact bar docked to the bottom of the viewport: always in view while the
   // receipt scrolls behind it, without eating a screenful. No JS (CSP-free page).
   const hasAdLink = Boolean(ad?.ctaUrl && /^https?:\/\//i.test(ad.ctaUrl));
-  const adThumb = ad?.imageUrl && /^https?:\/\//i.test(ad.imageUrl)
-    ? `<img src="${esc(ad.imageUrl)}" alt="" loading="lazy"
-           style="width:56px;height:56px;flex:0 0 56px;border-radius:13px;object-fit:cover">`
-    : `<div style="width:6px;height:44px;flex:0 0 6px;border-radius:999px;background:var(--lime)"></div>`;
-  const adInner = `
-      <div style="display:flex;align-items:center;gap:13px;padding:11px 13px">
-        ${adThumb}
+  const hasAdImage = Boolean(ad?.imageUrl && /^https?:\/\//i.test(ad!.imageUrl!));
+  // When there's a creative, the creative IS the banner — full-bleed, nothing
+  // beside it. Natural aspect ratio so no headline gets cropped; the max-height
+  // is only a guard so an unusually tall upload can't eat the screen.
+  // Text layout is the fallback for ads that have no image at all.
+  const adInner = hasAdImage
+    ? `<img src="${esc(ad!.imageUrl!)}" alt="${esc(ad?.headline ?? 'Sponsored')}" loading="lazy"
+            style="display:block;width:100%;height:auto;max-height:30vh;object-fit:cover;object-position:center">
+       <span style="position:absolute;top:9px;left:9px;background:rgba(21,21,15,.62);color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:4px 8px;border-radius:999px">Sponsored</span>`
+    : `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px">
+        <div style="width:6px;height:38px;flex:0 0 6px;border-radius:999px;background:var(--lime)"></div>
         <div style="min-width:0;flex:1">
           <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em;line-height:1.2">Sponsored</div>
-          <div style="font-weight:700;font-size:15px;line-height:1.25;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad?.headline ?? '')}</div>
-          ${ad?.body ? `<div class="tiny muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad.body)}</div>` : ''}
+          <div style="font-weight:700;font-size:14.5px;line-height:1.25;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad?.headline ?? '')}</div>
         </div>
         ${hasAdLink
           ? `<div style="flex:none;background:var(--lime);color:#15150F;font-weight:700;font-size:13px;border-radius:999px;padding:9px 14px">${esc(ad!.ctaLabel ?? 'Open')} →</div>`
           : ''}
       </div>`;
-  const adBlock = ad?.headline
+  const adBlock = ad?.headline || hasAdImage
     ? `<div class="adbar no-print">${
         hasAdLink
           ? `<a href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit">${adInner}</a>`
