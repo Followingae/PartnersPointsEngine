@@ -47,6 +47,18 @@ export class CreateCatalogItemDto {
   @IsOptional()
   @IsString()
   kind?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'What the voucher takes off the bill, in minor units (2000 = AED 20.00). ' +
+      'Required for kind=voucher/discount — without it the till applies zero.',
+    example: 2000,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  discountMinor?: number;
 }
 
 export class CreateTierDto {
@@ -230,6 +242,12 @@ export class UpdateCatalogItemDto {
   @IsOptional()
   @IsString()
   kind?: string;
+
+  @ApiPropertyOptional({ description: 'Bill discount in minor units (2000 = AED 20.00).', example: 2000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  discountMinor?: number;
 
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'archived'] })
   @IsOptional()

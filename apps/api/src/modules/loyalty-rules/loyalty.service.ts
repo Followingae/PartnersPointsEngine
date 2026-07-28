@@ -21,6 +21,24 @@ export interface EarnInput {
 
 const POINTS_LIABILITY = 'points_liability';
 
+/**
+ * A reward's payload is what the till reads to work out what comes off the bill.
+ * Without `discountMinor` a voucher redeems for zero, so when the caller doesn't
+ * supply a value we recover one from an unambiguous name ("AED 20 Voucher") —
+ * that keeps rewards created before this field existed, and by any console not
+ * yet sending it, from silently discounting nothing. Item-style rewards carry no
+ * amount by design: the cashier hands over the item.
+ */
+export function rewardPayload(kind: string, name: string, discountMinor?: number): Prisma.InputJsonValue {
+  if (typeof discountMinor === 'number' && discountMinor >= 0) return { discountMinor };
+  if (kind === 'voucher' || kind === 'discount') {
+    const m = /(?:aed|dhs?)\s*([0-9]+(?:\.[0-9]{1,2})?)|([0-9]+(?:\.[0-9]{1,2})?)\s*(?:aed|dhs?)/i.exec(name);
+    const amount = m ? Number(m[1] ?? m[2]) : NaN;
+    if (Number.isFinite(amount) && amount > 0) return { discountMinor: Math.round(amount * 100), inferredFromName: true };
+  }
+  return {};
+}
+
 /** Default brand timezone for time-windowed (happy-hour) campaign evaluation. */
 const BRAND_TZ = 'Asia/Dubai';
 /** Local day-of-week (0=Sun) + minute-of-day for the rules engine's schedule conditions. */
@@ -369,9 +387,12 @@ export class LoyaltyService {
     });
   }
 
-  async updateReward(ctx: TenantContext, id: string, dto: { name?: string; description?: string | null; pointsCost?: number; kind?: string; status?: string }) {
+  async updateReward(ctx: TenantContext, id: string, dto: { name?: string; description?: string | null; pointsCost?: number; kind?: string; status?: string; discountMinor?: number }) {
     return this.tenants.run(ctx, async (tx) => {
-      const existing = await tx.rewardCatalogItem.findFirst({ where: { id, brandId: ctx.brandId! }, select: { id: true } });
+      const existing = await tx.rewardCatalogItem.findFirst({
+        where: { id, brandId: ctx.brandId! },
+        select: { id: true, name: true, kind: true },
+      });
       if (!existing) throw new NotFoundException('reward not found');
       const r = await tx.rewardCatalogItem.update({
         where: { id },
@@ -381,6 +402,9 @@ export class LoyaltyService {
           ...(dto.pointsCost !== undefined ? { pointsCost: BigInt(dto.pointsCost) } : {}),
           ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
           ...(dto.status !== undefined ? { status: dto.status as never } : {}),
+          ...(dto.discountMinor !== undefined
+            ? { payload: rewardPayload(dto.kind ?? existing.kind, dto.name ?? existing.name, dto.discountMinor) }
+            : {}),
         },
       });
       await this.audit.record(tx, ctx, { action: 'reward.update', targetType: 'reward_catalog_item', targetId: id, data: { fields: Object.keys(dto) } });
@@ -608,8 +632,12 @@ export class LoyaltyService {
     });
   }
 
-  async createCatalogItem(ctx: TenantContext, dto: { name: string; description?: string; pointsCost: number; kind?: string }) {
+  async createCatalogItem(
+    ctx: TenantContext,
+    dto: { name: string; description?: string; pointsCost: number; kind?: string; discountMinor?: number },
+  ) {
     return this.tenants.run(ctx, async (tx) => {
+      const kind = dto.kind ?? 'voucher';
       const i = await tx.rewardCatalogItem.create({
         data: {
           brandId: ctx.brandId!,
@@ -618,7 +646,8 @@ export class LoyaltyService {
           name: dto.name,
           description: dto.description ?? null,
           pointsCost: BigInt(dto.pointsCost),
-          kind: dto.kind ?? 'voucher',
+          kind,
+          payload: rewardPayload(kind, dto.name, dto.discountMinor),
         },
         select: { id: true, name: true, pointsCost: true, kind: true },
       });
