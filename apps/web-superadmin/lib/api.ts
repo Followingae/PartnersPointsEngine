@@ -129,6 +129,30 @@ export const issueTerminalKey = (terminalId: string, baseUrl?: string) =>
   api<TerminalKeyIssued>(`/admin/terminals/${terminalId}/keys`, { method: 'POST', body: JSON.stringify({ baseUrl }) });
 export const revokeTerminalKeys = (terminalId: string) =>
   api(`/admin/terminals/${terminalId}/keys/revoke`, { method: 'POST', body: JSON.stringify({}) });
+export const deleteBranch = (branchId: string) => api(`/admin/branches/${branchId}`, { method: 'DELETE' });
+export const deleteTerminal = (terminalId: string) => api(`/admin/terminals/${terminalId}`, { method: 'DELETE' });
+
+export interface RedemptionConfig {
+  enabled: boolean;
+  ratePoints: string;
+  rateValueMinor: string;
+  minRedeemPoints: string;
+  maxPercentOfBillBps: number;
+  roundToMinor: number;
+  presetsPoints: number[];
+  configured: boolean;
+}
+export const getBrandRedemptionConfig = (brandId: string) =>
+  api<RedemptionConfig>(`/admin/brands/${brandId}/redemption-config`);
+export const setBrandRedemptionConfig = (brandId: string, body: {
+  enabled?: boolean;
+  ratePoints?: number;
+  rateValueMinor?: number;
+  minRedeemPoints?: number;
+  maxPercentOfBillBps?: number;
+  roundToMinor?: number;
+  presetsPoints?: number[];
+}) => api<RedemptionConfig>(`/admin/brands/${brandId}/redemption-config`, { method: 'PATCH', body: JSON.stringify(body) });
 
 export interface SearchResults {
   groups: Array<{ id: string; name: string }>;

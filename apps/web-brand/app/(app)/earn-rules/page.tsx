@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, ConfirmDialog, Field, Modal, PageHeader, Select } from '@/components/form';
 import { ActionMenu, Badge, Card, EmptyState, SearchInput, TableSkeleton, Th } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { cloneEarnRule, createEarnRule, deleteEarnRule, getEarnRules, getModuleAccess, getRedemptionConfig, governanceMessage, governanceOutcome, updateEarnRule, updateRedemptionConfig, type EarnRuleRow, type RedemptionConfig } from '@/lib/api';
+import { cloneEarnRule, createEarnRule, deleteEarnRule, getEarnRules, getModuleAccess, getRedemptionConfig, governanceMessage, governanceOutcome, updateEarnRule, type EarnRuleRow, type RedemptionConfig } from '@/lib/api';
 
 type Kind = 'perAmount' | 'perVisit' | 'bonus' | 'multiplier';
 type RuleChannel = 'both' | 'online' | 'in_store';
@@ -286,85 +286,27 @@ function buildPreview(kind: Kind, value: string, unit: string, minSpend: string)
 }
 
 /**
- * Brand-level "pay with points" valuation — the burn-side counterpart to the
- * earn rules above. Every POS terminal and app surface reads this rate; the
- * terminal API prices redemptions with it server-side.
+ * Read-only view of the platform-set redemption valuation. RFM operates the
+ * loyalty economics — the rate is configured in the superadmin console.
  */
 function RedemptionValuationCard() {
-  const toast = useToast();
   const [cfg, setCfg] = useState<RedemptionConfig | null>(null);
-  const [ratePoints, setRatePoints] = useState('100');
-  const [rateValue, setRateValue] = useState('1.00');
-  const [minPoints, setMinPoints] = useState('0');
-  const [maxPercent, setMaxPercent] = useState('100');
-  const [rounding, setRounding] = useState('1');
-  const [presets, setPresets] = useState('500, 1000, 2000');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    getRedemptionConfig()
-      .then((c) => {
-        setCfg(c);
-        setRatePoints(c.ratePoints);
-        setRateValue((Number(c.rateValueMinor) / 100).toFixed(2));
-        setMinPoints(c.minRedeemPoints);
-        setMaxPercent(String(c.maxPercentOfBillBps / 100));
-        setRounding(String(c.roundToMinor));
-        setPresets(c.presetsPoints.join(', '));
-      })
-      .catch(() => setCfg(null));
-  }, []);
-
-  async function save(enabledOverride?: boolean) {
-    setSaving(true);
-    try {
-      const next = await updateRedemptionConfig({
-        ...(enabledOverride !== undefined ? { enabled: enabledOverride } : {}),
-        ratePoints: Math.max(1, Math.round(Number(ratePoints) || 100)),
-        rateValueMinor: Math.max(0, Math.round((Number(rateValue) || 0) * 100)),
-        minRedeemPoints: Math.max(0, Math.round(Number(minPoints) || 0)),
-        maxPercentOfBillBps: Math.min(10000, Math.max(0, Math.round((Number(maxPercent) || 0) * 100))),
-        roundToMinor: Math.max(1, Math.round(Number(rounding) || 1)),
-        presetsPoints: presets.split(',').map((s) => Math.round(Number(s.trim()))).filter((n) => Number.isFinite(n) && n > 0),
-      });
-      setCfg(next);
-      toast('success', 'Redemption valuation saved — terminals pick it up on next sync');
-    } catch (e) {
-      toast('error', e instanceof Error ? e.message : 'Failed');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const rateSummary = `${ratePoints || '—'} pts = AED ${rateValue || '—'}`;
-
+  useEffect(() => { getRedemptionConfig().then(setCfg).catch(() => setCfg(null)); }, []);
+  if (!cfg) return null;
+  const aed = (Number(cfg.rateValueMinor) / 100).toFixed(2);
   return (
     <Card className="mb-6 p-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg font-bold tracking-tight">Pay with points</h3>
-          <p className="text-sm text-muted-foreground">In-store redemption rate · {rateSummary}</p>
+          <p className="text-sm text-muted-foreground">
+            {cfg.ratePoints} pts = AED {aed}
+            {Number(cfg.minRedeemPoints) > 0 ? ` · min ${cfg.minRedeemPoints} pts` : ''}
+            {cfg.maxPercentOfBillBps < 10000 ? ` · up to ${cfg.maxPercentOfBillBps / 100}% of the bill` : ''}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Set by Partners Points — contact your account manager to change it.</p>
         </div>
-        {cfg ? (
-          <button
-            disabled={saving}
-            onClick={() => save(!cfg.enabled)}
-            title={cfg.enabled ? 'Disable redemptions at the POS' : 'Enable redemptions at the POS'}
-          >
-            <Badge tone={cfg.enabled ? 'lime' : 'neutral'}>{cfg.enabled ? 'Enabled' : 'Disabled'}</Badge>
-          </button>
-        ) : null}
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Field label="Points" value={ratePoints} onChange={setRatePoints} placeholder="100" hint="This many points…" />
-        <Field label="= AED" value={rateValue} onChange={setRateValue} placeholder="1.00" hint="…are worth this much" />
-        <Field label="Min points" value={minPoints} onChange={setMinPoints} placeholder="0" hint="Smallest redemption" />
-        <Field label="Max % of bill" value={maxPercent} onChange={setMaxPercent} placeholder="100" hint="Points-payable share" />
-        <Field label="Round to (fils)" value={rounding} onChange={setRounding} placeholder="25" hint="Discount rounding" />
-        <Field label="POS presets" value={presets} onChange={setPresets} placeholder="500, 1000" hint="Quick-pick chips" />
-      </div>
-      <div className="mt-4 flex justify-end">
-        <Button onClick={() => save()} loading={saving}>Save valuation</Button>
+        <Badge tone={cfg.enabled ? 'lime' : 'neutral'}>{cfg.enabled ? 'Enabled' : 'Disabled'}</Badge>
       </div>
     </Card>
   );

@@ -5,6 +5,7 @@ import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { RequirePermissions } from '../../auth/authz/permissions.decorator';
 import { PermissionsGuard } from '../../auth/authz/permissions.guard';
 import { AdminJwtGuard } from '../../auth/guards/admin-jwt.guard';
+import { UpdateRedemptionConfigDto } from '../loyalty-rules/dto';
 import {
   AdminListQueryDto,
   CostRuleDto,
@@ -170,6 +171,34 @@ export class SuperadminController {
   @ApiOperation({ summary: 'Enable / disable a POS terminal.' })
   setTerminalStatus(@CurrentTenant() ctx: TenantContext, @Param('terminalId') terminalId: string, @Body() dto: EntityStatusDto) {
     return this.superadmin.setTerminalStatus(ctx, terminalId, dto.status);
+  }
+
+  @Get('brands/:brandId/redemption-config')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'A brand’s "pay with points" valuation (platform-owned).' })
+  getBrandRedemptionConfig(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string) {
+    return this.superadmin.getBrandRedemptionConfig(ctx, brandId);
+  }
+
+  @Patch('brands/:brandId/redemption-config')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Set a brand’s redemption valuation (rate, caps, presets).' })
+  setBrandRedemptionConfig(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string, @Body() dto: UpdateRedemptionConfigDto) {
+    return this.superadmin.setBrandRedemptionConfig(ctx, brandId, dto);
+  }
+
+  @Delete('branches/:branchId')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Delete a branch (only when it has no terminals or history).' })
+  deleteBranch(@CurrentTenant() ctx: TenantContext, @Param('branchId') branchId: string) {
+    return this.superadmin.deleteBranch(ctx, branchId);
+  }
+
+  @Delete('terminals/:terminalId')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Delete a terminal (only when it has no transaction history).' })
+  deleteTerminal(@CurrentTenant() ctx: TenantContext, @Param('terminalId') terminalId: string) {
+    return this.superadmin.deleteTerminal(ctx, terminalId);
   }
 
   @Post('terminals/:terminalId/keys')

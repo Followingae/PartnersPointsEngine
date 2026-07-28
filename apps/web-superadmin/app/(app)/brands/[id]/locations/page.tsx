@@ -1,16 +1,17 @@
 'use client';
 
-import { ArrowLeft, MapPin, Plus, Cpu, KeyRound } from 'lucide-react';
+import { ArrowLeft, MapPin, Plus, Cpu, KeyRound, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Button, Field, Modal, PageHeader, Select } from '@/components/form';
+import { Button, ConfirmDialog, Field, Modal, PageHeader, Select } from '@/components/form';
 import { Badge, Card, EmptyState, SectionTitle, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import {
-  createBranch, createTerminal, getBranches, getBrandsDirectory, getTerminals, issueTerminalKey, setBranchStatus, setTerminalStatus,
-  type AdminBranch, type AdminTerminal, type TerminalKeyIssued,
+  createBranch, createTerminal, deleteBranch, deleteTerminal, getBranches, getBrandRedemptionConfig, getBrandsDirectory, getTerminals,
+  issueTerminalKey, setBranchStatus, setBrandRedemptionConfig, setTerminalStatus,
+  type AdminBranch, type AdminTerminal, type RedemptionConfig, type TerminalKeyIssued,
 } from '@/lib/api';
 
 const TERMINAL_API_BASE = process.env.NEXT_PUBLIC_TERMINAL_API_BASE ?? 'https://api.partnerspoints.ae/v1/terminal';
@@ -59,6 +60,17 @@ export default function BrandLocationsPage() {
     setIssuedFor(t);
     toast('success', 'Key issued — previous keys revoked');
   });
+  const [toDelete, setToDelete] = useState<{ kind: 'branch' | 'terminal'; id: string; name: string } | null>(null);
+  const confirmDelete = () => {
+    const target = toDelete;
+    if (!target) return;
+    run(async () => {
+      if (target.kind === 'branch') await deleteBranch(target.id);
+      else await deleteTerminal(target.id);
+      setToDelete(null);
+      toast('success', `Deleted “${target.name}”`);
+    });
+  };
 
   const activeBranches = branches?.filter((b) => b.status === 'active').length ?? 0;
 
@@ -70,6 +82,8 @@ export default function BrandLocationsPage() {
         title="Branches & terminals"
         action={branches ? <Badge tone="teal">{activeBranches} active · {terminals.length} terminals</Badge> : null}
       />
+
+      <BrandValuationCard brandId={brandId} />
 
       {!branches ? (
         <Card className="p-6"><Skeleton className="h-64 w-full" /></Card>
@@ -88,7 +102,15 @@ export default function BrandLocationsPage() {
                       <p className="text-sm font-semibold">{b.name}</p>
                       <p className="text-xs text-muted-foreground">{b.terminals} terminal{b.terminals === 1 ? '' : 's'}{b.code ? ` · ${b.code}` : ''}{b.timezone ? ` · ${b.timezone}` : ''}</p>
                     </div>
-                    <button disabled={busy} onClick={() => toggleBranch(b)} title="Toggle status"><Badge tone={b.status === 'active' ? 'lime' : 'neutral'}>{b.status}</Badge></button>
+                    <div className="flex items-center gap-1.5">
+                      <button disabled={busy} onClick={() => toggleBranch(b)} title="Toggle status"><Badge tone={b.status === 'active' ? 'lime' : 'neutral'}>{b.status}</Badge></button>
+                      <button
+                        disabled={busy}
+                        onClick={() => setToDelete({ kind: 'branch', id: b.id, name: b.name })}
+                        title="Delete branch"
+                        className="rounded-full p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                      ><Trash2 size={14} /></button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -116,9 +138,15 @@ export default function BrandLocationsPage() {
                       <p className="text-sm font-semibold">{t.label}</p>
                       <p className="text-xs text-muted-foreground">{t.branchName} · {t.pairedAt ? 'paired' : 'not paired'}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Button variant="outline" size="sm" onClick={() => issueKey(t)} loading={busy}><KeyRound size={13} /> Issue key</Button>
                       <button disabled={busy} onClick={() => toggleTerminal(t)} title="Toggle status"><Badge tone={t.status === 'active' ? 'lime' : 'neutral'}>{t.status}</Badge></button>
+                      <button
+                        disabled={busy}
+                        onClick={() => setToDelete({ kind: 'terminal', id: t.id, name: t.label })}
+                        title="Delete terminal"
+                        className="rounded-full p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                      ><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
@@ -169,6 +197,95 @@ export default function BrandLocationsPage() {
           </div>
         ) : null}
       </Modal>
+
+      <ConfirmDialog
+        open={toDelete !== null}
+        onClose={() => setToDelete(null)}
+        onConfirm={confirmDelete}
+        loading={busy}
+        title={toDelete?.kind === 'branch' ? 'Delete branch?' : 'Delete terminal?'}
+        message={`“${toDelete?.name ?? ''}” will be removed permanently. Anything with transaction history can't be deleted — deactivate it instead.`}
+      />
     </div>
+  );
+}
+
+/**
+ * Platform-owned "pay with points" valuation for this brand. RFM operates the
+ * loyalty economics; the brand console shows this read-only.
+ */
+function BrandValuationCard({ brandId }: { brandId: string }) {
+  const toast = useToast();
+  const [cfg, setCfg] = useState<RedemptionConfig | null>(null);
+  const [ratePoints, setRatePoints] = useState('100');
+  const [rateValue, setRateValue] = useState('1.00');
+  const [minPoints, setMinPoints] = useState('0');
+  const [maxPercent, setMaxPercent] = useState('100');
+  const [rounding, setRounding] = useState('1');
+  const [presets, setPresets] = useState('500, 1000, 2000');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getBrandRedemptionConfig(brandId)
+      .then((c) => {
+        setCfg(c);
+        setRatePoints(c.ratePoints);
+        setRateValue((Number(c.rateValueMinor) / 100).toFixed(2));
+        setMinPoints(c.minRedeemPoints);
+        setMaxPercent(String(c.maxPercentOfBillBps / 100));
+        setRounding(String(c.roundToMinor));
+        setPresets(c.presetsPoints.join(', '));
+      })
+      .catch(() => setCfg(null));
+  }, [brandId]);
+
+  async function save(enabledOverride?: boolean) {
+    setSaving(true);
+    try {
+      const next = await setBrandRedemptionConfig(brandId, {
+        ...(enabledOverride !== undefined ? { enabled: enabledOverride } : {}),
+        ratePoints: Math.max(1, Math.round(Number(ratePoints) || 100)),
+        rateValueMinor: Math.max(0, Math.round((Number(rateValue) || 0) * 100)),
+        minRedeemPoints: Math.max(0, Math.round(Number(minPoints) || 0)),
+        maxPercentOfBillBps: Math.min(10000, Math.max(0, Math.round((Number(maxPercent) || 0) * 100))),
+        roundToMinor: Math.max(1, Math.round(Number(rounding) || 1)),
+        presetsPoints: presets.split(',').map((s) => Math.round(Number(s.trim()))).filter((n) => Number.isFinite(n) && n > 0),
+      });
+      setCfg(next);
+      toast('success', 'Valuation saved — terminals and the brand console pick it up on next sync');
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mb-6 p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="font-display text-lg font-bold tracking-tight">Pay with points</h3>
+          <p className="text-sm text-muted-foreground">
+            Platform-set valuation · {ratePoints || '—'} pts = AED {rateValue || '—'} · brands see this read-only
+          </p>
+        </div>
+        {cfg ? (
+          <button disabled={saving} onClick={() => save(!cfg.enabled)} title={cfg.enabled ? 'Disable POS redemptions' : 'Enable POS redemptions'}>
+            <Badge tone={cfg.enabled ? 'lime' : 'neutral'}>{cfg.enabled ? 'Enabled' : 'Disabled'}</Badge>
+          </button>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <Field label="Points" value={ratePoints} onChange={setRatePoints} placeholder="100" hint="This many points…" />
+        <Field label="= AED" value={rateValue} onChange={setRateValue} placeholder="1.00" hint="…are worth this much" />
+        <Field label="Min points" value={minPoints} onChange={setMinPoints} placeholder="0" hint="Smallest redemption" />
+        <Field label="Max % of bill" value={maxPercent} onChange={setMaxPercent} placeholder="100" hint="Points-payable share" />
+        <Field label="Round to (fils)" value={rounding} onChange={setRounding} placeholder="25" hint="Discount rounding" />
+        <Field label="POS presets" value={presets} onChange={setPresets} placeholder="500, 1000" hint="Quick-pick chips" />
+      </div>
+      <div className="mt-4 flex justify-end">
+        <Button onClick={() => save()} loading={saving}>Save valuation</Button>
+      </div>
+    </Card>
   );
 }

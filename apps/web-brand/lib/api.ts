@@ -220,16 +220,9 @@ export interface RedemptionConfig {
   presetsPoints: number[];
   configured: boolean;
 }
+// Read-only for brands: the valuation is platform economics, set by RFM in the
+// superadmin console (PATCH /admin/brands/:id/redemption-config).
 export const getRedemptionConfig = () => api<RedemptionConfig>('/manage/redemption-config');
-export const updateRedemptionConfig = (body: {
-  enabled?: boolean;
-  ratePoints?: number;
-  rateValueMinor?: number;
-  minRedeemPoints?: number;
-  maxPercentOfBillBps?: number;
-  roundToMinor?: number;
-  presetsPoints?: number[];
-}) => api<RedemptionConfig>('/manage/redemption-config', { method: 'PATCH', body: JSON.stringify(body) });
 
 export const getEarnRules = (p?: ListParams) => api<ListResult<EarnRuleRow>>(`/manage/earn-rules${qs(p)}`);
 export const getEarnRule = (id: string) => api<EarnRuleRow>(`/manage/earn-rules/${id}`);

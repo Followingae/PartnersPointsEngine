@@ -4,6 +4,7 @@ import { Prisma } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { createHash } from 'node:crypto';
 import { ROLE_PERMISSIONS } from '../../auth/authz/authz.service';
+import { serializeRedemptionConfig } from '../loyalty-rules/loyalty.service';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { PasswordService } from '../../auth/crypto/password.service';
 import { AuditService } from '../../platform-core/audit/audit.service';
@@ -395,6 +396,81 @@ export class SuperadminService {
       });
       await this.audit.record(tx, ctx, { action: 'terminal.create', targetType: 'terminal', targetId: t.id, data: { label: t.label, branchId: dto.branchId } });
       return t;
+    });
+  }
+
+  // ── redemption valuation (platform-owned: RFM sets each brand's rate) ─────
+
+  async getBrandRedemptionConfig(ctx: TenantContext, brandId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const brand = await tx.brand.findFirst({ where: { id: brandId, platformId: ctx.platformId }, select: { id: true } });
+      if (!brand) throw new NotFoundException('brand not found');
+      const cfg = await tx.redemptionConfig.findUnique({ where: { brandId } });
+      return serializeRedemptionConfig(cfg ?? null);
+    });
+  }
+
+  async setBrandRedemptionConfig(
+    ctx: TenantContext,
+    brandId: string,
+    dto: {
+      enabled?: boolean;
+      ratePoints?: number;
+      rateValueMinor?: number;
+      minRedeemPoints?: number;
+      maxPercentOfBillBps?: number;
+      roundToMinor?: number;
+      presetsPoints?: number[];
+    },
+  ) {
+    return this.tenants.run(ctx, async (tx) => {
+      const brand = await tx.brand.findFirst({ where: { id: brandId, platformId: ctx.platformId }, select: { id: true, groupId: true } });
+      if (!brand) throw new NotFoundException('brand not found');
+      const data = {
+        ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
+        ...(dto.ratePoints !== undefined ? { ratePoints: BigInt(dto.ratePoints) } : {}),
+        ...(dto.rateValueMinor !== undefined ? { rateValueMinor: BigInt(dto.rateValueMinor) } : {}),
+        ...(dto.minRedeemPoints !== undefined ? { minRedeemPoints: BigInt(dto.minRedeemPoints) } : {}),
+        ...(dto.maxPercentOfBillBps !== undefined ? { maxPercentOfBillBps: dto.maxPercentOfBillBps } : {}),
+        ...(dto.roundToMinor !== undefined ? { roundToMinor: dto.roundToMinor } : {}),
+        ...(dto.presetsPoints !== undefined ? { presetsPoints: dto.presetsPoints as Prisma.InputJsonValue } : {}),
+      };
+      const cfg = await tx.redemptionConfig.upsert({
+        where: { brandId },
+        update: data,
+        create: { brandId, groupId: brand.groupId, platformId: ctx.platformId, ...data },
+      });
+      await this.audit.record(tx, ctx, { action: 'redemption_config.set', targetType: 'brand', targetId: brandId, data: { fields: Object.keys(dto) } });
+      return serializeRedemptionConfig(cfg);
+    });
+  }
+
+  // ── branch / terminal removal (mistake cleanup; history forces deactivate) ─
+
+  async deleteBranch(ctx: TenantContext, branchId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const b = await tx.branch.findFirst({ where: { id: branchId, platformId: ctx.platformId }, select: { id: true } });
+      if (!b) throw new NotFoundException('branch not found');
+      const terminals = await tx.terminal.count({ where: { branchId } });
+      if (terminals > 0) throw new BadRequestException('branch still has terminals — delete or move them first');
+      const txns = await tx.terminalTransaction.count({ where: { branchId } });
+      if (txns > 0) throw new BadRequestException('branch has transaction history — deactivate it instead');
+      await tx.branch.delete({ where: { id: branchId } });
+      await this.audit.record(tx, ctx, { action: 'branch.delete', targetType: 'branch', targetId: branchId });
+      return { id: branchId, deleted: true };
+    });
+  }
+
+  async deleteTerminal(ctx: TenantContext, terminalId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const t = await tx.terminal.findFirst({ where: { id: terminalId, platformId: ctx.platformId }, select: { id: true } });
+      if (!t) throw new NotFoundException('terminal not found');
+      const txns = await tx.terminalTransaction.count({ where: { terminalId } });
+      if (txns > 0) throw new BadRequestException('terminal has transaction history — deactivate it instead');
+      await tx.apiKey.deleteMany({ where: { terminalId } });
+      await tx.terminal.delete({ where: { id: terminalId } });
+      await this.audit.record(tx, ctx, { action: 'terminal.delete', targetType: 'terminal', targetId: terminalId });
+      return { id: terminalId, deleted: true };
     });
   }
 

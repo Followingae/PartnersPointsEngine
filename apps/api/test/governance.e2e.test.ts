@@ -60,10 +60,12 @@ describe('Governance / maker-checker (W2)', () => {
     await prisma.$disconnect();
   });
 
-  it('defaults to autonomous; per-capability override resolves first', async () => {
+  it('defaults to approval_required (RFM operates the programs); per-capability override resolves first', async () => {
+    // Platform policy: brands propose, superadmin approves — new brands start gated.
+    expect(await governance.resolveMode(brandCtx, 'reward')).toBe('approval_required');
+    await prisma.brand.update({ where: { id: brandId }, data: { governanceMode: 'autonomous' } });
     expect(await governance.resolveMode(brandCtx, 'reward')).toBe('autonomous');
     await prisma.brand.update({ where: { id: brandId }, data: { governanceMode: 'approval_required' } });
-    expect(await governance.resolveMode(brandCtx, 'reward')).toBe('approval_required');
     // override reward back to autonomous while brand default stays approval_required
     await governance.setBrandGovernance(platformCtx, brandId, { overrides: [{ entityType: 'reward', mode: 'autonomous' }] });
     expect(await governance.resolveMode(brandCtx, 'reward')).toBe('autonomous');

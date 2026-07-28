@@ -115,7 +115,7 @@ CREATE TABLE "brand" (
     "branding" JSONB NOT NULL DEFAULT '{}',
     "module_access" JSONB NOT NULL DEFAULT '{}',
     "status" "entity_status" NOT NULL DEFAULT 'active',
-    "governance_mode" "governance_mode" NOT NULL DEFAULT 'autonomous',
+    "governance_mode" "governance_mode" NOT NULL DEFAULT 'approval_required',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

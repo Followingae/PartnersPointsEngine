@@ -22,7 +22,6 @@ import {
   UpdateChallengeDto,
   UpdateCustomerProfileDto,
   UpdateEarnRuleDto,
-  UpdateRedemptionConfigDto,
   UpdateSettingsDto,
   UpdateTierDto,
 } from './dto';
@@ -314,19 +313,13 @@ export class ManageController {
     return this.loyalty.getModuleAccess(ctx);
   }
 
-  // ── redemption valuation ("pay with points") ─────────────────────────────
+  // ── redemption valuation ("pay with points") — read-only for brands; the
+  //    rate is platform economics, set by RFM in the superadmin console. ─────
   @Get('redemption-config')
   @RequirePermissions('brand.report.read')
-  @ApiOperation({ summary: 'Brand redemption valuation (points → money rate, caps, presets).' })
+  @ApiOperation({ summary: 'Brand redemption valuation (points → money rate, caps, presets). Read-only.' })
   getRedemptionConfig(@CurrentTenant() ctx: TenantContext) {
     return this.loyalty.getRedemptionConfig(ctx);
-  }
-
-  @Patch('redemption-config')
-  @RequirePermissions('brand.manage')
-  @ApiOperation({ summary: 'Update the brand redemption valuation.' })
-  updateRedemptionConfig(@CurrentTenant() ctx: TenantContext, @Body() dto: UpdateRedemptionConfigDto) {
-    return this.loyalty.updateRedemptionConfig(ctx, dto);
   }
 
   // ── settings ─────────────────────────────────────────────────────────────

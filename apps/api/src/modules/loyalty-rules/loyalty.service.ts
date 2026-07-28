@@ -478,38 +478,6 @@ export class LoyaltyService {
     });
   }
 
-  async updateRedemptionConfig(
-    ctx: TenantContext,
-    dto: {
-      enabled?: boolean;
-      ratePoints?: number;
-      rateValueMinor?: number;
-      minRedeemPoints?: number;
-      maxPercentOfBillBps?: number;
-      roundToMinor?: number;
-      presetsPoints?: number[];
-    },
-  ) {
-    return this.tenants.run(ctx, async (tx) => {
-      const data = {
-        ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
-        ...(dto.ratePoints !== undefined ? { ratePoints: BigInt(dto.ratePoints) } : {}),
-        ...(dto.rateValueMinor !== undefined ? { rateValueMinor: BigInt(dto.rateValueMinor) } : {}),
-        ...(dto.minRedeemPoints !== undefined ? { minRedeemPoints: BigInt(dto.minRedeemPoints) } : {}),
-        ...(dto.maxPercentOfBillBps !== undefined ? { maxPercentOfBillBps: dto.maxPercentOfBillBps } : {}),
-        ...(dto.roundToMinor !== undefined ? { roundToMinor: dto.roundToMinor } : {}),
-        ...(dto.presetsPoints !== undefined ? { presetsPoints: dto.presetsPoints as Prisma.InputJsonValue } : {}),
-      };
-      const cfg = await tx.redemptionConfig.upsert({
-        where: { brandId: ctx.brandId! },
-        update: data,
-        create: { brandId: ctx.brandId!, groupId: ctx.groupId!, platformId: ctx.platformId, ...data },
-      });
-      await this.audit.record(tx, ctx, { action: 'redemption_config.update', targetType: 'redemption_config', targetId: cfg.id, data: { fields: Object.keys(dto) } });
-      return serializeRedemptionConfig(cfg);
-    });
-  }
-
   async getSettings(ctx: TenantContext) {
     return this.tenants.run(ctx, async (tx) => {
       const b = await tx.brand.findFirst({

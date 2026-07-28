@@ -275,7 +275,9 @@ model Brand {
   branding           Json     @default("{}") // white-label theming (logo, palette, name)
   moduleAccess       Json     @default("{}") @map("module_access") // superadmin-controlled per-brand module entitlements { moduleKey: false } (absent = enabled)
   status             EntityStatus @default(active)
-  governanceMode     GovernanceMode @default(autonomous) @map("governance_mode") // maker-checker default; per-capability overrides live in governance_config
+  // RFM is the program operator, not a SaaS: brand edits queue for superadmin
+  // approval by default. Superadmin can relax per brand / per capability.
+  governanceMode     GovernanceMode @default(approval_required) @map("governance_mode")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
