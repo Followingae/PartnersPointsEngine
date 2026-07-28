@@ -162,7 +162,8 @@ function shell(title: string, body: string): string {
   }
   *{box-sizing:border-box;margin:0}
   body{background:var(--canvas);color:var(--ink);font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Roboto,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 40px}
+  /* bottom padding clears the docked sponsored bar */
+  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 116px}
   .display{font-family:'Bricolage Grotesque','Hanken Grotesk',sans-serif;letter-spacing:-.02em}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -180,11 +181,22 @@ function shell(title: string, body: string): string {
   .social a{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}
   .social a svg{flex:0 0 auto;opacity:.75}
   .btn svg{flex:0 0 auto}
+  /* sponsored bar — docked, compact, content scrolls behind it */
+  .adbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:5;
+    margin:0 auto;max-width:440px;
+    padding:0 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  .adbar > *{
+    display:block;background:var(--card);border:1px solid var(--line);
+    border-radius:18px;overflow:hidden;
+    box-shadow:0 10px 30px -12px rgba(21,21,15,.28);
+  }
   @media print{
     :root{--canvas:#fff;--card:#fff;--ink:#000;--line:#ddd}
     body{background:#fff}
     .wrap{max-width:100%;padding:0}
-    .no-print{display:none!important}
+    .no-print,.adbar{display:none!important}
     .card{border:1px solid #ddd;break-inside:avoid}
     @page{margin:14mm}
   }
@@ -298,29 +310,31 @@ function receiptBody(
   // ── sponsored: directly under the hero, the highest-value slot ───────────
   // Full-bleed image on top, like the console preview. A dead URL removes the
   // whole <img> (a hidden-but-present element still showed a broken frame).
-  // No inline handlers — the page ships zero JavaScript so the CSP can stay
-  // script-free. A dead URL simply renders nothing.
-  const adImg = ad?.imageUrl && /^https?:\/\//i.test(ad.imageUrl)
-    ? `<img src="${esc(ad.imageUrl)}" alt="" loading="lazy"
-           style="display:block;width:100%;height:180px;object-fit:cover">`
-    : '';
-  // Only render a call-to-action when there is somewhere to go.
+  // Compact bar docked to the bottom of the viewport: always in view while the
+  // receipt scrolls behind it, without eating a screenful. No JS (CSP-free page).
   const hasAdLink = Boolean(ad?.ctaUrl && /^https?:\/\//i.test(ad.ctaUrl));
-  const adCta = hasAdLink
-    ? `<div style="display:inline-block;background:var(--lime);color:#15150F;font-weight:700;font-size:13.5px;border-radius:999px;padding:7px 15px;margin-top:11px">${esc(ad!.ctaLabel ?? 'Learn more')} →</div>`
-    : '';
+  const adThumb = ad?.imageUrl && /^https?:\/\//i.test(ad.imageUrl)
+    ? `<img src="${esc(ad.imageUrl)}" alt="" loading="lazy"
+           style="width:56px;height:56px;flex:0 0 56px;border-radius:13px;object-fit:cover">`
+    : `<div style="width:6px;height:44px;flex:0 0 6px;border-radius:999px;background:var(--lime)"></div>`;
   const adInner = `
-        ${adImg}
-        <div style="padding:15px 18px">
-          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em">Sponsored</div>
-          <div style="font-weight:700;font-size:17px;margin-top:2px">${esc(ad?.headline ?? '')}</div>
-          ${ad?.body ? `<div class="sm muted" style="margin-top:2px">${esc(ad.body)}</div>` : ''}
-          ${adCta}
-        </div>`;
+      <div style="display:flex;align-items:center;gap:13px;padding:11px 13px">
+        ${adThumb}
+        <div style="min-width:0;flex:1">
+          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em;line-height:1.2">Sponsored</div>
+          <div style="font-weight:700;font-size:15px;line-height:1.25;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad?.headline ?? '')}</div>
+          ${ad?.body ? `<div class="tiny muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad.body)}</div>` : ''}
+        </div>
+        ${hasAdLink
+          ? `<div style="flex:none;background:var(--lime);color:#15150F;font-weight:700;font-size:13px;border-radius:999px;padding:9px 14px">${esc(ad!.ctaLabel ?? 'Open')} →</div>`
+          : ''}
+      </div>`;
   const adBlock = ad?.headline
-    ? (hasAdLink
-        ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit;margin-top:12px;overflow:hidden">${adInner}</a>`
-        : `<div class="card no-print" style="margin-top:12px;overflow:hidden">${adInner}</div>`)
+    ? `<div class="adbar no-print">${
+        hasAdLink
+          ? `<a href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit">${adInner}</a>`
+          : adInner
+      }</div>`
     : '';
 
   // ── details: payment + loyalty in a single tight card ────────────────────
@@ -367,8 +381,9 @@ function receiptBody(
     <a class="btn" href="/v1/r/${esc(r.token)}/pdf" target="_blank" rel="noopener">${ICON.download} Download PDF</a>
   </div>`;
 
-  return `${hero}${adBlock}${details}${merchantBlock}${actions}
+  return `${hero}${details}${merchantBlock}${actions}
   <div style="text-align:center;margin-top:18px" class="tiny faint">
     Digital receipt · Powered by <b style="color:var(--muted)">Partners Points</b>
-  </div>`;
+  </div>
+  ${adBlock}`;
 }
