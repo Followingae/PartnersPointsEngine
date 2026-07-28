@@ -135,7 +135,8 @@ fun SettingsScreen(app: TerminalApp, onBack: () -> Unit, onRepair: () -> Unit) {
                     singleLine = true,
                 )
                 Text(
-                    "Same-terminal SmartPay: socket · 127.0.0.1 (enable ECR in SmartPay settings). Demo simulates approvals.",
+                    "Same-terminal SmartPay: socket · 127.0.0.1 (enable ECR → SOCKET in SmartPay). " +
+                        "If SmartPay shows a port, use 127.0.0.1:PORT. If localhost won't link, try the terminal's own Wi-Fi IP. Demo simulates approvals.",
                     style = MaterialTheme.typography.labelMedium,
                     color = RfmColor.MutedFg,
                 )

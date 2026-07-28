@@ -173,6 +173,13 @@ export class SuperadminController {
     return this.superadmin.setTerminalStatus(ctx, terminalId, dto.status);
   }
 
+  @Get('receipt-stats')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'eReceipt engagement analytics (scans, views, ad clicks).' })
+  receiptStats(@CurrentTenant() ctx: TenantContext) {
+    return this.superadmin.receiptStats(ctx);
+  }
+
   @Get('brands/:brandId/redemption-config')
   @RequirePermissions('platform.report.read')
   @ApiOperation({ summary: 'A brand’s "pay with points" valuation (platform-owned).' })

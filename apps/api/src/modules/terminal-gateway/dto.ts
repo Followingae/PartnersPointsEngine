@@ -20,6 +20,45 @@ export class MemberContextDto {
   memberToken!: string;
 }
 
+export class EnrollDto {
+  @ApiProperty({ description: 'E.164 phone (+9715xxxxxxxx)' })
+  @IsString()
+  phone!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+}
+
+export class CreateReceiptDto {
+  @ApiProperty({ description: 'Client-generated unguessable token (uuid)' })
+  @IsString()
+  token!: string;
+
+  @ApiProperty({ required: false, enum: ['sale', 'refund', 'void'] })
+  @IsOptional()
+  @IsString()
+  kind?: string;
+
+  @ApiProperty()
+  @IsString()
+  orderNo!: string;
+
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) grossMinor?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) discountMinor?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) netMinor?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() currency?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() paymentMethod?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() maskedPan?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() authNo?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() memberName?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) earnedPoints?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) redeemedPoints?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) balanceAfter?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() pointsCode?: string;
+}
+
 class CartItemDto {
   @ApiProperty()
   @IsString()

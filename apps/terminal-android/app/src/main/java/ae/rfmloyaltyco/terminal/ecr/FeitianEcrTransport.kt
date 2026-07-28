@@ -45,6 +45,12 @@ class FeitianEcrTransport(
         if (connectedDevice != null) return@withContext null
 
         if (initialized.compareAndSet(false, true)) {
+            // socket device may be "host:port" — SmartPay's ECR screen shows its port
+            if (commType == ECRSetting.COMM_SOCKET) {
+                device.substringAfter(':', "").toIntOrNull()?.let { port ->
+                    runCatching { ECRSetting.setSocketPort(context.applicationContext, port) }
+                }
+            }
             val initError = withTimeoutOrNull(INIT_TIMEOUT_MS) {
                 suspendCancellableCoroutine { cont ->
                     ecr.initialize(context.applicationContext, commType) { error, data ->
@@ -62,7 +68,7 @@ class FeitianEcrTransport(
 
         val target = when (mode) {
             "serial_usb" -> null // SDK resolves the port itself
-            else -> device.ifBlank { "127.0.0.1" }
+            else -> device.substringBefore(':').ifBlank { "127.0.0.1" }
         }
         val result = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->

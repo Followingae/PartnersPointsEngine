@@ -44,6 +44,7 @@ fun CustomerScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var phone by remember { mutableStateOf("") }
+    var newName by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     val balanceMode = mode == CustomerScreen_Mode_BALANCE
 
@@ -96,6 +97,32 @@ fun CustomerScreen(
             )
             Spacer(Modifier.height(12.dp))
             SecondaryAction("Different customer") { vm.clearMember(); phone = "" }
+        } else if (state.lookupNotFound) {
+            // New number → enrol on the spot; profile completes later in the app.
+            Spacer(Modifier.height(6.dp))
+            RfmCard {
+                Text("New member", style = MaterialTheme.typography.headlineSmall, color = RfmColor.Ink)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${state.lastLookupPhone ?: ""} isn't enrolled yet. Create their account now — they finish sign-up in the Partners Points app.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = RfmColor.MutedFg,
+                )
+                Spacer(Modifier.height(14.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Customer name (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(14.dp))
+                PrimaryAction("Create member & continue", loading = state.lookupBusy) {
+                    vm.enroll(newName.ifBlank { null })
+                }
+                Spacer(Modifier.height(8.dp))
+                SecondaryAction("Different number") { vm.clearMember(); phone = "" }
+            }
         } else {
             Spacer(Modifier.height(6.dp))
             Text(

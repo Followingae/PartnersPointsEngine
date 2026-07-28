@@ -62,6 +62,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
         val quote: Quote? = null,
         val lookupBusy: Boolean = false,
         val lookupError: String? = null,
+        val lookupNotFound: Boolean = false,
+        val lastLookupPhone: String? = null,
         val redeemPoints: Long = 0L,
         val redeemBusy: Boolean = false,
         val paying: Boolean = false,
@@ -142,31 +144,56 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun lookup(identifierType: String, rawValue: String) {
         val value = if (identifierType == "phone") TerminalApi.normalizePhone(rawValue) else rawValue
-        _state.update { it.copy(lookupBusy = true, lookupError = null) }
+        _state.update { it.copy(lookupBusy = true, lookupError = null, lookupNotFound = false) }
         viewModelScope.launch {
             try {
                 val token = api.resolve(identifierType, value)
-                val context = runCatching { api.memberContext(token) }.getOrNull()
-                val quote = runCatching { api.quote(token, _state.value.amountMinor) }.getOrNull()
-                _state.update {
-                    it.copy(
-                        lookupBusy = false,
-                        member = Member(token, identifierType, value, context),
-                        quote = quote,
-                        redeemPoints = 0,
-                    )
-                }
+                onMemberToken(token, identifierType, value)
             } catch (e: TerminalApi.ApiException) {
-                val msg = if (e.status == 404) "No member found — check the number or enrol them in the console" else e.errorMessage
-                _state.update { it.copy(lookupBusy = false, lookupError = msg) }
+                if (e.status == 404 && identifierType == "phone") {
+                    _state.update { it.copy(lookupBusy = false, lookupNotFound = true, lastLookupPhone = value, lookupError = null) }
+                } else {
+                    val msg = if (e.status == 404) "No member found for this code" else e.errorMessage
+                    _state.update { it.copy(lookupBusy = false, lookupError = msg) }
+                }
             } catch (e: Exception) {
                 _state.update { it.copy(lookupBusy = false, lookupError = "Can't reach the loyalty service — sale can continue without loyalty") }
             }
         }
     }
 
+    /** New number at the till: create the membership on the spot (name optional). */
+    fun enroll(name: String?) {
+        val phone = _state.value.lastLookupPhone ?: return
+        _state.update { it.copy(lookupBusy = true, lookupError = null) }
+        viewModelScope.launch {
+            try {
+                val token = api.enroll(phone, name)
+                onMemberToken(token, "phone", phone)
+            } catch (e: TerminalApi.ApiException) {
+                _state.update { it.copy(lookupBusy = false, lookupError = "Couldn't enrol: ${e.errorMessage}") }
+            } catch (e: Exception) {
+                _state.update { it.copy(lookupBusy = false, lookupError = "Can't reach the loyalty service — try again") }
+            }
+        }
+    }
+
+    private suspend fun onMemberToken(token: String, identifierType: String, value: String) {
+        val context = runCatching { api.memberContext(token) }.getOrNull()
+        val quote = runCatching { api.quote(token, _state.value.amountMinor) }.getOrNull()
+        _state.update {
+            it.copy(
+                lookupBusy = false,
+                lookupNotFound = false,
+                member = Member(token, identifierType, value, context),
+                quote = quote,
+                redeemPoints = 0,
+            )
+        }
+    }
+
     fun clearMember() {
-        _state.update { it.copy(member = null, quote = null, redeemPoints = 0, lookupError = null) }
+        _state.update { it.copy(member = null, quote = null, redeemPoints = 0, lookupError = null, lookupNotFound = false) }
     }
 
     // ── redemption ───────────────────────────────────────────────────────────
@@ -290,14 +317,38 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             val balanceAfter = member?.context?.let { c -> c.availablePoints - redeemPoints + earnedPoints }
+            // eReceipt: client-generated token so the printed QR is valid even if
+            // the upload replays later from the outbox.
+            val eToken = UUID.randomUUID().toString()
+            val eUrl = cfg.baseUrl.trimEnd('/').removeSuffix("/terminal") + "/r/" + eToken
+            val server = snapshot.server
+            val receiptPayload = org.json.JSONObject()
+                .put("token", eToken)
+                .put("kind", "sale")
+                .put("orderNo", orderNo)
+                .put("grossMinor", gross)
+                .put("discountMinor", snapshot.redeemValueMinor())
+                .put("netMinor", net)
+                .put("currency", cfg.currency)
+                .put("paymentMethod", method)
+                .put("maskedPan", ecrResult?.maskedPan)
+                .put("authNo", ecrResult?.authNo)
+                .put("memberName", member?.context?.displayName)
+                .put("earnedPoints", earnedPoints)
+                .put("redeemedPoints", redeemPoints)
+                .apply { balanceAfter?.let { put("balanceAfter", it) } }
+                .put("pointsCode", server?.pointsCode ?: "PTS")
+            viewModelScope.launch {
+                runCatching { api.createReceipt(receiptPayload) }
+                    .onFailure { outbox.enqueueReceipt(receiptPayload) }
+            }
             history.add(
                 record(
                     kind = "sale", status = "approved", gross = gross, net = net,
                     redeem = redeemPoints, earn = earnedPoints, member = member, orderNo = orderNo,
                     method = method, ecr = ecrResult, note = loyaltyNote,
-                ),
+                ).copy(eReceiptToken = eToken),
             )
-            val server = snapshot.server
             val receipt = ReceiptData(
                 brandName = server?.brandName?.ifBlank { null } ?: "Partners Points",
                 branchName = server?.branchName,
@@ -316,6 +367,9 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 redeemedPoints = redeemPoints,
                 balanceAfter = balanceAfter,
                 pointsCode = server?.pointsCode ?: "PTS",
+                loyaltyId = member?.context?.loyaltyId?.ifBlank { null },
+                memberPhoneMasked = member?.takeIf { it.identifierType == "phone" }?.identifierValue?.let { maskPhone(it) },
+                eReceiptUrl = eUrl,
             )
             _state.update {
                 it.copy(
@@ -385,6 +439,9 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val PENDING_HOLD = "pending_hold_txn"
+
+        fun maskPhone(p: String): String =
+            if (p.length > 6) p.take(4) + "•".repeat(p.length - 7) + p.takeLast(3) else p
 
         /** ECR order numbers: 6–24 chars, [0-9A-Za-z_-*], unique per terminal. */
         fun newOrderNo(): String {

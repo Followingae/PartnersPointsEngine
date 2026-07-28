@@ -37,6 +37,9 @@ data class ReceiptData(
     val balanceAfter: Long?,
     val pointsCode: String,
     val kind: String = "sale", // sale | refund | void
+    val loyaltyId: String? = null,
+    val memberPhoneMasked: String? = null,
+    val eReceiptUrl: String? = null,
 )
 
 /**
@@ -58,7 +61,7 @@ class ReceiptRenderer(private val context: Context) {
 
     fun render(d: ReceiptData): Bitmap {
         // Draw tall, crop to content height at the end.
-        val bmp = Bitmap.createBitmap(WIDTH, 1400, Bitmap.Config.ARGB_8888)
+        val bmp = Bitmap.createBitmap(WIDTH, 1800, Bitmap.Config.ARGB_8888)
         bmp.eraseColor(Color.WHITE)
         val c = Canvas(bmp)
         var y = 34f
@@ -66,12 +69,22 @@ class ReceiptRenderer(private val context: Context) {
         val black = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
 
         // ── header ───────────────────────────────────────────────────────────
-        y = drawCentered(c, d.brandName.ifBlank { "Partners Points" }, display, 34f, y, bold = true)
-        y += 2f
+        y = drawCentered(c, d.brandName.ifBlank { "Partners Points" }, display, 38f, y, bold = true)
+        y += 3f
         y = drawCentered(c, listOfNotNull(d.branchName, d.terminalLabel).joinToString(" · "), sans, 18f, y)
         y = drawCentered(c, timestamp(d.at), mono, 16f, y)
         y += 10f
         y = dashedRule(c, y)
+
+        // ── customer ─────────────────────────────────────────────────────────
+        if (d.memberName != null) {
+            y += 12f
+            y = row(c, "Customer", d.memberName, y, sans, 18f, bold = true)
+            d.loyaltyId?.let { y = row(c, "Member ID", it, y, mono, 15f) }
+            d.memberPhoneMasked?.let { y = row(c, "Mobile", it, y, mono, 15f) }
+            y += 4f
+            y = dashedRule(c, y)
+        }
 
         if (d.kind != "sale") {
             y += 8f
@@ -126,24 +139,29 @@ class ReceiptRenderer(private val context: Context) {
             y += 8f
         }
 
-        // ── QR (order reference for support/refunds) ─────────────────────────
+        // ── QR → hosted eReceipt (falls back to the order reference) ─────────
         runCatching {
-            val size = 120
-            val matrix = MultiFormatWriter().encode(d.orderNo, BarcodeFormat.QR_CODE, size, size)
+            val payload = d.eReceiptUrl ?: d.orderNo
+            val size = 150
+            val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
             val left = (WIDTH - size) / 2
-            val top = y.toInt() + 6
+            val top = y.toInt() + 8
             for (qx in 0 until size) {
                 for (qy in 0 until size) {
                     if (matrix.get(qx, qy)) c.drawPoint((left + qx).toFloat(), (top + qy).toFloat(), black)
                 }
             }
             y = (top + size).toFloat() + 8f
+            if (d.eReceiptUrl != null) {
+                y = drawCentered(c, "Scan for your eReceipt & offers", sans, 16f, y)
+            }
         }
         y = drawCentered(c, d.orderNo, mono, 15f, y)
         y += 10f
         y = dashedRule(c, y)
         y += 6f
-        y = drawCentered(c, "Powered by Partners Points", mono, 14f, y)
+        y = drawCentered(c, "Thank you — see you again soon", sans, 16f, y)
+        y = drawCentered(c, "Powered by Partners Points", mono, 13f, y)
         y += 26f
 
         val cropped = Bitmap.createBitmap(bmp, 0, 0, WIDTH, y.toInt().coerceAtMost(bmp.height))

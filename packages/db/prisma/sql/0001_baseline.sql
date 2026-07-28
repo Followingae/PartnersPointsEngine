@@ -251,6 +251,40 @@ CREATE TABLE "api_key" (
 );
 
 -- CreateTable
+CREATE TABLE "receipt" (
+    "id" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "brand_id" TEXT NOT NULL,
+    "group_id" TEXT NOT NULL,
+    "platform_id" TEXT NOT NULL,
+    "terminal_id" TEXT,
+    "membership_id" TEXT,
+    "brand_name" TEXT NOT NULL DEFAULT 'Partners Points',
+    "brand_color" TEXT,
+    "kind" TEXT NOT NULL DEFAULT 'sale',
+    "order_no" TEXT NOT NULL,
+    "gross_minor" BIGINT NOT NULL DEFAULT 0,
+    "discount_minor" BIGINT NOT NULL DEFAULT 0,
+    "net_minor" BIGINT NOT NULL DEFAULT 0,
+    "currency" TEXT NOT NULL DEFAULT 'AED',
+    "payment_method" TEXT NOT NULL DEFAULT 'card',
+    "masked_pan" TEXT,
+    "auth_no" TEXT,
+    "member_name" TEXT,
+    "earned_points" BIGINT NOT NULL DEFAULT 0,
+    "redeemed_points" BIGINT NOT NULL DEFAULT 0,
+    "balance_after" BIGINT,
+    "points_code" TEXT NOT NULL DEFAULT 'PTS',
+    "view_count" INTEGER NOT NULL DEFAULT 0,
+    "ad_clicks" INTEGER NOT NULL DEFAULT 0,
+    "first_viewed_at" TIMESTAMP(3),
+    "last_viewed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "receipt_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "terminal" (
     "id" TEXT NOT NULL,
     "branch_id" TEXT NOT NULL,
@@ -1052,6 +1086,12 @@ CREATE INDEX "api_key_brand_id_idx" ON "api_key"("brand_id");
 
 -- CreateIndex
 CREATE INDEX "api_key_group_id_idx" ON "api_key"("group_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "receipt_token_key" ON "receipt"("token");
+
+-- CreateIndex
+CREATE INDEX "receipt_brand_id_created_at_idx" ON "receipt"("brand_id", "created_at");
 
 -- CreateIndex
 CREATE INDEX "terminal_branch_id_idx" ON "terminal"("branch_id");

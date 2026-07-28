@@ -234,3 +234,65 @@ DROP TRIGGER IF EXISTS no_mutation ON public.audit_log;
 CREATE TRIGGER no_mutation
   BEFORE UPDATE OR DELETE ON public.audit_log
   FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- person: brand/group principals may read exactly the people who are members of
+-- their scope (overrides the platform-only policy applied by the loop above).
+-- Keep in sync with 2026-07-28_person_access_and_receipts.sql.
+-- ─────────────────────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS tenant_isolation ON public.person;
+CREATE POLICY tenant_isolation ON public.person FOR ALL TO loyalty_app
+  USING (
+    platform_id = nullif(current_setting('app.current_platform_id', true), '')
+    OR EXISTS (
+      SELECT 1 FROM public.customer_membership cm
+      WHERE cm.person_id = person.id
+        AND (
+          cm.brand_id = nullif(current_setting('app.current_brand_id', true), '')
+          OR cm.group_id = nullif(current_setting('app.current_group_id', true), '')
+        )
+    )
+  )
+  WITH CHECK (
+    platform_id = nullif(current_setting('app.current_platform_id', true), '')
+    OR EXISTS (
+      SELECT 1 FROM public.customer_membership cm
+      WHERE cm.person_id = person.id
+        AND (
+          cm.brand_id = nullif(current_setting('app.current_brand_id', true), '')
+          OR cm.group_id = nullif(current_setting('app.current_group_id', true), '')
+        )
+    )
+  );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SECURITY DEFINER helpers (terminal enrollment + public eReceipt ad slot).
+-- Keep in sync with 2026-07-28_person_access_and_receipts.sql.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.terminal_enroll_person(
+  p_platform_id text, p_phone_hash text, p_phone_enc bytea, p_full_name text
+) RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id text;
+BEGIN
+  SELECT id INTO v_id FROM person WHERE phone_hash = p_phone_hash;
+  IF v_id IS NOT NULL THEN
+    IF p_full_name IS NOT NULL THEN
+      UPDATE person SET full_name = p_full_name, updated_at = now()
+      WHERE id = v_id AND full_name IS NULL;
+    END IF;
+    RETURN v_id;
+  END IF;
+  v_id := gen_random_uuid()::text;
+  INSERT INTO person (id, platform_id, phone_hash, phone_enc, full_name, status, created_at, updated_at)
+  VALUES (v_id, p_platform_id, p_phone_hash, p_phone_enc, p_full_name, 'active', now(), now());
+  RETURN v_id;
+END $$;
+REVOKE ALL ON FUNCTION public.terminal_enroll_person(text, text, bytea, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.terminal_enroll_person(text, text, bytea, text) TO loyalty_app;
+
+CREATE OR REPLACE FUNCTION public.ereceipt_ad(p_platform_id text) RETURNS jsonb
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(settings->'eReceiptAd', 'null'::jsonb) FROM platform WHERE id = p_platform_id
+$$;
+REVOKE ALL ON FUNCTION public.ereceipt_ad(text) FROM public;
+GRANT EXECUTE ON FUNCTION public.ereceipt_ad(text) TO loyalty_app;

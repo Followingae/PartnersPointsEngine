@@ -456,6 +456,42 @@ model ApiKey {
   @@map("api_key")
 }
 
+// Public-by-token eReceipt records (printed QR → hosted receipt page).
+// Deliberately outside tenant RLS: the unguessable token is the capability.
+model Receipt {
+  id             String    @id @default(uuid(7))
+  token          String    @unique
+  brandId        String    @map("brand_id")
+  groupId        String    @map("group_id")
+  platformId     String    @map("platform_id")
+  terminalId     String?   @map("terminal_id")
+  membershipId   String?   @map("membership_id")
+  brandName      String    @default("Partners Points") @map("brand_name")
+  brandColor     String?   @map("brand_color")
+  kind           String    @default("sale")
+  orderNo        String    @map("order_no")
+  grossMinor     BigInt    @default(0) @map("gross_minor")
+  discountMinor  BigInt    @default(0) @map("discount_minor")
+  netMinor       BigInt    @default(0) @map("net_minor")
+  currency       String    @default("AED")
+  paymentMethod  String    @default("card") @map("payment_method")
+  maskedPan      String?   @map("masked_pan")
+  authNo         String?   @map("auth_no")
+  memberName     String?   @map("member_name")
+  earnedPoints   BigInt    @default(0) @map("earned_points")
+  redeemedPoints BigInt    @default(0) @map("redeemed_points")
+  balanceAfter   BigInt?   @map("balance_after")
+  pointsCode     String    @default("PTS") @map("points_code")
+  viewCount      Int       @default(0) @map("view_count")
+  adClicks       Int       @default(0) @map("ad_clicks")
+  firstViewedAt  DateTime? @map("first_viewed_at")
+  lastViewedAt   DateTime? @map("last_viewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([brandId, createdAt])
+  @@map("receipt")
+}
+
 model Terminal {
   id         String       @id @default(uuid(7))
   branchId   String       @map("branch_id")

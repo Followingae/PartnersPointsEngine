@@ -38,15 +38,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Full-width bottom-pinned primary action — 64dp tall for glove-friendly taps. */
+/** Full-width bottom-pinned primary action — brand lime, 64dp for confident taps. */
 @Composable
 fun PrimaryAction(
     label: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
-    color: Color = RfmColor.Ink,
-    contentColor: Color = Color.White,
+    color: Color = RfmColor.Lime,
+    contentColor: Color = RfmColor.Ink,
     onClick: () -> Unit,
 ) {
     Button(

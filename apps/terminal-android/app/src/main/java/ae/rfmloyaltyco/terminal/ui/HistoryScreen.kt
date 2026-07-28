@@ -127,6 +127,8 @@ private fun receiptFromRecord(app: TerminalApp, r: TxnRecord, currency: String, 
         balanceAfter = null, // historical balance is not stored; omit rather than misstate
         pointsCode = server?.pointsCode ?: "PTS",
         kind = r.kind,
+        memberPhoneMasked = r.memberPhone?.let { ae.rfmloyaltyco.terminal.checkout.CheckoutViewModel.maskPhone(it) },
+        eReceiptUrl = r.eReceiptToken?.let { app.settings.snapshot().baseUrl.trimEnd('/').removeSuffix("/terminal") + "/r/" + it },
     )
 }
 

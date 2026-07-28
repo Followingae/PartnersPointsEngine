@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ledger, type Prisma } from '@rfm-loyalty/db';
 import { EarnRule, evaluateEarn, type CustomerIdentifierType, type TenantContext } from '@rfm-loyalty/shared';
+import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { TokenService, type MemberTokenClaims } from '../../auth/tokens/token.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { LoyaltyService, redemptionValueMinor, scheduleContext } from '../loyalty-rules/loyalty.service';
@@ -45,6 +46,7 @@ export class TerminalService {
     private readonly tenants: TenantService,
     private readonly tokens: TokenService,
     private readonly loyalty: LoyaltyService,
+    private readonly crypto: EnvelopeCryptoService,
   ) {}
 
   private async member(memberToken: string, ctx: TenantContext): Promise<MemberTokenClaims> {
@@ -100,6 +102,118 @@ export class TerminalService {
         terminal: terminal ? { label: terminal.label, branchName: terminal.branch.name } : null,
         redemption,
       };
+    });
+  }
+
+  /**
+   * At-till enrollment: get-or-create the person (via SECURITY DEFINER — person
+   * is platform-scoped) and attach a membership + phone identifier for this
+   * brand. Idempotent: an already-enrolled phone just resolves. The customer
+   * completes their profile later in the Partners Points app.
+   */
+  async enroll(ctx: TenantContext, dto: { phone: string; fullName?: string }) {
+    const phone = dto.phone.trim();
+    if (!/^\+[0-9]{8,15}$/.test(phone)) throw new BadRequestException('phone must be E.164 (+9715xxxxxxxx)');
+    const valueHash = sha256(phone);
+    const phoneEnc = Buffer.from(this.crypto.encrypt(phone));
+    return this.tenants.run(ctx, async (tx) => {
+      const existing = await tx.customerIdentifier.findUnique({
+        where: { brandId_type_valueHash: { brandId: ctx.brandId!, type: 'phone', valueHash } },
+        select: { membershipId: true },
+      });
+      let membershipId: string;
+      let created = false;
+      if (existing) {
+        membershipId = existing.membershipId;
+      } else {
+        const rows = await tx.$queryRaw<{ id: string }[]>`
+          SELECT terminal_enroll_person(${ctx.platformId}, ${valueHash}, ${phoneEnc}, ${dto.fullName ?? null}) AS id`;
+        const personId = rows[0]!.id;
+        const membership = await tx.customerMembership.upsert({
+          where: { personId_brandId: { personId, brandId: ctx.brandId! } },
+          update: {},
+          create: {
+            personId,
+            brandId: ctx.brandId!,
+            groupId: ctx.groupId!,
+            platformId: ctx.platformId,
+            loyaltyId: `PP-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 90 + 10)}`,
+          },
+          select: { id: true },
+        });
+        membershipId = membership.id;
+        await tx.customerIdentifier.create({
+          data: { membershipId, brandId: ctx.brandId!, groupId: ctx.groupId!, platformId: ctx.platformId, type: 'phone', valueHash },
+        });
+        created = true;
+      }
+      const memberToken = await this.tokens.issueMemberToken({
+        membershipId,
+        brandId: ctx.brandId!,
+        groupId: ctx.groupId!,
+        platformId: ctx.platformId,
+      });
+      return { memberToken, created };
+    });
+  }
+
+  /**
+   * Persist an eReceipt (public-by-token; the printed QR links to it). Token is
+   * client-generated so the paper QR is valid even when this call replays from
+   * the offline outbox. Idempotent by token.
+   */
+  async createReceipt(
+    ctx: TenantContext,
+    dto: {
+      token: string;
+      kind?: string;
+      orderNo: string;
+      grossMinor?: number;
+      discountMinor?: number;
+      netMinor?: number;
+      currency?: string;
+      paymentMethod?: string;
+      maskedPan?: string;
+      authNo?: string;
+      memberName?: string;
+      earnedPoints?: number;
+      redeemedPoints?: number;
+      balanceAfter?: number;
+      pointsCode?: string;
+    },
+  ) {
+    return this.tenants.run(ctx, async (tx) => {
+      const brand = await tx.brand.findFirst({ where: { id: ctx.brandId! }, select: { name: true, branding: true } });
+      const branding = (brand?.branding ?? {}) as { primaryColor?: string };
+      const existing = await tx.receipt.findUnique({ where: { token: dto.token }, select: { id: true } });
+      if (existing) return { id: existing.id, token: dto.token };
+      const r = await tx.receipt.create({
+        data: {
+          token: dto.token,
+          brandId: ctx.brandId!,
+          groupId: ctx.groupId!,
+          platformId: ctx.platformId,
+          terminalId: ctx.actor.type === 'terminal' ? ctx.actor.id : null,
+          brandName: brand?.name ?? 'Partners Points',
+          brandColor: branding.primaryColor ?? null,
+          kind: dto.kind ?? 'sale',
+          orderNo: dto.orderNo,
+          grossMinor: BigInt(dto.grossMinor ?? 0),
+          discountMinor: BigInt(dto.discountMinor ?? 0),
+          netMinor: BigInt(dto.netMinor ?? 0),
+          currency: dto.currency ?? 'AED',
+          paymentMethod: dto.paymentMethod ?? 'card',
+          maskedPan: dto.maskedPan ?? null,
+          authNo: dto.authNo ?? null,
+          memberName: dto.memberName ?? null,
+          earnedPoints: BigInt(dto.earnedPoints ?? 0),
+          redeemedPoints: BigInt(dto.redeemedPoints ?? 0),
+          balanceAfter: dto.balanceAfter != null ? BigInt(dto.balanceAfter) : null,
+          pointsCode: dto.pointsCode ?? 'PTS',
+        },
+        select: { id: true },
+      });
+      return { id: r.id, token: dto.token };
     });
   }
 

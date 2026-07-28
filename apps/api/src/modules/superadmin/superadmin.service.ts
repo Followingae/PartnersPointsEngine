@@ -445,6 +445,36 @@ export class SuperadminService {
     });
   }
 
+  /** eReceipt engagement: volumes, scan-through rate, ad clicks (per brand + total). */
+  async receiptStats(ctx: TenantContext) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.$queryRaw<
+        { brand_id: string; brand_name: string; receipts: bigint; viewed: bigint; views: bigint; ad_clicks: bigint }[]
+      >`
+        SELECT brand_id, brand_name,
+               count(*) AS receipts,
+               count(*) FILTER (WHERE view_count > 0) AS viewed,
+               coalesce(sum(view_count), 0) AS views,
+               coalesce(sum(ad_clicks), 0) AS ad_clicks
+        FROM receipt WHERE platform_id = ${ctx.platformId}
+        GROUP BY brand_id, brand_name ORDER BY receipts DESC`;
+      const brands = rows.map((r) => ({
+        brandId: r.brand_id,
+        brandName: r.brand_name,
+        receipts: Number(r.receipts),
+        viewed: Number(r.viewed),
+        views: Number(r.views),
+        adClicks: Number(r.ad_clicks),
+        scanRate: Number(r.receipts) ? Math.round((Number(r.viewed) / Number(r.receipts)) * 100) : 0,
+      }));
+      const total = brands.reduce(
+        (a, b) => ({ receipts: a.receipts + b.receipts, viewed: a.viewed + b.viewed, views: a.views + b.views, adClicks: a.adClicks + b.adClicks }),
+        { receipts: 0, viewed: 0, views: 0, adClicks: 0 },
+      );
+      return { total: { ...total, scanRate: total.receipts ? Math.round((total.viewed / total.receipts) * 100) : 0 }, brands };
+    });
+  }
+
   // ── branch / terminal removal (mistake cleanup; history forces deactivate) ─
 
   async deleteBranch(ctx: TenantContext, branchId: string) {

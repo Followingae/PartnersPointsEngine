@@ -37,6 +37,19 @@ class OfflineOutbox(context: Context, private val api: TerminalApi) {
         persist(next)
     }
 
+    /** Queue an eReceipt payload that couldn't reach the API at print time. */
+    @Synchronized
+    fun enqueueReceipt(payload: JSONObject) {
+        val op = JSONObject()
+            .put("type", "receipt")
+            .put("payload", payload)
+            .put("idempotencyKey", payload.optString("token"))
+            .put("queuedAt", System.currentTimeMillis())
+        val next = _pending.value + op
+        _pending.value = next
+        persist(next)
+    }
+
     /** Replays everything replayable; keeps ops that still fail with network errors. */
     suspend fun replayAll(): Int {
         val current = _pending.value
@@ -45,13 +58,17 @@ class OfflineOutbox(context: Context, private val api: TerminalApi) {
         var replayed = 0
         for (op in current) {
             try {
-                val token = api.resolve(op.getString("identifierType"), op.getString("identifierValue"))
-                api.earn(
-                    memberToken = token,
-                    amountMinor = op.getLong("amountMinor"),
-                    idempotencyKey = op.getString("idempotencyKey"),
-                    sourceEvent = op.optString("sourceEvent", "offline-replay"),
-                )
+                if (op.optString("type", "earn") == "receipt") {
+                    api.createReceipt(op.getJSONObject("payload"))
+                } else {
+                    val token = api.resolve(op.getString("identifierType"), op.getString("identifierValue"))
+                    api.earn(
+                        memberToken = token,
+                        amountMinor = op.getLong("amountMinor"),
+                        idempotencyKey = op.getString("idempotencyKey"),
+                        sourceEvent = op.optString("sourceEvent", "offline-replay"),
+                    )
+                }
                 replayed++
             } catch (e: TerminalApi.ApiException) {
                 // 4xx = permanently unprocessable (unknown member, bad request) — drop it,

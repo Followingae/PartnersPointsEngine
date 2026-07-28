@@ -10,6 +10,7 @@ import { PrismaClient } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { EnvelopeCryptoService } from '../src/auth/crypto/envelope-crypto.service';
 import { TokenService } from '../src/auth/tokens/token.service';
 import { CampaignService } from '../src/modules/loyalty-rules/campaign.service';
 import { GamificationService } from '../src/modules/loyalty-rules/gamification.service';
@@ -58,7 +59,8 @@ describe('Terminal gateway (Phase 4)', () => {
     const audit = new AuditService();
     const tokens = new TokenService(new JwtService({}), fakeConfig);
     loyalty = new LoyaltyService(tenants, new CampaignService(tenants, audit), new GamificationService(tenants, audit), audit);
-    terminal = new TerminalService(tenants, tokens, loyalty);
+    const crypto = new EnvelopeCryptoService(fakeConfig);
+    terminal = new TerminalService(tenants, tokens, loyalty, crypto);
 
     // Seed tenancy + member + identifier + an earn rule (as owner; RLS bypassed).
     await prisma.platform.create({ data: { id: platformId, name: 'T' } });
@@ -111,6 +113,29 @@ describe('Terminal gateway (Phase 4)', () => {
     // huge redeem vs small bill: cap at 50% of AED 2.00 = 100 fils
     const q3 = await terminal.quote(ctx, { memberToken, amountMinor: 200, redeemPoints: 10000 });
     expect(q3.redeem?.valueMinor).toBe('100');
+  });
+
+  it('enrolls a new phone at the till and resolves it afterwards', async () => {
+    const newPhone = '+971500778899';
+    const first = await terminal.enroll(ctx, { phone: newPhone, fullName: 'Walk In' });
+    expect(first.created).toBe(true);
+    expect(typeof first.memberToken).toBe('string');
+    // idempotent: enrolling again just resolves
+    const again = await terminal.enroll(ctx, { phone: newPhone });
+    expect(again.created).toBe(false);
+    const snapshot = await terminal.memberContext(ctx, again.memberToken);
+    expect(snapshot.displayName).toBe('Walk In');
+  });
+
+  it('persists an eReceipt idempotently by token', async () => {
+    const token = randomUUID();
+    const dto = { token, orderNo: 'RFM123456', grossMinor: 2000, discountMinor: 100, netMinor: 1900, memberName: 'Walk In', earnedPoints: 19 };
+    const a = await terminal.createReceipt(ctx, dto);
+    const b = await terminal.createReceipt(ctx, dto);
+    expect(a.id).toBe(b.id);
+    const row = await prisma.receipt.findUnique({ where: { token } });
+    expect(row?.brandName).toBe('B');
+    expect(row?.netMinor).toBe(1900n);
   });
 
   it('returns a member snapshot for the cashier screen', async () => {

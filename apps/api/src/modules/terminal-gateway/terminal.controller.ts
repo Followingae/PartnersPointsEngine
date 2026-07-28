@@ -3,7 +3,7 @@ import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { TerminalHmacGuard } from '../../auth/guards/terminal-hmac.guard';
-import { BatchDto, MemberContextDto, QuoteDto, ResolveDto, TransactionDto } from './dto';
+import { BatchDto, CreateReceiptDto, EnrollDto, MemberContextDto, QuoteDto, ResolveDto, TransactionDto } from './dto';
 import { TerminalService } from './terminal.service';
 
 /**
@@ -27,6 +27,18 @@ export class TerminalController {
   @ApiOperation({ summary: 'Resolve a customer identifier to an opaque member token.' })
   resolve(@CurrentTenant() ctx: TenantContext, @Body() dto: ResolveDto) {
     return this.terminal.resolve(ctx, dto.type, dto.value);
+  }
+
+  @Post('members/enroll')
+  @ApiOperation({ summary: 'At-till enrollment by phone; profile completes later in the customer app.' })
+  enroll(@CurrentTenant() ctx: TenantContext, @Body() dto: EnrollDto) {
+    return this.terminal.enroll(ctx, dto);
+  }
+
+  @Post('receipts')
+  @ApiOperation({ summary: 'Persist an eReceipt for the printed QR (idempotent by token).' })
+  createReceipt(@CurrentTenant() ctx: TenantContext, @Body() dto: CreateReceiptDto) {
+    return this.terminal.createReceipt(ctx, dto);
   }
 
   @Post('members/context')

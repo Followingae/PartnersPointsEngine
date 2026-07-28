@@ -40,6 +40,18 @@ class TerminalApi(private val settings: SettingsStore) {
         return res.getString("memberToken")
     }
 
+    /** At-till enrollment for a new phone number. Idempotent server-side. */
+    suspend fun enroll(phone: String, fullName: String?): String {
+        val body = JSONObject().put("phone", phone)
+        if (!fullName.isNullOrBlank()) body.put("fullName", fullName.trim())
+        return post("/members/enroll", body).getString("memberToken")
+    }
+
+    /** Persist the eReceipt behind the printed QR (idempotent by token). */
+    suspend fun createReceipt(payload: JSONObject) {
+        post("/receipts", payload)
+    }
+
     suspend fun memberContext(memberToken: String): MemberContext {
         val res = post("/members/context", JSONObject().put("memberToken", memberToken))
         return MemberContext(
