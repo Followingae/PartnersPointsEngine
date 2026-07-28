@@ -193,6 +193,36 @@ export interface CustomerContact {
   gender: string | null;
   birthdate: string | null;
 }
+export type CustomerActivityType =
+  | 'earn' | 'redeem' | 'expiry' | 'adjust' | 'void' | 'reverse' | 'transfer'
+  | 'voucher_issued' | 'voucher_redeemed' | 'voucher_expired';
+
+/** One row of the merged feed: ledger points movements *and* voucher events.
+    `title` is already a human label — render it, don't decode the enum. */
+export interface CustomerActivityEvent {
+  id: string;
+  at: string;
+  type: CustomerActivityType;
+  title: string;
+  /** Pre-signed points ("+120" / "−500"), or null when the event moves none. */
+  points: string | null;
+  direction: 'credit' | 'debit' | null;
+  rewardName: string | null;
+  voucherCode: string | null;
+  brandId: string | null;
+  brandName: string | null;
+}
+export interface CustomerVoucher {
+  id: string;
+  code: string;
+  status: string;
+  rewardName: string;
+  /** "0" when the reward was gifted rather than bought with points. */
+  pointsSpent: string;
+  issuedAt: string;
+  redeemedAt: string | null;
+  expiresAt: string | null;
+}
 export interface CustomerProfile {
   membershipId: string;
   loyaltyId: string;
@@ -205,6 +235,8 @@ export interface CustomerProfile {
   progressPct: number;
   identifiers: Array<{ type: string; addedAt: string }>;
   transactions: Array<{ journalId: string; kind: string; direction: string; amount: string; occurredAt: string; pointState: string | null }>;
+  activity: CustomerActivityEvent[];
+  vouchers: CustomerVoucher[];
   badges: Array<{ name: string; icon: string | null; awardedAt: string }>;
   referrals: { made: number; qualified: number };
 }

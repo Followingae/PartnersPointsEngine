@@ -68,6 +68,14 @@ export class CreateReceiptDto {
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) redeemedPoints?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) balanceAfter?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsString() pointsCode?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Identifies the member so rewards applied to this sale are recorded on the receipt.',
+  })
+  @IsOptional()
+  @IsString()
+  memberToken?: string;
 }
 
 class CartItemDto {

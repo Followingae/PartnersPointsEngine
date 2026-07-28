@@ -6,6 +6,7 @@ import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service
 import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { CampaignService } from './campaign.service';
+import { buildCustomerActivity } from './customer-activity';
 import { GamificationService } from './gamification.service';
 import { sortClause, type ListQuery, type ListResult } from './list';
 
@@ -583,8 +584,33 @@ export class LoyaltyService {
             SELECT j.id, j.kind, e.direction, e.amount_minor, j.occurred_at, e.point_state
               FROM entry e JOIN journal j ON j.id = e.journal_id
              WHERE e.account_id = ${accountId}
-             ORDER BY j.occurred_at DESC, j.id DESC LIMIT 25`
+             ORDER BY j.occurred_at DESC, j.id DESC LIMIT 50`
         : [];
+
+      // Rewards leave almost no ledger trace, so the activity feed merges the
+      // voucher table's own timeline in (see customer-activity.ts).
+      const vouchers = await tx.voucher.findMany({
+        where: { membershipId, brandId: ctx.brandId! },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true, code: true, status: true, createdAt: true, redeemedAt: true,
+          expiresAt: true, pointsSpent: true, redeemJournalId: true,
+          catalogItem: { select: { name: true } },
+        },
+      });
+
+      const activity = buildCustomerActivity({
+        journals: txns.map((r) => ({
+          id: r.id, kind: r.kind, direction: r.direction,
+          amountMinor: r.amount_minor, occurredAt: r.occurred_at,
+        })),
+        vouchers: vouchers.map((v) => ({
+          id: v.id, code: v.code, status: v.status, createdAt: v.createdAt,
+          redeemedAt: v.redeemedAt, expiresAt: v.expiresAt, pointsSpent: v.pointsSpent,
+          redeemJournalId: v.redeemJournalId, rewardName: v.catalogItem?.name ?? null,
+        })),
+      });
 
       const badges = await tx.badgeAward.findMany({ where: { membershipId, brandId: ctx.brandId! }, include: { badge: { select: { name: true, icon: true } } }, orderBy: { awardedAt: 'desc' } });
       const referralsMade = await tx.referral.count({ where: { referrerMembershipId: membershipId, brandId: ctx.brandId! } });
@@ -608,6 +634,17 @@ export class LoyaltyService {
         progressPct,
         identifiers: m.identifiers.map((i) => ({ type: i.type, addedAt: i.createdAt })),
         transactions: txns.map((r) => ({ journalId: r.id, kind: r.kind, direction: r.direction, amount: r.amount_minor.toString(), occurredAt: r.occurred_at, pointState: r.point_state })),
+        activity,
+        vouchers: vouchers.map((v) => ({
+          id: v.id,
+          code: v.code,
+          status: v.status,
+          rewardName: v.catalogItem?.name ?? 'Reward',
+          pointsSpent: v.pointsSpent.toString(),
+          issuedAt: v.createdAt,
+          redeemedAt: v.redeemedAt,
+          expiresAt: v.expiresAt,
+        })),
         badges: badges.map((a) => ({ name: a.badge.name, icon: a.badge.icon, awardedAt: a.awardedAt })),
         referrals: { made: referralsMade, qualified: referralsQualified },
       };

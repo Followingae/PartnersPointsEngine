@@ -53,7 +53,7 @@ CREATE TYPE "point_state" AS ENUM ('pending', 'active', 'redeemed', 'expired', '
 CREATE TYPE "breakage_owner" AS ENUM ('merchant', 'platform', 'split');
 
 -- CreateEnum
-CREATE TYPE "voucher_status" AS ENUM ('issued', 'redeemed', 'expired', 'void');
+CREATE TYPE "voucher_status" AS ENUM ('issued', 'reserved', 'redeemed', 'expired', 'void');
 
 -- CreateEnum
 CREATE TYPE "terminal_intent" AS ENUM ('earn', 'redeem');
@@ -275,6 +275,7 @@ CREATE TABLE "receipt" (
     "redeemed_points" BIGINT NOT NULL DEFAULT 0,
     "balance_after" BIGINT,
     "points_code" TEXT NOT NULL DEFAULT 'PTS',
+    "vouchers" JSONB NOT NULL DEFAULT '[]',
     "view_count" INTEGER NOT NULL DEFAULT 0,
     "ad_clicks" INTEGER NOT NULL DEFAULT 0,
     "first_viewed_at" TIMESTAMP(3),
@@ -693,6 +694,7 @@ CREATE TABLE "voucher" (
     "redeem_journal_id" TEXT,
     "expires_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reserved_at" TIMESTAMP(3),
     "redeemed_at" TIMESTAMP(3),
 
     CONSTRAINT "voucher_pkey" PRIMARY KEY ("id")

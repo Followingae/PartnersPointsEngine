@@ -261,11 +261,32 @@ export interface AdminCustomerMembership {
   membershipId: string; brandId: string; brandName: string; pointsCode: string;
   loyaltyId: string; status: string; joinedAt: string; available: string; lifetime: string;
 }
+/** The merged points-and-rewards story: ledger movements plus voucher events. */
+export type AdminCustomerActivityType =
+  | 'earn' | 'redeem' | 'expiry' | 'adjust' | 'void' | 'reverse' | 'transfer'
+  | 'voucher_issued' | 'voucher_redeemed' | 'voucher_expired';
+export interface AdminCustomerActivity {
+  id: string; at: string; type: AdminCustomerActivityType;
+  /** Human label, ready to render — do not re-derive from `type`. */
+  title: string;
+  /** Signed points ("+120" / "−500"), or null when the event moves no points. */
+  points: string | null;
+  direction: 'credit' | 'debit' | null;
+  rewardName: string | null; voucherCode: string | null;
+  brandId: string | null; brandName: string | null;
+}
+export interface AdminCustomerVoucher {
+  id: string; code: string; status: string; rewardName: string; pointsSpent: string;
+  brandId: string; brandName: string | null;
+  issuedAt: string; redeemedAt: string | null; expiresAt: string | null;
+}
 export interface AdminCustomerDetail {
   id: string; fullName: string | null; phone: string | null; email: string | null;
   gender: string | null; birthdate: string | null; status: string; createdAt: string;
   memberships: AdminCustomerMembership[];
   recent: Array<{ id: string; intent: string; state: string; points: string | null; amountMinor: string | null; at: string; brandName: string | null }>;
+  activity: AdminCustomerActivity[];
+  vouchers: AdminCustomerVoucher[];
 }
 export const getCustomers = (p: { q?: string; limit?: number; offset?: number } = {}) =>
   api<{ rows: AdminCustomerRow[]; total: number }>(`/admin/customers${qs(p)}`);

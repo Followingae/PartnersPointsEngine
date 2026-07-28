@@ -1,15 +1,23 @@
 'use client';
 
-import { ArrowDownRight, ArrowUpRight, Award, Coins, Download, Fingerprint, Gift, Trash2, Users2 } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Award, CalendarX2, Coins, Download, Fingerprint, Gift, Ticket, Trash2, Users2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button, ConfirmDialog, Field, Modal, Select } from '@/components/form';
 import { BackLink, DetailHeader, TabBar, type TabDef } from '@/components/detail-shell';
 import { Badge, Card, EmptyState, SectionTitle, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { downloadJson, eraseCustomer, getCustomerProfile, updateCustomerProfile, type CustomerProfile } from '@/lib/api';
+import { downloadJson, eraseCustomer, getCustomerProfile, updateCustomerProfile, type CustomerActivityEvent, type CustomerProfile, type CustomerVoucher } from '@/lib/api';
 
 const fmt = (v: string) => Number(v).toLocaleString();
+/** Activity points arrive pre-signed ("+120" / "−500") — keep the sign, group the digits. */
+const fmtSigned = (v: string) => {
+  const sign = /^[+\-−]/.test(v) ? v[0] : '';
+  const n = Number(v.slice(sign ? 1 : 0));
+  return Number.isFinite(n) ? `${sign}${n.toLocaleString()}` : v;
+};
+const isVoucherEvent = (t: CustomerActivityEvent['type']) => t.startsWith('voucher_');
+const voucherTone = (s: string): 'lime' | 'teal' | 'neutral' => (s === 'issued' ? 'lime' : s === 'redeemed' ? 'teal' : 'neutral');
 
 export default function CustomerProfilePage() {
   const { membershipId } = useParams<{ membershipId: string }>();
@@ -66,7 +74,8 @@ export default function CustomerProfilePage() {
 
   const tabs: TabDef[] = [
     { key: 'overview', label: 'Overview' },
-    { key: 'transactions', label: 'Transactions', count: p?.transactions.length },
+    { key: 'activity', label: 'Activity', count: p?.activity.length },
+    { key: 'rewards', label: 'Rewards', count: p?.vouchers.length },
     { key: 'badges', label: 'Badges', count: p?.badges.length },
     { key: 'identifiers', label: 'Identifiers', count: p?.identifiers.length },
   ];
@@ -145,22 +154,58 @@ export default function CustomerProfilePage() {
               </Card>
               </div>
             </div>
-          ) : tab === 'transactions' ? (
+          ) : tab === 'activity' ? (
             <Card className="p-6">
-              {p.transactions.length ? (
+              {p.activity.length ? (
                 <ul className="divide-y divide-border/70">
-                  {p.transactions.map((t) => {
-                    const credit = t.direction === 'credit';
-                    return (
-                      <li key={t.journalId} className="flex items-center gap-3 py-3">
-                        <span className={`grid h-9 w-9 place-items-center rounded-full ${credit ? 'bg-lime-200 text-lime-900' : 'bg-coral/20 text-[#9b3b52]'}`}>{credit ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}</span>
-                        <div className="flex-1"><p className="text-sm font-medium capitalize">{t.kind.replace(/_/g, ' ')}</p><p className="text-xs text-muted-foreground">{new Date(t.occurredAt).toLocaleString()}</p></div>
-                        <span className={`font-display font-semibold ${credit ? 'text-[#1f7a3d]' : 'text-[#9b3b52]'}`}>{credit ? '+' : '−'}{fmt(t.amount)}</span>
-                      </li>
-                    );
-                  })}
+                  {p.activity.map((e) => (
+                    <li key={e.id} className="flex items-center gap-3 py-3">
+                      <span className={`grid h-9 w-9 place-items-center rounded-full ${eventAccent(e)}`}>{eventIcon(e)}</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{e.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(e.at).toLocaleString()}
+                          {e.voucherCode ? <> · <span className="font-mono">{e.voucherCode}</span></> : null}
+                        </p>
+                      </div>
+                      {e.points ? (
+                        <span className={`font-display font-semibold ${e.direction === 'credit' ? 'text-[#1f7a3d]' : 'text-[#9b3b52]'}`}>{fmtSigned(e.points)}</span>
+                      ) : null}
+                    </li>
+                  ))}
                 </ul>
-              ) : <EmptyState icon={<Coins size={20} />} title="No transactions yet" />}
+              ) : <EmptyState icon={<Coins size={20} />} title="No activity yet" />}
+            </Card>
+          ) : tab === 'rewards' ? (
+            <Card className="p-6">
+              {p.vouchers.length ? (
+                <div className="overflow-hidden rounded-2xl border border-border/70">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Reward</th>
+                        <th className="px-4 py-3 font-semibold">Code</th>
+                        <th className="px-4 py-3 font-semibold">Status</th>
+                        <th className="px-4 py-3 font-semibold">Points</th>
+                        <th className="px-4 py-3 font-semibold">Issued</th>
+                        <th className="px-4 py-3 font-semibold">Used / expires</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/70">
+                      {p.vouchers.map((v) => (
+                        <tr key={v.id} className="hover:bg-muted/40">
+                          <td className="px-4 py-3 font-medium">{v.rewardName}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{v.code}</td>
+                          <td className="px-4 py-3"><Badge tone={voucherTone(v.status)}>{v.status}</Badge></td>
+                          <td className="px-4 py-3">{v.pointsSpent === '0' ? <span className="text-muted-foreground">Gifted</span> : <span className="font-display font-semibold">{fmt(v.pointsSpent)}</span>}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{new Date(v.issuedAt).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{voucherOutcome(v)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <EmptyState icon={<Gift size={20} />} title="No rewards claimed yet" hint="Vouchers issued, used, gifted or expired will appear here." />}
             </Card>
           ) : tab === 'badges' ? (
             <Card className="p-6">
@@ -218,6 +263,28 @@ export default function CustomerProfilePage() {
       />
     </div>
   );
+}
+
+/** Reward events read as their own thread in the feed — teal, ticket-shaped —
+    while points movements keep the ledger's credit/debit colours. */
+function eventAccent(e: CustomerActivityEvent): string {
+  if (isVoucherEvent(e.type)) return 'bg-teal/20 text-[#0f6b66]';
+  if (e.direction === 'credit') return 'bg-lime-200 text-lime-900';
+  if (e.direction === 'debit') return 'bg-coral/20 text-[#9b3b52]';
+  return 'bg-muted text-muted-foreground';
+}
+
+function eventIcon(e: CustomerActivityEvent): React.ReactNode {
+  if (e.type === 'voucher_redeemed') return <Ticket size={15} />;
+  if (e.type === 'voucher_expired') return <CalendarX2 size={15} />;
+  if (e.type === 'voucher_issued') return <Gift size={15} />;
+  return e.direction === 'credit' ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />;
+}
+
+function voucherOutcome(v: CustomerVoucher): string {
+  if (v.redeemedAt) return `Used ${new Date(v.redeemedAt).toLocaleDateString()}`;
+  if (!v.expiresAt) return '—';
+  return `${v.status === 'expired' ? 'Expired' : 'Expires'} ${new Date(v.expiresAt).toLocaleDateString()}`;
 }
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {

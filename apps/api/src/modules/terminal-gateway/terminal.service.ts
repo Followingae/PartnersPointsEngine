@@ -49,6 +49,47 @@ export class TerminalService {
     private readonly crypto: EnvelopeCryptoService,
   ) {}
 
+  /**
+   * How long a reward stays held for a sale in progress. Long enough to cover a
+   * card being re-presented or a receipt reprint, short enough that a walked-away
+   * customer isn't locked out of their own reward for the rest of the day.
+   */
+  private static readonly VOUCHER_HOLD_MS = 15 * 60 * 1000;
+
+  private reservationExpired(reservedAt: Date | null | undefined): boolean {
+    if (!reservedAt) return true;
+    return Date.now() - reservedAt.getTime() > TerminalService.VOUCHER_HOLD_MS;
+  }
+
+  /** Return lapsed holds to the customer — an abandoned sale spends nothing. */
+  private async releaseStaleHolds(tx: Prisma.TransactionClient, brandId: string, membershipId?: string): Promise<void> {
+    await tx.voucher.updateMany({
+      where: {
+        brandId,
+        ...(membershipId ? { membershipId } : {}),
+        status: 'reserved',
+        reservedAt: { lt: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) },
+      },
+      data: { status: 'issued', reservedAt: null },
+    });
+  }
+
+  /**
+   * A sale captured, so the rewards held against it are genuinely spent. Called
+   * from the capture paths rather than at the moment the cashier taps "use".
+   */
+  private async confirmVoucherHolds(tx: Prisma.TransactionClient, brandId: string, membershipId: string): Promise<void> {
+    await tx.voucher.updateMany({
+      where: {
+        brandId,
+        membershipId,
+        status: 'reserved',
+        reservedAt: { gte: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) },
+      },
+      data: { status: 'redeemed', redeemedAt: new Date() },
+    });
+  }
+
   private async member(memberToken: string, ctx: TenantContext): Promise<MemberTokenClaims> {
     let claims: MemberTokenClaims;
     try {
@@ -180,13 +221,41 @@ export class TerminalService {
       redeemedPoints?: number;
       balanceAfter?: number;
       pointsCode?: string;
+      memberToken?: string;
     },
   ) {
+    // Which rewards were applied to this sale is something the server already
+    // knows — they are the ones held for this member — so the till doesn't have
+    // to tell us, and older terminals still get them onto the receipt.
+    const claims = dto.memberToken ? await this.member(dto.memberToken, ctx) : null;
     return this.tenants.run(ctx, async (tx) => {
       const brand = await tx.brand.findFirst({ where: { id: ctx.brandId! }, select: { name: true, branding: true } });
       const branding = (brand?.branding ?? {}) as { primaryColor?: string };
       const existing = await tx.receipt.findUnique({ where: { token: dto.token }, select: { id: true } });
       if (existing) return { id: existing.id, token: dto.token };
+
+      const applied = claims
+        ? await tx.voucher.findMany({
+            where: {
+              brandId: ctx.brandId!,
+              membershipId: claims.membershipId,
+              status: { in: ['reserved', 'redeemed'] },
+              OR: [
+                { reservedAt: { gte: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) } },
+                { redeemedAt: { gte: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) } },
+              ],
+            },
+            select: { code: true, catalogItem: { select: { name: true, payload: true } } },
+          })
+        : [];
+      const vouchers = applied.map((v) => {
+        const payload = (v.catalogItem?.payload ?? {}) as { discountMinor?: number };
+        return {
+          code: v.code,
+          rewardName: v.catalogItem?.name ?? 'Reward',
+          discountMinor: typeof payload.discountMinor === 'number' ? payload.discountMinor : 0,
+        };
+      });
       const r = await tx.receipt.create({
         data: {
           token: dto.token,
@@ -210,6 +279,8 @@ export class TerminalService {
           redeemedPoints: BigInt(dto.redeemedPoints ?? 0),
           balanceAfter: dto.balanceAfter != null ? BigInt(dto.balanceAfter) : null,
           pointsCode: dto.pointsCode ?? 'PTS',
+          membershipId: claims?.membershipId ?? null,
+          vouchers,
         },
         select: { id: true },
       });
@@ -224,6 +295,9 @@ export class TerminalService {
   async memberVouchers(ctx: TenantContext, memberToken: string) {
     const claims = await this.member(memberToken, ctx);
     return this.tenants.run(ctx, async (tx) => {
+      // Rewards held by a sale that was never completed belong to the customer
+      // again — hand them back before deciding what to show the cashier.
+      await this.releaseStaleHolds(tx, ctx.brandId!, claims.membershipId);
       const rows = await tx.voucher.findMany({
         where: {
           membershipId: claims.membershipId,
@@ -269,7 +343,12 @@ export class TerminalService {
         throw new BadRequestException('This voucher has expired');
       }
       if (v.status === 'redeemed') throw new BadRequestException('This voucher was already used');
-      if (v.status !== 'issued') throw new BadRequestException(`This voucher is ${v.status}`);
+      // A stale hold from an abandoned sale is not a real claim on the voucher.
+      const heldElsewhere = v.status === 'reserved' && !this.reservationExpired(v.reservedAt);
+      if (heldElsewhere) throw new BadRequestException('This voucher was already used on a sale in progress');
+      if (v.status !== 'issued' && v.status !== 'reserved') {
+        throw new BadRequestException(`This voucher is ${v.status}`);
+      }
 
       // If the cashier already identified the member, make sure it's their voucher.
       if (memberToken) {
@@ -279,11 +358,14 @@ export class TerminalService {
         }
       }
 
-      await tx.voucher.update({ where: { id: v.id }, data: { status: 'redeemed', redeemedAt: new Date() } });
+      // Hold, don't burn. The reward is only spent once a sale captures against
+      // it (confirmVoucherHolds); abandon the sale and the hold lapses.
+      await tx.voucher.update({ where: { id: v.id }, data: { status: 'reserved', reservedAt: new Date() } });
       const payload = (v.catalogItem?.payload ?? {}) as { discountMinor?: number };
       return {
         code: v.code,
-        status: 'redeemed',
+        // Applied to this sale, not yet spent — it is spent when the sale captures.
+        status: 'reserved',
         rewardName: v.catalogItem?.name ?? 'Reward',
         kind: v.catalogItem?.kind ?? 'voucher',
         discountMinor: typeof payload.discountMinor === 'number' ? payload.discountMinor : 0,
@@ -365,6 +447,8 @@ export class TerminalService {
           sourceEvent: dto.sourceEvent,
           idempotencyKey: `term:${dto.idempotencyKey}`,
         });
+        // An earn-only sale still completes a sale, so it confirms any held rewards.
+        await this.confirmVoucherHolds(tx, ctx.brandId!, claims.membershipId);
         const created = await tx.terminalTransaction.create({
           data: {
             ...this.scopeData(ctx, claims.membershipId, dto.idempotencyKey),
@@ -430,6 +514,8 @@ export class TerminalService {
         where: { id: t.id },
         data: { state: 'captured', captureJournalId: cap.journalId },
       });
+      // The sale is real, so any rewards held for it are now genuinely spent.
+      await this.confirmVoucherHolds(tx, ctx.brandId!, t.membershipId);
       // NOTE: group-wallet drawdown settlement is performed by a group-scoped
       // settlement worker (Phase 5) — the terminal context is brand-scoped.
       return mapTxn(updated);
@@ -450,6 +536,12 @@ export class TerminalService {
         idem: { actorId: ctx.actor.id, key: `term:${t.idempotencyKey}:void` },
       });
       const updated = await tx.terminalTransaction.update({ where: { id: t.id }, data: { state: 'voided' } });
+      // Sale abandoned — hand the customer their rewards back immediately
+      // rather than making them wait out the hold.
+      await tx.voucher.updateMany({
+        where: { brandId: ctx.brandId!, membershipId: t.membershipId, status: 'reserved' },
+        data: { status: 'issued', reservedAt: null },
+      });
       return mapTxn(updated);
     });
   }

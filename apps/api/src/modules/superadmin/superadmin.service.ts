@@ -4,6 +4,7 @@ import { Prisma } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { createHash } from 'node:crypto';
 import { ROLE_PERMISSIONS } from '../../auth/authz/authz.service';
+import { buildCustomerActivity } from '../loyalty-rules/customer-activity';
 import { serializeRedemptionConfig } from '../loyalty-rules/loyalty.service';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { PasswordService } from '../../auth/crypto/password.service';
@@ -559,6 +560,51 @@ export class SuperadminService {
         select: { id: true, name: true, pointsCurrencyCode: true },
       });
       const brandById = new Map(brandRows.map((b) => [b.id, b]));
+      const brandOfMembership = new Map(p.memberships.map((m) => [m.id, m.brandId]));
+
+      // Superadmin sees the same merged story the brand does, but across every
+      // brand this person belongs to: points movements from the ledger, reward
+      // events from the voucher table (gifted vouchers exist only there).
+      const journalRows = membershipIds.length
+        ? await tx.$queryRaw<{ id: string; kind: string; direction: string; amount_minor: bigint; occurred_at: Date; customer_id: string }[]>`
+            SELECT j.id, j.kind, e.direction, e.amount_minor, j.occurred_at, la.customer_id
+              FROM entry e
+              JOIN journal j ON j.id = e.journal_id
+              JOIN ledger_account la ON la.id = e.account_id
+             WHERE la.account_type = 'points_liability'
+               AND la.customer_id IN (${Prisma.join(membershipIds)})
+             ORDER BY j.occurred_at DESC, j.id DESC LIMIT 60`
+        : [];
+
+      const voucherRows = membershipIds.length
+        ? await tx.voucher.findMany({
+            where: { membershipId: { in: membershipIds } },
+            orderBy: { createdAt: 'desc' },
+            take: 60,
+            select: {
+              id: true, code: true, status: true, createdAt: true, redeemedAt: true,
+              expiresAt: true, pointsSpent: true, redeemJournalId: true, membershipId: true,
+              brandId: true, catalogItem: { select: { name: true } },
+            },
+          })
+        : [];
+
+      const activity = buildCustomerActivity({
+        journals: journalRows.map((r) => {
+          const brandId = brandOfMembership.get(r.customer_id) ?? null;
+          return {
+            id: r.id, kind: r.kind, direction: r.direction,
+            amountMinor: r.amount_minor, occurredAt: r.occurred_at,
+            brandId, brandName: brandId ? brandById.get(brandId)?.name ?? null : null,
+          };
+        }),
+        vouchers: voucherRows.map((v) => ({
+          id: v.id, code: v.code, status: v.status, createdAt: v.createdAt,
+          redeemedAt: v.redeemedAt, expiresAt: v.expiresAt, pointsSpent: v.pointsSpent,
+          redeemJournalId: v.redeemJournalId, rewardName: v.catalogItem?.name ?? null,
+          brandId: v.brandId, brandName: brandById.get(v.brandId)?.name ?? null,
+        })),
+      });
 
       return {
         id: p.id,
@@ -591,6 +637,19 @@ export class SuperadminService {
           amountMinor: t.amountMinor?.toString() ?? null,
           at: t.createdAt,
           brandName: brandById.get(t.brandId)?.name ?? null,
+        })),
+        activity,
+        vouchers: voucherRows.map((v) => ({
+          id: v.id,
+          code: v.code,
+          status: v.status,
+          rewardName: v.catalogItem?.name ?? 'Reward',
+          pointsSpent: v.pointsSpent.toString(),
+          brandId: v.brandId,
+          brandName: brandById.get(v.brandId)?.name ?? null,
+          issuedAt: v.createdAt,
+          redeemedAt: v.redeemedAt,
+          expiresAt: v.expiresAt,
         })),
       };
     });

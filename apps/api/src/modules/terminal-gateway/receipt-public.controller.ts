@@ -129,6 +129,19 @@ const money = (minor: bigint, currency: string) =>
 
 const pts = (v: bigint) => Number(v).toLocaleString('en-US');
 
+interface ReceiptVoucher { code: string; rewardName: string; discountMinor: number }
+
+/** Receipt.vouchers is free-form JSON; only trust rows that actually look right. */
+function receiptVouchers(raw: unknown): ReceiptVoucher[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((v) => {
+    if (!v || typeof v !== 'object') return [];
+    const { code, rewardName, discountMinor } = v as Record<string, unknown>;
+    if (typeof code !== 'string' || typeof rewardName !== 'string') return [];
+    return [{ code, rewardName, discountMinor: typeof discountMinor === 'number' ? discountMinor : 0 }];
+  });
+}
+
 /**
  * The app-wide helmet() CSP is `img-src 'self' data:` and `script-src 'self'`,
  * which blocks merchants' ad images (hosted on their own CDNs) on this page.
@@ -164,8 +177,10 @@ function shell(title: string, body: string): string {
   body{background:var(--canvas);color:var(--ink);font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Roboto,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
   /* bottom padding clears the docked sponsored bar */
   .wrap{max-width:440px;margin:0 auto;padding:18px 16px 40px}
-  /* only reserve clearance when a sponsored banner is actually docked */
-  .wrap:has(.adbar){padding-bottom:calc(30vh + 56px)}
+  /* Reserves the docked banner's height in normal flow. A real element rather
+     than :has() on .wrap, so the last line is never hidden behind the ad on a
+     browser that doesn't support it. */
+  .adspacer{height:calc(clamp(104px,21vh,150px) + 62px)}
   .display{font-family:'Bricolage Grotesque','Hanken Grotesk',sans-serif;letter-spacing:-.02em}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -193,6 +208,39 @@ function shell(title: string, body: string): string {
     display:block;position:relative;background:var(--card);border:1px solid var(--line);
     border-radius:18px;overflow:hidden;
     box-shadow:0 10px 30px -12px rgba(21,21,15,.28);
+  }
+  /* the creative, with the copy set over it */
+  .adshot{position:relative;display:block;line-height:0}
+  .adshot img{display:block;width:100%;height:clamp(104px,21vh,150px);object-fit:cover;object-position:center}
+  .adscrim{
+    position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(8,8,4,0) 26%,rgba(8,8,4,.62) 68%,rgba(8,8,4,.88) 100%);
+  }
+  .adoverlay{
+    position:absolute;left:0;right:0;bottom:0;
+    display:flex;align-items:flex-end;gap:12px;padding:12px 14px;line-height:normal;
+  }
+  .adplain{display:flex;align-items:center;gap:12px;padding:13px 14px}
+  .adtext{min-width:0;flex:1}
+  .adkicker{
+    font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+    color:rgba(255,255,255,.72);line-height:1;margin-bottom:5px;
+  }
+  .adplain .adkicker{color:var(--faint)}
+  .adhead{
+    font-size:16px;font-weight:700;line-height:1.2;color:#fff;
+    text-shadow:0 1px 12px rgba(0,0,0,.45);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .adplain .adhead{color:var(--ink);text-shadow:none;font-size:15px}
+  .adbody{
+    font-size:12px;line-height:1.3;margin-top:2px;color:rgba(255,255,255,.82);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .adplain .adbody{color:var(--muted)}
+  .adcta{
+    flex:none;background:var(--lime);color:#15150F;font-weight:700;font-size:12.5px;
+    border-radius:999px;padding:8px 13px;white-space:nowrap;
   }
   @media print{
     :root{--canvas:#fff;--card:#fff;--ink:#000;--line:#ddd}
@@ -263,6 +311,7 @@ function receiptBody(
     paymentMethod: string; maskedPan: string | null; authNo: string | null;
     memberName: string | null; earnedPoints: bigint; redeemedPoints: bigint;
     balanceAfter: bigint | null; pointsCode: string; createdAt: Date; token: string;
+    vouchers?: unknown;
   },
   ad: { headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string } | null,
   brand: BrandProfile,
@@ -321,25 +370,25 @@ function receiptBody(
   // layout. Natural aspect ratio keeps the artwork uncropped; max-height is only
   // a guard so an unusually tall upload can't eat the screen. Without a creative
   // the lime rail stands in for the image.
-  const adBanner = hasAdImage
-    ? `<img src="${esc(ad!.imageUrl!)}" alt="${esc(ad?.headline ?? 'Sponsored')}" loading="lazy"
-            style="display:block;width:100%;height:auto;max-height:26vh;object-fit:cover;object-position:center">`
-    : '';
-  const adInner = `
-      ${adBanner}
-      <div style="display:flex;align-items:center;gap:12px;padding:11px 14px">
-        ${hasAdImage ? '' : '<div style="width:6px;height:40px;flex:0 0 6px;border-radius:999px;background:var(--lime)"></div>'}
-        <div style="min-width:0;flex:1">
-          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em;line-height:1.2">Sponsored</div>
-          ${ad?.headline ? `<div style="font-weight:700;font-size:15px;line-height:1.3;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad.headline)}</div>` : ''}
-          ${ad?.body ? `<div class="tiny muted" style="line-height:1.35;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ad.body)}</div>` : ''}
+  // Copy sits ON the artwork over a scrim, so the whole placement costs one
+  // banner's height instead of a banner plus a text block.
+  const adCopy = `
+        <div class="adtext">
+          <div class="adkicker">Sponsored</div>
+          ${ad?.headline ? `<div class="adhead">${esc(ad.headline)}</div>` : ''}
+          ${ad?.body ? `<div class="adbody">${esc(ad.body)}</div>` : ''}
         </div>
-        ${hasAdLink
-          ? `<div style="flex:none;background:var(--lime);color:#15150F;font-weight:700;font-size:13px;border-radius:999px;padding:9px 14px">${esc(ad!.ctaLabel ?? 'Open')} →</div>`
-          : ''}
-      </div>`;
+        ${hasAdLink ? `<div class="adcta">${esc(ad!.ctaLabel ?? 'Open')} →</div>` : ''}`;
+
+  const adInner = hasAdImage
+    ? `<div class="adshot">
+         <img src="${esc(ad!.imageUrl!)}" alt="" loading="lazy">
+         <div class="adscrim"></div>
+         <div class="adoverlay">${adCopy}</div>
+       </div>`
+    : `<div class="adplain">${adCopy}</div>`;
   const adBlock = ad?.headline || hasAdImage
-    ? `<div class="adbar no-print">${
+    ? `<div class="adspacer no-print"></div><div class="adbar no-print">${
         hasAdLink
           ? `<a href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit">${adInner}</a>`
           : adInner
@@ -354,10 +403,22 @@ function receiptBody(
        ${r.balanceAfter != null ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points balance</span><span style="font-weight:700">${pts(r.balanceAfter)} ${esc(r.pointsCode)}</span></div>` : ''}`
     : `<hr class="dash"><div class="tiny muted" style="text-align:center">Give your mobile number at the till next time and earn on every visit.</div>`;
 
+  // Rewards handed over on this sale, with their numbers — the customer's and the
+  // merchant's shared record that the voucher was actually used here.
+  const rewardRows = receiptVouchers(r.vouchers)
+    .map(
+      (v) => `<div class="row sm" style="margin-top:5px">
+        <span class="muted">${esc(v.rewardName)} <span class="mono tiny" style="color:var(--faint)">${esc(v.code)}</span></span>
+        <span style="color:var(--blush);font-weight:600">${v.discountMinor > 0 ? `−${money(BigInt(v.discountMinor), r.currency)}` : 'Applied'}</span>
+      </div>`,
+    )
+    .join('');
+
   const details = `
   <div class="card" style="margin-top:12px"><div style="padding:16px 18px">
     <div class="row sm"><span class="muted">Subtotal</span><span>${money(r.grossMinor, r.currency)}</span></div>
     ${r.discountMinor > 0n ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points discount</span><span style="color:var(--blush)">−${money(r.discountMinor, r.currency)}</span></div>` : ''}
+    ${rewardRows}
     <div class="row sm" style="margin-top:5px"><span class="muted">Paid</span><span style="font-weight:700">${money(r.netMinor, r.currency)}</span></div>
     ${loyaltyRows}
     <div class="row tiny mono" style="margin-top:12px;color:var(--faint)">

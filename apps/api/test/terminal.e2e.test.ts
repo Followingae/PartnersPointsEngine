@@ -171,11 +171,17 @@ describe('Terminal gateway (Phase 4)', () => {
     expect(progress.completions).toBe(1);
     expect(third.stamps.find((s) => s.target === 3)?.progress).toBe(0);
 
-    // the till can redeem that voucher, once
+    // the till holds that voucher against the sale, once
     const redeemed = await terminal.redeemVoucher(ctx, code!.toLowerCase());
-    expect(redeemed.status).toBe('redeemed');
+    expect(redeemed.status).toBe('reserved');
     expect(redeemed.rewardName).toBe('Free coffee');
     await expect(terminal.redeemVoucher(ctx, code!)).rejects.toThrow(/already used/);
+
+    // Applying a reward must not spend it — it is only spent when a sale
+    // captures. Before this, backing out of the sale destroyed the reward.
+    const held = await prisma.voucher.findFirstOrThrow({ where: { code: code! } });
+    expect(held.status).toBe('reserved');
+    expect(held.redeemedAt).toBeNull();
 
     await prisma.challenge.update({ where: { id: stamp.id }, data: { enabled: false } });
   });

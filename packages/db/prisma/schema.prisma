@@ -186,6 +186,8 @@ enum BreakageOwner {
 
 enum VoucherStatus {
   issued
+  /** Held while a sale is in progress; released if the sale never captures. */
+  reserved
   redeemed
   expired
   void
@@ -482,6 +484,8 @@ model Receipt {
   redeemedPoints BigInt    @default(0) @map("redeemed_points")
   balanceAfter   BigInt?   @map("balance_after")
   pointsCode     String    @default("PTS") @map("points_code")
+  /** Rewards applied to this sale: [{ code, rewardName, discountMinor }]. */
+  vouchers       Json      @default("[]")
   viewCount      Int       @default(0) @map("view_count")
   adClicks       Int       @default(0) @map("ad_clicks")
   firstViewedAt  DateTime? @map("first_viewed_at")
@@ -998,6 +1002,7 @@ model Voucher {
   redeemJournalId String?       @map("redeem_journal_id")
   expiresAt       DateTime?     @map("expires_at")
   createdAt       DateTime      @default(now()) @map("created_at")
+  reservedAt      DateTime?     @map("reserved_at")
   redeemedAt      DateTime?     @map("redeemed_at")
 
   catalogItem RewardCatalogItem? @relation(fields: [catalogItemId], references: [id])
