@@ -236,7 +236,7 @@ function receiptBody(
     memberName: string | null; earnedPoints: bigint; redeemedPoints: bigint;
     balanceAfter: bigint | null; pointsCode: string; createdAt: Date; token: string;
   },
-  ad: { headline?: string; body?: string; ctaLabel?: string; imageUrl?: string } | null,
+  ad: { headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string } | null,
   brand: BrandProfile,
 ): string {
   const color = /^#[0-9a-fA-F]{6}$/.test(brand.primaryColor ?? '')
