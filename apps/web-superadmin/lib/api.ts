@@ -244,6 +244,19 @@ export interface RolesCatalog {
 }
 export const getRolesCatalog = () => api<RolesCatalog>('/admin/roles');
 
+export interface ReceiptBrandStats {
+  brandId: string; brandName: string; receipts: number; viewed: number; views: number; adClicks: number; scanRate: number;
+}
+export interface ReceiptStats {
+  total: { receipts: number; viewed: number; views: number; adClicks: number; scanRate: number };
+  brands: ReceiptBrandStats[];
+}
+export const getReceiptStats = () => api<ReceiptStats>('/admin/receipt-stats');
+
+export interface EReceiptAd {
+  enabled?: boolean; headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string;
+}
+
 export interface PlatformSettings { id: string; name: string; region: string; settings: Record<string, unknown> }
 export const getPlatformSettings = () => api<PlatformSettings>('/admin/settings');
 export const setPlatformSettings = (body: { name?: string; region?: string; settings?: Record<string, unknown> }) =>

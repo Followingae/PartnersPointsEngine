@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Building2, ChevronLeft, ChevronsUpDown, GitPullRequestArrow, Handshake, History, LayoutDashboard, LineChart, LogOut, Scale, Search, Settings, Store, Users, Wallet } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronsUpDown, GitPullRequestArrow, Handshake, History, LayoutDashboard, LineChart, LogOut, ReceiptText, Scale, Search, Settings, Store, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -20,6 +20,7 @@ const NAV_GROUPS: { heading: string; items: { href: string; label: string; icon:
   ] },
   { heading: 'Partnerships', items: [
     { href: '/partnerships', label: 'Partnerships', icon: Handshake },
+    { href: '/ereceipts', label: 'eReceipts', icon: ReceiptText },
   ] },
   { heading: 'Governance', items: [
     { href: '/approvals', label: 'Approvals', icon: GitPullRequestArrow },
