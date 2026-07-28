@@ -161,6 +161,39 @@ describe('Phone sign-in codes', () => {
       }
     });
 
+    it('sends over WhatsApp through the approved template, not as free text', async () => {
+      const waEnv = {
+        ...env,
+        TWILIO_CHANNEL: 'whatsapp',
+        TWILIO_CONTENT_SID: 'HX_auth_template',
+      };
+      const waCfg = {
+        get: (k: string) => waEnv[k as keyof typeof waEnv],
+        getOrThrow: (k: string) => waEnv[k as keyof typeof waEnv]!,
+      } as never;
+
+      let captured: RequestInit | undefined;
+      const original = globalThis.fetch;
+      globalThis.fetch = (async (_url: string, init: RequestInit) => {
+        captured = init;
+        return { ok: true, status: 201, text: async () => '{}' } as Response;
+      }) as never;
+
+      try {
+        await new SmsSenderService(waCfg).sendCode('+971509169764', '654321');
+        const body = new URLSearchParams(captured!.body as string);
+        // Both ends have to carry the whatsapp: prefix or Twilio treats it as SMS.
+        expect(body.get('To')).toBe('whatsapp:+971509169764');
+        expect(body.get('From')).toBe('whatsapp:+971509169764');
+        expect(body.get('ContentSid')).toBe('HX_auth_template');
+        expect(JSON.parse(body.get('ContentVariables')!)).toEqual({ '1': '654321' });
+        // WhatsApp rejects a business-initiated message that carries free text.
+        expect(body.get('Body')).toBeNull();
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
+
     it('reports a rejected send rather than pretending it went', async () => {
       const original = globalThis.fetch;
       globalThis.fetch = (async () =>

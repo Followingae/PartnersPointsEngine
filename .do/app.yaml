@@ -39,6 +39,12 @@ services:
       # A Twilio number, or a UAE-registered sender ID. Alternatively set
       # TWILIO_MESSAGING_SERVICE_SID instead and leave this unset.
       - { key: TWILIO_FROM, scope: RUN_TIME, type: SECRET }
+      # WhatsApp reaches UAE numbers an overseas SMS long code often cannot.
+      - { key: TWILIO_CHANNEL, value: whatsapp }
+      - { key: TWILIO_CONTENT_SID, scope: RUN_TIME, type: SECRET }
+      # Transactional email (Resend).
+      - { key: RESEND_API_KEY, scope: RUN_TIME, type: SECRET }
+      - { key: EMAIL_FROM, value: "Partners Points <hello@mail.partnerspoints.ae>" }
       - { key: DEFAULT_REGION, value: uae }
       - { key: DEFAULT_CURRENCY, value: AED }
 

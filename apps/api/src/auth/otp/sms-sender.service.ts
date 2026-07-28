@@ -14,6 +14,13 @@ import { ConfigService } from '@nestjs/config';
  *     TWILIO_API_KEY_SECRET=…
  *     TWILIO_FROM=+9715…          a Twilio number, or an approved sender ID
  *     TWILIO_MESSAGING_SERVICE_SID=MG…   optional, used instead of From
+ *     TWILIO_CHANNEL=whatsapp     deliver over WhatsApp instead of SMS
+ *     TWILIO_CONTENT_SID=HX…      the approved authentication template
+ *
+ * WhatsApp matters here beyond preference: a UAE number is hard to reach from
+ * an overseas SMS long code, and WhatsApp sidesteps that. It only permits
+ * business-initiated messages through a template Meta has approved, so the code
+ * is passed as a template variable rather than as free text.
  *
  *   SMS_PROVIDER=http             any gateway that takes a JSON POST
  *     SMS_HTTP_URL, SMS_HTTP_TOKEN, SMS_SENDER_ID
@@ -58,7 +65,7 @@ export class SmsSenderService {
 
     switch (this.provider) {
       case 'twilio':
-        return this.sendViaTwilio(phone, text);
+        return this.sendViaTwilio(phone, text, code);
       case 'http':
         return this.sendViaHttp(phone, text);
       default:
@@ -70,18 +77,36 @@ export class SmsSenderService {
     }
   }
 
-  private async sendViaTwilio(phone: string, text: string): Promise<{ delivered: boolean }> {
+  private async sendViaTwilio(
+    phone: string,
+    text: string,
+    code?: string,
+  ): Promise<{ delivered: boolean }> {
     const accountSid = this.config.getOrThrow<string>('TWILIO_ACCOUNT_SID');
     const keySid = this.config.getOrThrow<string>('TWILIO_API_KEY_SID');
     const keySecret = this.config.getOrThrow<string>('TWILIO_API_KEY_SECRET');
     const from = this.config.get<string>('TWILIO_FROM');
     const messagingServiceSid = this.config.get<string>('TWILIO_MESSAGING_SERVICE_SID');
+    // WhatsApp reaches UAE numbers that an overseas SMS long code often can't.
+    const whatsapp = this.config.get<string>('TWILIO_CHANNEL') === 'whatsapp';
+    const contentSid = this.config.get<string>('TWILIO_CONTENT_SID');
 
-    const body = new URLSearchParams({ To: phone, Body: text });
+    const addr = (n: string) => (whatsapp && !n.startsWith('whatsapp:') ? `whatsapp:${n}` : n);
+    const body = new URLSearchParams({ To: addr(phone) });
+
+    if (whatsapp && contentSid) {
+      // WhatsApp only allows business-initiated messages through an approved
+      // template, so the code travels as a template variable, not as free text.
+      body.set('ContentSid', contentSid);
+      body.set('ContentVariables', JSON.stringify({ '1': code ?? text }));
+    } else {
+      body.set('Body', text);
+    }
+
     // A messaging service handles sender selection and compliance; a bare From
     // is the simpler setup. Twilio rejects both together.
     if (messagingServiceSid) body.set('MessagingServiceSid', messagingServiceSid);
-    else if (from) body.set('From', from);
+    else if (from) body.set('From', addr(from));
 
     try {
       const res = await fetch(

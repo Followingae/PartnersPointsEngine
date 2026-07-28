@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditService } from './audit/audit.service';
+import { EmailService } from './email/email.service';
 import { HealthController } from './health/health.controller';
 import { PrismaService } from './prisma/prisma.service';
 import { TenantService } from './tenancy/tenant.service';
@@ -18,8 +19,9 @@ import { TenantAlsInterceptor } from './tenancy/tenant-als.interceptor';
     PrismaService,
     TenantService,
     AuditService,
+    EmailService,
     { provide: APP_INTERCEPTOR, useClass: TenantAlsInterceptor },
   ],
-  exports: [PrismaService, TenantService, AuditService],
+  exports: [PrismaService, TenantService, AuditService, EmailService],
 })
 export class PlatformCoreModule {}
