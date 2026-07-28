@@ -113,6 +113,82 @@ describe('Phone sign-in codes', () => {
     expect(await otp.verify(p, code)).toBe(false);
   });
 
+  describe('Twilio delivery', () => {
+    const env: Record<string, string> = {
+      SMS_PROVIDER: 'twilio',
+      TWILIO_ACCOUNT_SID: 'AC_test_account',
+      TWILIO_API_KEY_SID: 'SK_test_key',
+      TWILIO_API_KEY_SECRET: 'secret_value',
+      TWILIO_FROM: '+971509169764',
+    };
+    const cfg = {
+      get: (k: string) => env[k],
+      getOrThrow: (k: string) => {
+        const v = env[k];
+        if (!v) throw new Error(`missing ${k}`);
+        return v;
+      },
+    } as never;
+
+    it('posts to the account’s Messages endpoint with the key as basic auth', async () => {
+      const calls: Array<{ url: string; init: RequestInit }> = [];
+      const original = globalThis.fetch;
+      globalThis.fetch = (async (url: string, init: RequestInit) => {
+        calls.push({ url, init });
+        return { ok: true, status: 201, text: async () => '{}' } as Response;
+      }) as never;
+
+      try {
+        const sender = new SmsSenderService(cfg);
+        expect(sender.configured).toBe(true);
+        const r = await sender.sendCode('+971500000000', '123456');
+        expect(r.delivered).toBe(true);
+
+        const [call] = calls;
+        expect(call!.url).toBe('https://api.twilio.com/2010-04-01/Accounts/AC_test_account/Messages.json');
+
+        const auth = (call!.init.headers as Record<string, string>).Authorization!;
+        const [scheme, encoded] = auth.split(' ');
+        expect(scheme).toBe('Basic');
+        expect(Buffer.from(encoded!, 'base64').toString()).toBe('SK_test_key:secret_value');
+
+        const body = new URLSearchParams(call!.init.body as string);
+        expect(body.get('To')).toBe('+971500000000');
+        expect(body.get('From')).toBe('+971509169764');
+        expect(body.get('Body')).toContain('123456');
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
+
+    it('reports a rejected send rather than pretending it went', async () => {
+      const original = globalThis.fetch;
+      globalThis.fetch = (async () =>
+        ({
+          ok: false,
+          status: 400,
+          text: async () => JSON.stringify({ message: 'Unverified number', code: 21608 }),
+        }) as Response) as never;
+      try {
+        const r = await new SmsSenderService(cfg).sendCode('+971500000000', '123456');
+        expect(r.delivered).toBe(false);
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
+
+    it('is not configured when the credentials are incomplete', () => {
+      const partial = { ...env };
+      delete partial.TWILIO_API_KEY_SECRET;
+      const sender = new SmsSenderService({
+        get: (k: string) => partial[k],
+        getOrThrow: (k: string) => partial[k]!,
+      } as never);
+      // Half-configured must read as off, or codes vanish silently.
+      expect(sender.configured).toBe(false);
+    });
+  });
+
   it('reports that nothing was delivered when no provider is configured', async () => {
     const bare = new SmsSenderService({ get: () => undefined, getOrThrow: () => '' } as never);
     expect(bare.configured).toBe(false);

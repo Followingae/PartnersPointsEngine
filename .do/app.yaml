@@ -30,6 +30,15 @@ services:
       - { key: JWT_ACCESS_SECRET, scope: RUN_TIME, type: SECRET }
       - { key: JWT_REFRESH_SECRET, scope: RUN_TIME, type: SECRET }
       - { key: PII_MASTER_KEY_BASE64, scope: RUN_TIME, type: SECRET }
+      # Sign-in codes. Without these the API stores a code and logs it, but
+      # nothing reaches the customer's phone — which reads as broken sign-in.
+      - { key: SMS_PROVIDER, value: twilio }
+      - { key: TWILIO_ACCOUNT_SID, scope: RUN_TIME, type: SECRET }
+      - { key: TWILIO_API_KEY_SID, scope: RUN_TIME, type: SECRET }
+      - { key: TWILIO_API_KEY_SECRET, scope: RUN_TIME, type: SECRET }
+      # A Twilio number, or a UAE-registered sender ID. Alternatively set
+      # TWILIO_MESSAGING_SERVICE_SID instead and leave this unset.
+      - { key: TWILIO_FROM, scope: RUN_TIME, type: SECRET }
       - { key: DEFAULT_REGION, value: uae }
       - { key: DEFAULT_CURRENCY, value: AED }
 
