@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Chip, EmptyState, ErrorState, H1, Loading, Screen, Small } from '@/components/UI';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
-import { getDiscoverBrands, joinBrand, type DiscoverBrand } from '@/lib/api';
+import { getDiscoverBrands, type DiscoverBrand } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, S, SP, font } from '@/lib/tokens';
 
@@ -55,8 +55,6 @@ function BrandRow({
 export default function DiscoverTab() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('All');
-  const [joining, setJoining] = useState<string | null>(null);
-  const [joinError, setJoinError] = useState<string | null>(null);
   const { data, loading, refreshing, error, signedOut, refresh } = useAsync(getDiscoverBrands);
 
   useEffect(() => {
@@ -64,23 +62,11 @@ export default function DiscoverTab() {
   }, [signedOut, router]);
 
   /**
-   * Joining is a no-op server-side when the card already exists, so the only
-   * thing to guard is firing two requests at once; the list is re-read after
-   * rather than flipped locally, since the card is what the API now owns.
+   * Joining shares the customer's name and number with the brand, and that is
+   * said out loud on the join sheet — so every route to joining goes through
+   * it. Joining straight from this chip would have skipped the disclosure.
    */
-  const join = async (brandId: string) => {
-    if (joining) return;
-    setJoining(brandId);
-    setJoinError(null);
-    try {
-      await joinBrand(brandId);
-      refresh();
-    } catch (e) {
-      setJoinError(e instanceof Error ? e.message : 'Could not join right now.');
-    } finally {
-      setJoining(null);
-    }
-  };
+  const join = (brandId: string) => router.push(`/join/${brandId}`);
 
   const brands = data ?? [];
   const list = brands.filter((b) =>
@@ -133,12 +119,12 @@ export default function DiscoverTab() {
         />
       ) : (
         <View style={{ marginTop: 24, gap: 16 }}>
-          {joinError ? <Small style={{ color: S.spend }}>{joinError}</Small> : null}
+
           {list.map((b) => (
             <BrandRow
               key={b.brandId}
               brand={b}
-              joining={joining === b.brandId}
+              joining={false}
               onPress={() => router.push(`/merchant/${b.brandId}`)}
               onJoin={() => void join(b.brandId)}
             />
