@@ -1,9 +1,14 @@
-import { ReactNode } from 'react';
-import { Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Screen, Small } from '@/components/UI';
+import { ApiError, requestOtp } from '@/lib/api';
+import { useSession } from '@/lib/session';
 import { C, font } from '@/lib/tokens';
 import { BackButton, Caret, Footer, Sub, Title } from './_components';
+
+const LENGTH = 6;
+const RESEND_SECONDS = 30;
 
 /** One OTP box. Filled boxes are washed in; empty ones are outlined. */
 function Cell({ children, filled }: { children?: ReactNode; filled?: boolean }) {
@@ -29,40 +34,133 @@ function Digit({ value }: { value: string }) {
   return <Text style={{ fontFamily: font(600), fontSize: 24, lineHeight: 29, color: C.ink }}>{value}</Text>;
 }
 
-/** 04 · OTP. */
+/** +971501234567 → +971 50 123 4567, for the "sent to" line. */
+function prettyPhone(e164: string): string {
+  const m = /^\+971(\d{2})(\d{3})(\d{4})$/.exec(e164);
+  return m ? `+971 ${m[1]} ${m[2]} ${m[3]}` : e164;
+}
+
+/**
+ * 04 · OTP.
+ *
+ * The six boxes display one hidden input rather than being six inputs — that
+ * keeps paste, SMS autofill and backspace behaving the way people expect.
+ */
 export default function Otp() {
   const router = useRouter();
+  const session = useSession();
+  const { phone } = useLocalSearchParams<{ phone?: string }>();
 
-  function onVerify() {
-    // TODO(api): verifyOtp(msisdn, code) — persist the session token before advancing.
-    router.push('/onboarding/account-found');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [seconds, setSeconds] = useState(RESEND_SECONDS);
+  const input = useRef<TextInput>(null);
+  const submitted = useRef(false);
+
+  useEffect(() => {
+    if (seconds <= 0) return;
+    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [seconds]);
+
+  async function verify(value: string) {
+    if (busy || !phone) return;
+    submitted.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await session.signIn(phone, value);
+      router.replace('/home');
+    } catch (e) {
+      // Let them correct it here rather than bouncing them back a screen.
+      setError(e instanceof ApiError ? e.message : 'That code didn’t work. Try again.');
+      setCode('');
+      submitted.current = false;
+      input.current?.focus();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onChange(raw: string) {
+    const next = raw.replace(/\D/g, '').slice(0, LENGTH);
+    setCode(next);
+    setError(null);
+    // Submit as soon as it's complete — nobody wants to reach for a button here.
+    if (next.length === LENGTH && !submitted.current) void verify(next);
+  }
+
+  async function resend() {
+    if (!phone || seconds > 0) return;
+    setSeconds(RESEND_SECONDS);
+    setError(null);
+    try {
+      await requestOtp(phone);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not resend the code.');
+    }
   }
 
   return (
     <Screen scroll={false} background={C.surface} bottomGap={18}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <BackButton onPress={() => router.back()} />
-      </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <BackButton onPress={() => router.back()} />
+        </View>
 
-      <View style={{ marginTop: 20 }}>
-        <Title>Enter the code</Title>
-        <Sub style={{ marginTop: 10 }}>Sent to +971 50 123 4567</Sub>
-      </View>
+        <View style={{ marginTop: 20 }}>
+          <Title>Enter the code</Title>
+          <Sub style={{ marginTop: 10 }}>
+            {phone ? `Sent to ${prettyPhone(phone)}` : 'Sent to your phone'}
+          </Sub>
+        </View>
 
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 32 }}>
-        <Cell filled><Digit value="4" /></Cell>
-        <Cell filled><Digit value="8" /></Cell>
-        <Cell filled><Digit value="2" /></Cell>
-        <Cell><Caret height={24} offset={0} /></Cell>
-        <Cell />
-        <Cell />
-      </View>
+        <Pressable onPress={() => input.current?.focus()} style={{ flexDirection: 'row', gap: 10, marginTop: 32 }}>
+          {Array.from({ length: LENGTH }).map((_, i) => {
+            const char = code[i];
+            const isCursor = i === code.length && !busy;
+            return (
+              <Cell key={i} filled={Boolean(char)}>
+                {char ? <Digit value={char} /> : isCursor ? <Caret height={24} offset={0} /> : null}
+              </Cell>
+            );
+          })}
+        </Pressable>
 
-      <Small style={{ marginTop: 26, fontSize: 13.5, lineHeight: 19, textAlign: 'center' }}>Resend in 0:24</Small>
+        {/* The real field: invisible, but focused and holding the value. */}
+        <TextInput
+          ref={input}
+          value={code}
+          onChangeText={onChange}
+          keyboardType="number-pad"
+          textContentType="oneTimeCode"
+          autoComplete="sms-otp"
+          maxLength={LENGTH}
+          autoFocus
+          caretHidden
+          style={{ position: 'absolute', opacity: 0, height: 1, width: 1 }}
+        />
 
-      <Footer>
-        <Button label="Verify" onPress={onVerify} />
-      </Footer>
+        {error ? (
+          <Small style={{ marginTop: 20, textAlign: 'center', color: C.crimson }}>{error}</Small>
+        ) : (
+          <Pressable onPress={resend} disabled={seconds > 0}>
+            <Small style={{ marginTop: 26, fontSize: 13.5, lineHeight: 19, textAlign: 'center' }}>
+              {seconds > 0 ? `Resend in 0:${String(seconds).padStart(2, '0')}` : 'Resend code'}
+            </Small>
+          </Pressable>
+        )}
+
+        <Footer>
+          <Button
+            label="Verify"
+            onPress={() => verify(code)}
+            loading={busy}
+            disabled={code.length !== LENGTH}
+          />
+        </Footer>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }

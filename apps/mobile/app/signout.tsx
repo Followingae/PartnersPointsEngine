@@ -4,18 +4,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, Lede, TextAction } from '@/components/Bits';
 import { Button, H2 } from '@/components/UI';
 import { C, R, S, SP, shadow } from '@/lib/tokens';
-import { clearToken } from '@/lib/api';
+import { useSession } from '@/lib/session';
 
 /** Confirm sheet over a dimmed profile. */
 export default function SignOut() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const session = useSession();
 
   const dismiss = () => (router.canGoBack() ? router.back() : router.replace('/profile'));
 
   const signOut = async () => {
-    await clearToken();
-    router.replace('/onboarding/splash');
+    await session.signOut();
+    router.replace('/onboarding/phone');
   };
 
   return (

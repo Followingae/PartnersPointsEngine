@@ -1,15 +1,17 @@
 import { ReactNode } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle,
+  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, R, S, SP, T, font, shadow } from '@/lib/tokens';
 
 /** Screen container: canvas background, safe areas, tab-bar clearance. */
 export function Screen({
-  children, scroll = true, pad = true, background = C.canvas, bottomGap = 108,
+  children, scroll = true, pad = true, background = C.canvas, bottomGap = 108, refreshing, onRefresh,
 }: {
   children: ReactNode; scroll?: boolean; pad?: boolean; background?: string; bottomGap?: number;
+  /** Pass both to enable pull-to-refresh. */
+  refreshing?: boolean; onRefresh?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const style: ViewStyle = {
@@ -26,9 +28,58 @@ export function Screen({
   }
   return (
     <View style={style}>
-      <ScrollView contentContainerStyle={inner} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={inner}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          onRefresh
+            ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={C.soft} />
+            : undefined
+        }
+      >
         {children}
       </ScrollView>
+    </View>
+  );
+}
+
+/** Centred spinner for a screen's first load. */
+export function Loading({ label }: { label?: string }) {
+  return (
+    <View style={{ paddingVertical: 64, alignItems: 'center', gap: 12 }}>
+      <ActivityIndicator color={C.soft} />
+      {label ? <Small>{label}</Small> : null}
+    </View>
+  );
+}
+
+/**
+ * What went wrong and how to get out of it. Errors carry the API's own message
+ * where there is one — "You don't have enough points" beats "Request failed".
+ */
+export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <View style={{ paddingVertical: 48, alignItems: 'center', gap: 14 }}>
+      <H3 style={{ textAlign: 'center' }}>Couldn’t load this</H3>
+      <Body tone="muted" style={{ textAlign: 'center' }}>{message}</Body>
+      {onRetry ? (
+        <Button label="Try again" onPress={onRetry} style={{ marginTop: 6, paddingHorizontal: 28 }} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Nothing here yet — said in the user's terms, with a way forward when there is one. */
+export function EmptyState({
+  title, body, actionLabel, onAction,
+}: { title: string; body?: string; actionLabel?: string; onAction?: () => void }) {
+  return (
+    <View style={{ paddingVertical: 48, alignItems: 'center', gap: 12 }}>
+      <H3 style={{ textAlign: 'center' }}>{title}</H3>
+      {body ? <Body tone="muted" style={{ textAlign: 'center' }}>{body}</Body> : null}
+      {actionLabel && onAction ? (
+        <Button label={actionLabel} onPress={onAction} style={{ marginTop: 6, paddingHorizontal: 28 }} />
+      ) : null}
     </View>
   );
 }
