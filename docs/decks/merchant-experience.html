@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Merchant Experience — Partners Points</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B04D9; --deep:#070459; --lime:#BFF205; --coral:#F2622E; --purple:#7A36D9; --sky:#1B78F2;
+    --ink:#262626; --soft:#6b6b70; --faint:#9a9aa0; --line:#e7e7ea; --canvas:#f3f3f5;
+    --display:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;
+    --body:'Plus Jakarta Sans',-apple-system,Segoe UI,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  html,body{margin:0;padding:0;}
+  @page{ size:1280px 720px; margin:0; }
+  body{ font-family:var(--body); color:var(--ink); }
+
+  .slide{ position:relative; width:1280px; height:720px; background:var(--canvas);
+    padding:50px 60px 56px; overflow:hidden; page-break-after:always; display:flex; flex-direction:column; }
+  .slide:last-child{ page-break-after:auto; }
+
+  .eyebrow{ font:600 13px var(--mono); letter-spacing:.18em; text-transform:uppercase; color:var(--blue); }
+  h1.title{ margin:7px 0 0; font:800 38px/1.02 var(--display); letter-spacing:-.02em; color:#1d1d20; }
+  .summary{ margin:10px 0 0; font-size:15.5px; line-height:1.5; color:var(--soft); max-width:940px; }
+  .foot{ position:absolute; left:60px; right:60px; bottom:22px; display:flex; justify-content:space-between; align-items:center;
+    font:600 11.5px var(--mono); letter-spacing:.04em; color:var(--faint); border-top:1px solid var(--line); padding-top:11px; }
+
+  /* screenshot frame */
+  .shots{ display:flex; gap:26px; margin-top:24px; flex:1; align-items:flex-start; justify-content:center; }
+  .col{ display:flex; flex-direction:column; align-items:center; min-width:0; }
+  .frame{ background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    box-shadow:0 26px 54px -22px rgba(38,38,38,.32); width:100%; }
+  .bar{ height:30px; background:#fafafb; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:6px; padding:0 12px; }
+  .dot{ width:8px; height:8px; border-radius:999px; }
+  .url{ margin-left:7px; background:#eef0f2; border-radius:6px; padding:2px 9px; font:500 9.5px var(--mono); color:#8a8a90; }
+  .frame img{ display:block; width:100%; height:auto; }
+  .cap{ margin-top:11px; text-align:center; }
+  .cap b{ display:block; font:700 13.5px var(--body); color:#1d1d20; }
+  .cap span{ font:600 11px var(--mono); color:var(--faint); letter-spacing:.04em; }
+
+  .pin{ position:absolute; top:50px; right:60px; background:rgba(11,4,217,.08); color:var(--blue);
+    font:700 9.5px var(--body); padding:6px 12px; border-radius:999px; display:flex; align-items:center; gap:6px; }
+  .pin i{ width:7px; height:7px; border-radius:999px; background:var(--blue); }
+
+  /* cover */
+  .cover{ background:linear-gradient(155deg,#070459,#05021c); color:#fff; padding:0; }
+  .cover .glow{ position:absolute; inset:0; background:radial-gradient(60% 50% at 26% 40%,rgba(11,4,217,.5),transparent 60%); }
+  .cover .wrap{ position:relative; padding:66px 60px; height:100%; display:flex; flex-direction:column; max-width:680px; }
+  .cwm{ height:34px; width:auto; align-self:flex-start; }
+  .cover .kic{ font:600 13px var(--mono); letter-spacing:.18em; text-transform:uppercase; color:var(--lime); margin-top:48px; }
+  .cover h1{ margin:14px 0 0; font:800 58px/1.0 var(--display); letter-spacing:-.025em; }
+  .cover p{ margin:18px 0 0; font-size:17px; color:rgba(255,255,255,.74); max-width:560px; line-height:1.5; }
+  .cover .meta{ margin-top:auto; font:600 12.5px var(--mono); color:rgba(255,255,255,.6); letter-spacing:.04em; }
+  .cover .stage{ position:absolute; right:-150px; top:96px; width:760px; height:560px; }
+  .cover .sc{ position:absolute; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 50px 90px -28px rgba(0,0,0,.7); }
+  .cover .sc img{ display:block; width:100%; height:auto; }
+  .cover .sc1{ width:560px; top:40px; left:60px; transform:rotate(-5deg); }
+  .cover .sc2{ width:430px; top:300px; left:300px; transform:rotate(4deg); }
+
+  /* contents */
+  .toc{ display:grid; grid-template-columns:1fr 1fr; gap:8px 56px; margin-top:30px; }
+  .toc .item{ display:flex; align-items:baseline; gap:14px; padding:11px 0; border-bottom:1px solid var(--line); }
+  .toc .n{ font:800 20px var(--display); color:var(--blue); width:34px; flex:none; }
+  .toc .tt{ font:700 15.5px var(--body); color:#1d1d20; flex:1; }
+  .toc .tt small{ display:block; font:500 11.5px var(--body); color:var(--faint); margin-top:1px; }
+  .toc .ct{ font:600 11px var(--mono); color:var(--faint); }
+</style>
+</head>
+<body>
+
+<!-- 1 · COVER -->
+<section class="slide cover">
+  <div class="glow"></div>
+  <div class="stage">
+    <div class="sc sc1"><img src="shots/brand/dashboard.png" alt="" /></div>
+    <div class="sc sc2"><img src="shots/super/partnerships.png" alt="" /></div>
+  </div>
+  <div class="wrap">
+    <img class="cwm" src="../../.design-ref/partners-points-app/assets/pp-wordmark-light.png" alt="Partners Points" />
+    <div class="kic">Merchant Experience</div>
+    <h1>How merchants run loyalty on Partners Points</h1>
+    <p>A walkthrough of the real merchant console — from setup to rewards — and where Lulu Happiness Points fit in.</p>
+    <div class="meta">Partners Points · June 2026</div>
+  </div>
+</section>
+
+<!-- 2 · CONTENTS -->
+<section class="slide">
+  <div class="eyebrow">Contents</div>
+  <h1 class="title">What's inside</h1>
+  <p class="summary">A section-by-section tour of the live console — how a brand sets up, designs its program, engages customers, and converts points into Lulu Happiness Points — then the visibility Lulu gets. Every screen shown is the real product.</p>
+  <div class="toc">
+    <div class="item"><span class="n">01</span><span class="tt">Getting set up<small>Onboarding, brand profile, locations</small></span><span class="ct">2</span></div>
+    <div class="item"><span class="n">06</span><span class="tt">Lulu Happiness<small>Allowance wallet, top-ups, conversions</small></span><span class="ct">3</span></div>
+    <div class="item"><span class="n">02</span><span class="tt">The console at a glance<small>Dashboard, KPIs, navigation</small></span><span class="ct">1</span></div>
+    <div class="item"><span class="n">07</span><span class="tt">Governance &amp; control<small>Access modes, approvals, audit</small></span><span class="ct">1</span></div>
+    <div class="item"><span class="n">03</span><span class="tt">Designing the program<small>Earn rules, rewards, tiers</small></span><span class="ct">2</span></div>
+    <div class="item"><span class="n">08</span><span class="tt">What Lulu sees<small>Partnerships module &amp; reporting</small></span><span class="ct">1</span></div>
+    <div class="item"><span class="n">04</span><span class="tt">Engage &amp; target<small>Campaigns, customers</small></span><span class="ct">2</span></div>
+    <div class="item"><span class="n">—</span><span class="tt">Where this is live<small>Consoles, API &amp; status</small></span><span class="ct">1</span></div>
+    <div class="item"><span class="n">05</span><span class="tt">Customers &amp; insight<small>RFM, Customer 360, reporting</small></span><span class="ct">2</span></div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>02</span></div>
+</section>
+
+<!-- 3 · 01 GETTING SET UP -->
+<section class="slide">
+  <div class="eyebrow">01 · Getting set up</div>
+  <h1 class="title">A merchant comes online in minutes</h1>
+  <p class="summary">Superadmin onboards the merchant and creates its prepaid wallet, then registers branches and POS terminals where members earn in store.</p>
+  <div class="shots">
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">superadmin.platform.partnerspoints.ae/merchants</span></div><img src="shots/super/merchants.png" alt="Merchants" /></div>
+      <div class="cap"><b>Merchants</b><span>Superadmin</span></div>
+    </div>
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/brands/camel-bean/locations</span></div><img src="shots/super/locations.png" alt="Locations" /></div>
+      <div class="cap"><b>Branches &amp; POS terminals</b><span>Superadmin</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>03</span></div>
+</section>
+
+<!-- 4 · 02 CONSOLE AT A GLANCE -->
+<section class="slide">
+  <div class="eyebrow">02 · The console at a glance</div>
+  <h1 class="title">Everything in one organised console</h1>
+  <p class="summary">A grouped sidebar keeps the program tidy; the dashboard leads with the numbers that matter, the two loyalty types, and a live RFM segment breakdown.</p>
+  <div class="shots">
+    <div class="col" style="width:74%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">platform.partnerspoints.ae</span></div><img src="shots/brand/dashboard.png" alt="Dashboard" /></div>
+      <div class="cap"><b>Dashboard</b><span>Merchant console</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>04</span></div>
+</section>
+
+<!-- 5 · 03 DESIGNING THE PROGRAM -->
+<section class="slide">
+  <div class="eyebrow">03 · Designing the program</div>
+  <h1 class="title">The merchant designs how points work</h1>
+  <p class="summary">Earn rules target online, in-store, or both; tiers unlock perks as members climb; rewards become vouchers redeemed at the till.</p>
+  <div class="shots">
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/earn-rules</span></div><img src="shots/brand/earn-rules.png" alt="Earn rules" /></div>
+      <div class="cap"><b>Earn rules — online &amp; in-store</b><span>Merchant</span></div>
+    </div>
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/rewards</span></div><img src="shots/brand/rewards.png" alt="Rewards" /></div>
+      <div class="cap"><b>Rewards catalog</b><span>Merchant</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>05</span></div>
+</section>
+
+<!-- 6 · 04 ENGAGE & TARGET -->
+<section class="slide">
+  <div class="eyebrow">04 · Engage &amp; target</div>
+  <h1 class="title">Campaigns drive visits; tiers reward loyalty</h1>
+  <p class="summary">Schedule happy-hour multipliers and bonus campaigns, and reward regulars with tiers that unlock richer perks.</p>
+  <div class="shots">
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/campaigns</span></div><img src="shots/brand/campaigns.png" alt="Campaigns" /></div>
+      <div class="cap"><b>Campaigns &amp; happy hour</b><span>Merchant</span></div>
+    </div>
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/tiers</span></div><img src="shots/brand/tiers.png" alt="Tiers" /></div>
+      <div class="cap"><b>Tiers &amp; benefits</b><span>Merchant</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>06</span></div>
+</section>
+
+<!-- 7 · 05 CUSTOMERS & INSIGHT -->
+<section class="slide">
+  <div class="eyebrow">05 · Customers &amp; insight</div>
+  <h1 class="title">A full picture of every member</h1>
+  <p class="summary">RFM-scored customers and a 360° profile per member — contact, balances, tier progress and history — with exportable reporting across the program.</p>
+  <div class="shots">
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/customers</span></div><img src="shots/brand/customers.png" alt="Customers" /></div>
+      <div class="cap"><b>Customers (RFM)</b><span>Merchant</span></div>
+    </div>
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/reporting</span></div><img src="shots/brand/reporting.png" alt="Reporting" /></div>
+      <div class="cap"><b>Reporting &amp; analytics · CSV export</b><span>Merchant</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>07</span></div>
+</section>
+
+<!-- 8 · 06 LULU HAPPINESS (overview) -->
+<section class="slide">
+  <div class="pin"><i></i>Lulu partnership</div>
+  <div class="eyebrow">06 · Lulu Happiness</div>
+  <h1 class="title">Points become Lulu Happiness Points</h1>
+  <p class="summary">A Lulu-enabled merchant gets a dedicated area: how conversion works, the live allowance balance, and 30-day conversion volumes.</p>
+  <div class="shots">
+    <div class="col" style="width:74%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">platform.partnerspoints.ae/lulu</span></div><img src="shots/brand/lulu.png" alt="Lulu Happiness" /></div>
+      <div class="cap"><b>Lulu Happiness — overview</b><span>Merchant</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>08</span></div>
+</section>
+
+<!-- 9 · 06 LULU — WALLET & TOP-UPS -->
+<section class="slide">
+  <div class="pin"><i></i>Lulu partnership</div>
+  <div class="eyebrow">06 · Lulu Happiness</div>
+  <h1 class="title">The merchant funds it — and tops up themselves</h1>
+  <p class="summary">A prepaid allowance wallet funds every conversion. The merchant requests a top-up; the platform invoices and confirms, and the wallet credits automatically. Every movement is on the ledger.</p>
+  <div class="shots">
+    <div class="col" style="width:74%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/lulu · Allowance wallet</span></div><img src="shots/brand/lulu-wallet.png" alt="Allowance wallet" /></div>
+      <div class="cap"><b>Allowance wallet · self-serve top-up · ledger</b><span>Merchant</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>09</span></div>
+</section>
+
+<!-- 10 · 06 LULU — CONVERSIONS & REPORTS -->
+<section class="slide">
+  <div class="pin"><i></i>Lulu partnership</div>
+  <div class="eyebrow">06 · Lulu Happiness</div>
+  <h1 class="title">Every conversion, tracked and reportable</h1>
+  <p class="summary">The merchant sees each conversion (5 pts = 1 LHP, reversible) and a reporting view with volumes and trends — all exportable to CSV.</p>
+  <div class="shots">
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/lulu · Conversions</span></div><img src="shots/brand/lulu-conversions.png" alt="Conversions" /></div>
+      <div class="cap"><b>Conversions</b><span>Merchant</span></div>
+    </div>
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/lulu · Reports</span></div><img src="shots/brand/lulu-reports.png" alt="Reports" /></div>
+      <div class="cap"><b>Conversion reports</b><span>Merchant</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>10</span></div>
+</section>
+
+<!-- 11 · 07 GOVERNANCE -->
+<section class="slide">
+  <div class="eyebrow">07 · Governance &amp; control</div>
+  <h1 class="title">Control sits with the platform — safely</h1>
+  <p class="summary">Superadmin sets how much each brand can self-serve — autonomous, approval-required, or fully managed — reviews change requests, and every action is in the audit log.</p>
+  <div class="shots">
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">superadmin.platform.partnerspoints.ae/brands</span></div><img src="shots/super/brands.png" alt="Brands governance" /></div>
+      <div class="cap"><b>Brands &amp; access</b><span>Superadmin</span></div>
+    </div>
+    <div class="col" style="width:46%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">…/approvals</span></div><img src="shots/super/approvals.png" alt="Approvals" /></div>
+      <div class="cap"><b>Change requests (maker–checker)</b><span>Superadmin</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>11</span></div>
+</section>
+
+<!-- 12 · 08 WHAT LULU SEES -->
+<section class="slide">
+  <div class="pin"><i></i>Lulu visibility</div>
+  <div class="eyebrow">08 · What Lulu sees</div>
+  <h1 class="title">Lulu's window into the partnership</h1>
+  <p class="summary">A dedicated Partnerships module shows Lulu the live conversion volumes, the funding behind every conversion (the top-up queue), the awarding merchants, and exportable reporting — on the platform, today.</p>
+  <div class="shots">
+    <div class="col" style="width:74%">
+      <div class="frame"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">superadmin.platform.partnerspoints.ae/partnerships</span></div><img src="shots/super/partnerships.png" alt="Partnerships" /></div>
+      <div class="cap"><b>Partnerships — Lulu Happiness</b><span>Lulu visibility</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Partners Points — Merchant Console</span><span>12</span></div>
+</section>
+
+<!-- 13 · CLOSING -->
+<section class="slide cover">
+  <div class="glow"></div>
+  <div class="wrap" style="max-width:760px">
+    <img class="cwm" src="../../.design-ref/partners-points-app/assets/pp-wordmark-light.png" alt="Partners Points" />
+    <div class="kic" style="margin-top:60px">Where this is live</div>
+    <h1 style="font-size:46px">Built, deployed, and live today</h1>
+    <p>The merchant &amp; superadmin consoles run today on platform.partnerspoints.ae and superadmin.platform.partnerspoints.ae, backed by the loyalty API. The Lulu partnership — allowance wallets, self-serve top-ups, conversions and reporting — is live behind a connector ready for Lulu's API.</p>
+    <div style="display:flex;gap:34px;margin-top:28px">
+      <div><div style="font:800 30px var(--display)">2</div><div style="font:600 12px var(--mono);color:rgba(255,255,255,.6)">consoles live</div></div>
+      <div><div style="font:800 30px var(--display)">12</div><div style="font:600 12px var(--mono);color:rgba(255,255,255,.6)">awarding merchants</div></div>
+      <div><div style="font:800 30px var(--display)">5 pts = 1 LHP</div><div style="font:600 12px var(--mono);color:rgba(255,255,255,.6)">reversible · audited</div></div>
+    </div>
+    <div class="meta">Partners Points · June 2026</div>
+  </div>
+</section>
+
+</body>
+</html>

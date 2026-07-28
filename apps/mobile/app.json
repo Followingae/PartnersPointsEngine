@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Partners Points",
+    "slug": "partners-points",
+    "scheme": "partnerspoints",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#070459"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ae.partnerspoints.app"
+    },
+    "android": {
+      "package": "ae.partnerspoints.app",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
