@@ -22,8 +22,12 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +49,22 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
     val member = state.member
     val net = state.netMinor()
     val redeemValue = state.redeemValueMinor()
+
+    var scanningVoucher by remember { mutableStateOf(false) }
+    var voucherEntry by remember { mutableStateOf("") }
+    var showVoucherEntry by remember { mutableStateOf(false) }
+
+    if (scanningVoucher) {
+        ScanScreen(
+            title = "Scan the customer's reward",
+            onResult = { code ->
+                scanningVoucher = false
+                vm.redeemVoucher(code)
+            },
+            onCancel = { scanningVoucher = false },
+        )
+        return
+    }
 
     TerminalScaffold(
         title = "Charge",
@@ -76,6 +96,17 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Points discount", style = MaterialTheme.typography.bodyMedium, color = RfmColor.MutedFg, modifier = Modifier.weight(1f))
                         Text("− ${formatAmountWithCurrency(redeemValue, cfg.currency)}", style = MaterialTheme.typography.titleMedium, color = RfmColor.Blush)
+                    }
+                }
+                state.redeemedVouchers.forEach { v ->
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(v.rewardName, style = MaterialTheme.typography.bodyMedium, color = RfmColor.MutedFg, modifier = Modifier.weight(1f))
+                        Text(
+                            if (v.discountMinor > 0) "− ${formatAmountWithCurrency(v.discountMinor, cfg.currency)}" else "FREE",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = RfmColor.Lime600,
+                        )
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -154,6 +185,49 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
                                 }
                             }
                         }
+                    }
+                }
+
+                // ── reward vouchers the customer brings to the till ──────────
+                RfmCard(padding = 14.dp) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Reward voucher", style = MaterialTheme.typography.titleSmall, color = RfmColor.Ink)
+                            Text(
+                                "Scan or type the code from their app",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = RfmColor.MutedFg,
+                            )
+                        }
+                        SecondaryAction("Scan", modifier = Modifier.width(110.dp)) { scanningVoucher = true }
+                    }
+                    if (showVoucherEntry) {
+                        Spacer(Modifier.height(10.dp))
+                        androidx.compose.material3.OutlinedTextField(
+                            value = voucherEntry,
+                            onValueChange = { voucherEntry = it.uppercase().filter { c -> c.isLetterOrDigit() } },
+                            label = { Text("Voucher code") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        SecondaryAction("Apply voucher", enabled = voucherEntry.isNotBlank() && !state.voucherBusy) {
+                            vm.redeemVoucher(voucherEntry)
+                            voucherEntry = ""
+                            showVoucherEntry = false
+                        }
+                    } else {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Enter code manually",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = RfmColor.Sky,
+                            modifier = Modifier.clickable { showVoucherEntry = true },
+                        )
+                    }
+                    state.voucherError?.let {
+                        Spacer(Modifier.height(6.dp))
+                        Text(it, style = MaterialTheme.typography.labelMedium, color = RfmColor.Destructive)
                     }
                 }
 

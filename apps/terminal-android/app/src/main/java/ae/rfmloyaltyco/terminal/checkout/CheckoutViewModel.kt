@@ -74,10 +74,18 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
         /** Server-owned valuation + brand identity (cached across offline restarts). */
         val server: ServerConfig? = null,
         val rate: RedemptionRate = RedemptionRate.DEFAULT,
+        val voucherBusy: Boolean = false,
+        val voucherError: String? = null,
+        val redeemedVouchers: List<ae.rfmloyaltyco.terminal.api.VoucherRedemption> = emptyList(),
     ) {
         fun redeemValueMinor(): Long = rate.valueMinor(redeemPoints, amountMinor)
 
-        fun netMinor(): Long = (amountMinor - redeemValueMinor()).coerceAtLeast(0)
+        /** Discount-type reward vouchers come off the bill too. */
+        fun voucherDiscountMinor(): Long =
+            redeemedVouchers.sumOf { it.discountMinor }.coerceAtMost(amountMinor)
+
+        fun netMinor(): Long =
+            (amountMinor - redeemValueMinor() - voucherDiscountMinor()).coerceAtLeast(0)
     }
 
     private val _state = MutableStateFlow(State())
@@ -192,6 +200,35 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
     }
+
+    // ── reward vouchers ──────────────────────────────────────────────────────
+
+    /**
+     * Accept a reward voucher the customer presents. Marks it used server-side;
+     * a discount-type reward also comes off this bill.
+     */
+    fun redeemVoucher(code: String) {
+        if (code.isBlank()) return
+        _state.update { it.copy(voucherBusy = true, voucherError = null) }
+        viewModelScope.launch {
+            try {
+                val v = api.redeemVoucher(code.trim(), _state.value.member?.token)
+                _state.update {
+                    it.copy(
+                        voucherBusy = false,
+                        voucherError = null,
+                        redeemedVouchers = it.redeemedVouchers + v,
+                    )
+                }
+            } catch (e: TerminalApi.ApiException) {
+                _state.update { it.copy(voucherBusy = false, voucherError = e.errorMessage) }
+            } catch (_: Exception) {
+                _state.update { it.copy(voucherBusy = false, voucherError = "Can't reach the loyalty service — try again") }
+            }
+        }
+    }
+
+    fun clearVoucherError() = _state.update { it.copy(voucherError = null) }
 
     fun clearMember() {
         _state.update { it.copy(member = null, quote = null, redeemPoints = 0, lookupError = null, lookupNotFound = false) }

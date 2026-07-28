@@ -6,8 +6,9 @@ import { Button, ConfirmDialog, Field, Modal, PageHeader, Select } from '@/compo
 import { ActionMenu, Badge, Card, EmptyState, SectionTitle, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import {
-  createBadge, createChallenge, deleteBadge, deleteChallenge, getBadges, getChallenges, governanceMessage, governanceOutcome, updateBadge, updateChallenge,
-  type BadgeRow, type ChallengeRow,
+  createBadge, createChallenge, deleteBadge, deleteChallenge, getBadges, getChallenges, getRewards,
+  governanceMessage, governanceOutcome, updateBadge, updateChallenge,
+  type BadgeRow, type ChallengeRow, type RewardRow,
 } from '@/lib/api';
 
 const CHALLENGE_KINDS = [
@@ -94,7 +95,12 @@ export default function GamificationPage() {
                 <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-teal text-ink"><Target size={16} /></span>
                 <div className="flex-1">
                   <span className="font-medium">{c.name}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">reach {Number(c.target).toLocaleString()} {(c.kind ?? 'lifetime_points').replace('_', ' ')}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {c.repeatable && c.kind === 'visits'
+                      ? `stamp card · ${Number(c.target).toLocaleString()} visits per reward`
+                      : `reach ${Number(c.target).toLocaleString()} ${(c.kind ?? 'lifetime_points').replace('_', ' ')}`}
+                  </span>
+                  {c.repeatable ? <Badge tone="lime">Refills</Badge> : null}
                 </div>
                 <Badge tone={c.enabled ? 'lime' : 'neutral'}>{c.enabled ? 'active' : 'off'}</Badge>
                 <Badge tone="lime">+{Number(c.rewardPoints).toLocaleString()} pts</Badge>
@@ -156,14 +162,36 @@ function ChallengeModal({ challenge, onClose, onSaved }: { challenge: ChallengeR
   const [kind, setKind] = useState(challenge?.kind ?? 'lifetime_points');
   const [target, setTarget] = useState(challenge ? String(challenge.target) : '500');
   const [points, setPoints] = useState(challenge ? String(challenge.rewardPoints) : '50');
+  const [repeatable, setRepeatable] = useState(challenge?.repeatable ?? false);
+  const [rewardItemId, setRewardItemId] = useState(challenge?.rewardItemId ?? '');
+  const [rewards, setRewards] = useState<RewardRow[]>([]);
   const [errors, setErrors] = useState<{ name?: string }>({});
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => { getRewards({ limit: 100 }).then((r) => setRewards(r.rows)).catch(() => {}); }, []);
+
+  // A stamp card is the familiar "buy N, get one free": count visits, repeat,
+  // and hand out a reward each time it fills.
+  function makeStampCard() {
+    setKind('visits');
+    setRepeatable(true);
+    setTarget('9');
+    setPoints('0');
+    if (!name.trim()) setName('Coffee card');
+  }
+
+  const isStampCard = kind === 'visits' && repeatable;
+
   async function submit() {
     if (!name.trim()) { setErrors({ name: 'Name is required' }); return; }
     setSaving(true);
+    const body = {
+      name, kind, target: Number(target), rewardPoints: Number(points),
+      repeatable, rewardItemId: rewardItemId || undefined,
+    };
     try {
-      if (challenge) await updateChallenge(challenge.id, { name, kind, target: Number(target), rewardPoints: Number(points) });
-      else await createChallenge({ name, kind, target: Number(target), rewardPoints: Number(points) });
+      if (challenge) await updateChallenge(challenge.id, body);
+      else await createChallenge(body);
       toast('success', challenge ? 'Challenge updated' : 'Challenge created');
       onSaved();
     } catch (e) {
@@ -172,15 +200,65 @@ function ChallengeModal({ challenge, onClose, onSaved }: { challenge: ChallengeR
       else toast('error', e instanceof Error ? e.message : 'Failed');
     } finally { setSaving(false); }
   }
+
   return (
     <Modal open onClose={onClose} title={challenge ? 'Edit challenge' : 'New challenge'}>
       <div className="space-y-4">
-        <Field label="Name" value={name} onChange={setName} placeholder="e.g. Reach 500 points" required error={errors.name} />
+        {!challenge ? (
+          <button
+            type="button"
+            onClick={makeStampCard}
+            className="w-full rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-left transition hover:bg-muted"
+          >
+            <p className="text-sm font-semibold">☕ Start from a stamp card</p>
+            <p className="text-xs text-muted-foreground">Buy 9, get the 10th free — counts visits and refills automatically.</p>
+          </button>
+        ) : null}
+
+        <Field label="Name" value={name} onChange={setName} placeholder="e.g. Coffee card" required error={errors.name} />
         <Select label="Goal type" value={kind} onChange={setKind} options={CHALLENGE_KINDS} />
+
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Target" value={target} onChange={setTarget} type="number" />
-          <Field label="Reward points" value={points} onChange={setPoints} type="number" />
+          <Field
+            label={kind === 'visits' ? 'Visits needed' : kind === 'spend' ? 'Spend needed (fils)' : 'Points needed'}
+            value={target}
+            onChange={setTarget}
+            type="number"
+          />
+          <Field label="Bonus points on completion" value={points} onChange={setPoints} type="number" />
         </div>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border/70 p-3">
+          <input
+            type="checkbox"
+            checked={repeatable}
+            onChange={(e) => setRepeatable(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-lime-500"
+          />
+          <span>
+            <span className="block text-sm font-medium">Refills after each completion</span>
+            <span className="block text-xs text-muted-foreground">
+              Turns this into a stamp card — it resets and can be earned again and again.
+            </span>
+          </span>
+        </label>
+
+        <Select
+          label="Reward issued on completion"
+          value={rewardItemId}
+          onChange={setRewardItemId}
+          options={[{ value: '', label: 'No reward voucher' }, ...rewards.map((r) => ({ value: r.id, label: r.name }))]}
+          hint="The customer gets this as a voucher, redeemable at the till."
+        />
+
+        {isStampCard ? (
+          <p className="rounded-2xl bg-lime-100 px-4 py-3 text-xs text-lime-900">
+            Customers collect a stamp per visit. At {target || 'N'} stamps they get
+            {rewardItemId ? ` “${rewards.find((r) => r.id === rewardItemId)?.name ?? 'the reward'}”` : ' the reward'}
+            {Number(points) > 0 ? ` plus ${points} bonus points` : ''}, and the card starts again.
+          </p>
+        ) : null}
+
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} loading={saving}>{challenge ? 'Save changes' : 'Create challenge'}</Button>

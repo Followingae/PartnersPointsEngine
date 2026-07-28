@@ -132,6 +132,16 @@ export class CreateChallengeDto {
   @IsOptional()
   @IsString()
   badgeId?: string;
+
+  @ApiPropertyOptional({ description: 'Stamp card: refills after each completion' })
+  @IsOptional()
+  @IsBoolean()
+  repeatable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Reward catalogue item issued as a voucher on completion' })
+  @IsOptional()
+  @IsString()
+  rewardItemId?: string;
 }
 
 export class RedeemReferralDto {
@@ -327,6 +337,16 @@ export class UpdateChallengeDto {
   @IsOptional()
   @IsString()
   badgeId?: string;
+
+  @ApiPropertyOptional({ description: 'Stamp card: refills after each completion' })
+  @IsOptional()
+  @IsBoolean()
+  repeatable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Reward catalogue item issued on completion' })
+  @IsOptional()
+  @IsString()
+  rewardItemId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

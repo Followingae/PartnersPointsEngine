@@ -183,7 +183,7 @@ export interface TierRow { id: string; name: string; threshold: string; multipli
 export interface CampaignRow { id: string; name: string; startsAt: string | null; endsAt: string | null; enabled: boolean; definition?: Record<string, unknown> }
 export interface MemberRow { membershipId: string; loyaltyId: string; status: string; available: string; lifetime: string; joinedAt: string }
 export interface BadgeRow { id: string; name: string; description: string | null; icon?: string | null; rewardPoints: string }
-export interface ChallengeRow { id: string; name: string; kind?: string; target: string; rewardPoints: string; badgeId: string | null; enabled: boolean }
+export interface ChallengeRow { id: string; name: string; kind?: string; target: string; rewardPoints: string; badgeId: string | null; enabled: boolean; repeatable?: boolean; rewardItemId?: string | null }
 export interface AuditRow { id: string; actorType: string; actorId: string; action: string; targetType: string | null; targetId: string | null; data: Record<string, unknown>; createdAt: string }
 
 export interface CustomerContact {
@@ -277,9 +277,9 @@ export const deleteBadge = (id: string) => api(`/manage/badges/${id}`, { method:
 
 // challenges
 export const getChallenges = (p?: ListParams) => api<ListResult<ChallengeRow>>(`/manage/challenges${qs(p)}`);
-export const createChallenge = (body: { name: string; kind?: string; target: number; rewardPoints?: number; badgeId?: string }) =>
+export const createChallenge = (body: { name: string; kind?: string; target: number; rewardPoints?: number; badgeId?: string; repeatable?: boolean; rewardItemId?: string }) =>
   api('/manage/challenges', { method: 'POST', body: JSON.stringify(body) });
-export const updateChallenge = (id: string, body: Partial<{ name: string; kind: string; target: number; rewardPoints: number; badgeId: string; enabled: boolean }>) =>
+export const updateChallenge = (id: string, body: Partial<{ name: string; kind: string; target: number; rewardPoints: number; badgeId: string; enabled: boolean; repeatable: boolean; rewardItemId: string }>) =>
   api(`/manage/challenges/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
 export const deleteChallenge = (id: string) => api(`/manage/challenges/${id}`, { method: 'DELETE' });
 

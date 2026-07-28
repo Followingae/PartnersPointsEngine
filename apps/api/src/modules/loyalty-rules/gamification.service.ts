@@ -236,10 +236,15 @@ export class GamificationService {
     });
   }
 
-  async createChallenge(ctx: TenantContext, dto: { name: string; kind?: string; target: number; rewardPoints?: number; badgeId?: string }) {
+  async createChallenge(ctx: TenantContext, dto: { name: string; kind?: string; target: number; rewardPoints?: number; badgeId?: string; repeatable?: boolean; rewardItemId?: string }) {
     return this.tenants.run(ctx, async (tx) => {
       const c = await tx.challenge.create({
-        data: { brandId: ctx.brandId!, groupId: ctx.groupId!, platformId: ctx.platformId, name: dto.name, kind: dto.kind ?? 'lifetime_points', target: BigInt(dto.target), rewardPoints: BigInt(dto.rewardPoints ?? 0), badgeId: dto.badgeId ?? null },
+        data: {
+          brandId: ctx.brandId!, groupId: ctx.groupId!, platformId: ctx.platformId,
+          name: dto.name, kind: dto.kind ?? 'lifetime_points', target: BigInt(dto.target),
+          rewardPoints: BigInt(dto.rewardPoints ?? 0), badgeId: dto.badgeId ?? null,
+          repeatable: dto.repeatable ?? false, rewardItemId: dto.rewardItemId ?? null,
+        },
         select: { id: true, name: true, target: true },
       });
       await this.audit.record(tx, ctx, { action: 'challenge.create', targetType: 'challenge', targetId: c.id, data: { name: c.name } });
@@ -271,7 +276,7 @@ export class GamificationService {
         tx.challenge.findMany({ where, orderBy: { [sort]: order }, take: query.limit ?? 100, skip: query.offset ?? 0 }),
         tx.challenge.count({ where }),
       ]);
-      return { rows: items.map((c) => ({ id: c.id, name: c.name, kind: c.kind, target: c.target.toString(), rewardPoints: c.rewardPoints.toString(), badgeId: c.badgeId, enabled: c.enabled })), total } satisfies ListResult<unknown>;
+      return { rows: items.map((c) => ({ id: c.id, name: c.name, kind: c.kind, target: c.target.toString(), rewardPoints: c.rewardPoints.toString(), badgeId: c.badgeId, enabled: c.enabled, repeatable: c.repeatable, rewardItemId: c.rewardItemId })), total } satisfies ListResult<unknown>;
     });
   }
 
@@ -324,7 +329,7 @@ export class GamificationService {
     });
   }
 
-  async updateChallenge(ctx: TenantContext, id: string, dto: { name?: string; kind?: string; target?: number; rewardPoints?: number; badgeId?: string | null; enabled?: boolean }) {
+  async updateChallenge(ctx: TenantContext, id: string, dto: { name?: string; kind?: string; target?: number; rewardPoints?: number; badgeId?: string | null; enabled?: boolean; repeatable?: boolean; rewardItemId?: string | null }) {
     return this.tenants.run(ctx, async (tx) => {
       const existing = await tx.challenge.findFirst({ where: { id, brandId: ctx.brandId! }, select: { id: true } });
       if (!existing) throw new NotFoundException('challenge not found');
@@ -333,6 +338,8 @@ export class GamificationService {
         data: {
           ...(dto.name !== undefined ? { name: dto.name } : {}),
           ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
+          ...(dto.repeatable !== undefined ? { repeatable: dto.repeatable } : {}),
+          ...(dto.rewardItemId !== undefined ? { rewardItemId: dto.rewardItemId } : {}),
           ...(dto.target !== undefined ? { target: BigInt(dto.target) } : {}),
           ...(dto.rewardPoints !== undefined ? { rewardPoints: BigInt(dto.rewardPoints) } : {}),
           ...(dto.badgeId !== undefined ? { badgeId: dto.badgeId } : {}),
