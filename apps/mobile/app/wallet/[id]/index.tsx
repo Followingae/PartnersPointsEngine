@@ -137,7 +137,7 @@ export default function CardDetail() {
         </View>
 
         <View style={{ marginTop: 34, flexDirection: 'row', alignItems: 'baseline', gap: 9 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 60, lineHeight: 52, letterSpacing: -2.4, color: fg }}>
+          <Text style={{ fontFamily: font(600), fontSize: 60, lineHeight: 69, letterSpacing: -2.4, color: fg }}>
             {pts(brand.points)}
           </Text>
           <Text style={{ fontFamily: font(500), fontSize: 15, lineHeight: 21, color: fg }}>pts</Text>

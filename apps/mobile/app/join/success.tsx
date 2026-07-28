@@ -77,7 +77,7 @@ export default function JoinSuccess() {
 
           <View style={{ gap: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-              <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 48, letterSpacing: -1.44, color: card.fg }}>0</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 55, letterSpacing: -1.44, color: card.fg }}>0</Text>
               <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: card.fg }}>pts</Text>
             </View>
             <View style={{ gap: 9 }}>

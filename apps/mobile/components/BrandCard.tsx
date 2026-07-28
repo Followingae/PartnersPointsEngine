@@ -83,7 +83,7 @@ export function BrandCard({
           backgroundColor: veil(color), alignItems: 'center', justifyContent: 'center',
         }}
       >
-        <Text style={{ fontFamily: font(600), fontSize: badge.size, color: fg }}>{initial}</Text>
+        <Text style={{ fontFamily: font(600), fontSize: badge.size, lineHeight: badge.size + 5, color: fg }}>{initial}</Text>
       </View>
       <Text
         numberOfLines={1}
@@ -91,6 +91,7 @@ export function BrandCard({
           flex: 1,
           fontFamily: font(600),
           fontSize: tile ? 12.5 : 17,
+          lineHeight: tile ? 17 : 23,
           letterSpacing: tile ? 0 : -0.17,
           color: fg,
         }}
@@ -114,14 +115,15 @@ export function BrandCard({
         style={{
           fontFamily: font(600),
           fontSize: tile ? 26 : 48,
-          lineHeight: tile ? 24 : 44,
+          // Must exceed fontSize — a tighter line box crops the digits.
+          lineHeight: tile ? 30 : 55,
           letterSpacing: tile ? -0.78 : -1.44,
           color: fg,
         }}
       >
         {pts(points)}
       </Text>
-      <Text style={{ fontFamily: font(500), fontSize: tile ? 11 : 14, color: fg }}>pts</Text>
+      <Text style={{ fontFamily: font(500), fontSize: tile ? 11 : 14, lineHeight: tile ? 15 : 19, color: fg }}>pts</Text>
     </View>
   );
 

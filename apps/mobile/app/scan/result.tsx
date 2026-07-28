@@ -80,7 +80,7 @@ export default function ScanResult() {
 
           <View style={{ gap: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-              <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 48, letterSpacing: -1.44, color: C.ink }}>{pts(EARN.balance)}</Text>
+              <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 55, letterSpacing: -1.44, color: C.ink }}>{pts(EARN.balance)}</Text>
               <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: C.ink }}>pts</Text>
             </View>
             <View style={{ gap: 9 }}>

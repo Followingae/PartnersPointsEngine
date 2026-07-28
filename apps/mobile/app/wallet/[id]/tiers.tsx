@@ -95,7 +95,7 @@ export default function Tiers() {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
-                    <Text style={{ fontFamily: font(600), fontSize: current ? 18 : 16, letterSpacing: -0.27, color: C.ink }}>
+                    <Text style={{ fontFamily: font(600), fontSize: current ? 18 : 16, lineHeight: current ? 24 : 22, letterSpacing: -0.27, color: C.ink }}>
                       {rung.name}
                     </Text>
                     {current ? (

@@ -36,7 +36,7 @@ function StackCard({ w, top, depth }: { w: Wallet; top: number; depth: number })
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 44, letterSpacing: -1.44, color: w.ink }}>
+          <Text style={{ fontFamily: font(600), fontSize: 48, lineHeight: 55, letterSpacing: -1.44, color: w.ink }}>
             {pts(w.points)}
           </Text>
           <Text style={{ fontFamily: font(500), fontSize: 14, lineHeight: 20, color: w.ink }}>pts</Text>

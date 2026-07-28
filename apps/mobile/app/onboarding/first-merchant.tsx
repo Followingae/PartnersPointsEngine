@@ -31,7 +31,7 @@ function BrandTile({ brand }: { brand: Nearby }) {
 
       <View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 26, lineHeight: 24, letterSpacing: -0.78, color: brand.ink }}>0</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 26, lineHeight: 30, letterSpacing: -0.78, color: brand.ink }}>0</Text>
           <Text style={{ fontFamily: font(500), fontSize: 11, lineHeight: 15, color: brand.ink }}>pts</Text>
         </View>
         <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, lineHeight: 15, color: brand.ink }}>{brand.meta}</Text>

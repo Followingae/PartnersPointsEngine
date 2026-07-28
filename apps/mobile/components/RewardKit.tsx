@@ -119,6 +119,7 @@ export function ListRow({
         <Text style={{
           fontFamily: font(valueTone === 'faint' ? 500 : 600),
           fontSize: valueTone === 'faint' ? 12.5 : 15,
+          lineHeight: valueTone === 'faint' ? 18 : 21,
           color: valueTone === 'faint' ? C.soft : C.ink,
         }}>
           {value}
