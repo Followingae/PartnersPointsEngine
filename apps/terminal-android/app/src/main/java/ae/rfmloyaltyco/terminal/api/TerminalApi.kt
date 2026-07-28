@@ -130,7 +130,43 @@ class TerminalApi(private val settings: SettingsStore) {
         state = res.getString("state"),
         points = res.optString("points").toLongOrNull(),
         amountMinor = res.optString("amountMinor").toLongOrNull(),
+        completed = res.optJSONArray("completed")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { o ->
+                    CompletedChallenge(
+                        name = o.optString("name"),
+                        rewardPoints = o.optString("rewardPoints").toLongOrNull() ?: 0L,
+                        badgeName = o.optString("badgeName").ifBlank { null },
+                        voucherCode = o.optString("voucherCode").ifBlank { null },
+                    )
+                }
+            }
+        } ?: emptyList(),
+        stamps = res.optJSONArray("stamps")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { o ->
+                    StampCard(
+                        name = o.optString("name"),
+                        progress = o.optInt("progress"),
+                        target = o.optInt("target"),
+                    )
+                }
+            }
+        } ?: emptyList(),
     )
+
+    /** Redeem a reward voucher the customer presents at the till. */
+    suspend fun redeemVoucher(code: String, memberToken: String?): VoucherRedemption {
+        val body = JSONObject().put("code", code)
+        if (!memberToken.isNullOrBlank()) body.put("memberToken", memberToken)
+        val res = post("/vouchers/redeem", body)
+        return VoucherRedemption(
+            code = res.optString("code"),
+            rewardName = res.optString("rewardName").ifBlank { "Reward" },
+            kind = res.optString("kind").ifBlank { "voucher" },
+            discountMinor = res.optLong("discountMinor"),
+        )
+    }
 
     // ── transport ────────────────────────────────────────────────────────────
 
@@ -305,4 +341,24 @@ data class Txn(
     val state: String,
     val points: Long?,
     val amountMinor: Long?,
+    val completed: List<CompletedChallenge> = emptyList(),
+    val stamps: List<StampCard> = emptyList(),
+)
+
+/** A challenge/stamp card the member just completed. */
+data class CompletedChallenge(
+    val name: String,
+    val rewardPoints: Long,
+    val badgeName: String?,
+    val voucherCode: String?,
+)
+
+/** Live stamp-card state, printed on the slip. */
+data class StampCard(val name: String, val progress: Int, val target: Int)
+
+data class VoucherRedemption(
+    val code: String,
+    val rewardName: String,
+    val kind: String,
+    val discountMinor: Long,
 )

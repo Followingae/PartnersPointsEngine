@@ -120,7 +120,7 @@ fun HomeScreen(
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             HomeAction(Icons.Filled.PersonSearch, "Check balance", RfmColor.Sky, Modifier.weight(1f), onBalanceCheck)
-            HomeAction(Icons.Filled.Replay, "Refund / void", RfmColor.Coral, Modifier.weight(1f), onRefund)
+            HomeAction(Icons.Filled.Replay, "Void", RfmColor.Coral, Modifier.weight(1f), onRefund)
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

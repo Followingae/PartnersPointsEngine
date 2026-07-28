@@ -9,6 +9,7 @@ import ae.rfmloyaltyco.terminal.api.TerminalApi
 import ae.rfmloyaltyco.terminal.data.TxnRecord
 import ae.rfmloyaltyco.terminal.ecr.EcrPaymentResult
 import ae.rfmloyaltyco.terminal.receipt.ReceiptData
+import ae.rfmloyaltyco.terminal.receipt.ReceiptStamp
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -301,6 +302,7 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
 
             // 3b — settle loyalty: capture the hold, then post the earn
             var earnedPoints = 0L
+            var earnTxn: ae.rfmloyaltyco.terminal.api.Txn? = null
             if (holdId != null) {
                 _state.update { it.copy(payingMessage = "Redeeming points…") }
                 var captured = false
@@ -325,7 +327,9 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 val earnBase = if (cfg.earnOnNet) net else gross
                 val idem = TerminalApi.newIdempotencyKey()
                 earnedPoints = try {
-                    api.earn(member.token, earnBase, idem, orderNo).points ?: 0L
+                    val txn = api.earn(member.token, earnBase, idem, orderNo)
+                    earnTxn = txn // stamp cards + unlocked rewards for the slip
+                    txn.points ?: 0L
                 } catch (_: Exception) {
                     outbox.enqueueEarn(member.identifierType, member.identifierValue, earnBase, idem, orderNo)
                     loyaltyNote = listOfNotNull(loyaltyNote, "Earn queued — will sync automatically").joinToString("; ")
@@ -377,8 +381,6 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 netMinor = net,
                 currency = cfg.currency,
                 paymentMethod = method,
-                maskedPan = ecrResult?.maskedPan,
-                authNo = ecrResult?.authNo,
                 memberName = member?.context?.displayName,
                 earnedPoints = earnedPoints,
                 redeemedPoints = redeemPoints,
@@ -387,23 +389,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 loyaltyId = member?.context?.loyaltyId?.ifBlank { null },
                 memberPhoneMasked = member?.takeIf { it.identifierType == "phone" }?.identifierValue?.let { maskPhone(it) },
                 eReceiptUrl = eUrl,
-                cardType = ecrResult?.cardType,
-                voucherNo = ecrResult?.voucherNo,
-                referNo = ecrResult?.referNo,
-                batchNo = ecrResult?.batchNo,
-                terminalNo = ecrResult?.terminalNo,
-                merchantNo = ecrResult?.merchantNo,
-                transTime = ecrResult?.transTime,
-                cardExpiry = ecrResult?.cardExpiry,
-                responseCode = ecrResult?.responseCode,
-                aid = ecrResult?.aid,
-                tvr = ecrResult?.tvr,
-                tsi = ecrResult?.tsi,
-                cid = ecrResult?.cid,
-                ac = ecrResult?.ac,
-                currencyCode = ecrResult?.currencyCode,
-                appLabel = ecrResult?.appLabel,
-                extras = ecrResult?.extras ?: emptyMap(),
+                stamps = earnTxn?.stamps.orEmpty().map { ReceiptStamp(it.name, it.progress, it.target) },
+                unlocked = earnTxn?.completed.orEmpty().mapNotNull { it.badgeName ?: it.name.takeIf { _ -> it.voucherCode != null } },
             )
             _state.update {
                 it.copy(

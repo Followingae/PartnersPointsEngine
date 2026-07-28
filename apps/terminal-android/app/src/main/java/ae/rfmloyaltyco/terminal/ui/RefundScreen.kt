@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,9 +34,9 @@ import java.util.UUID
 import kotlinx.coroutines.launch
 
 /**
- * Refund / void against a prior card sale, selected from the local journal — the
- * cashier never re-types order numbers. Same-day sales use void, older use refund
- * (acquirer rules); we expose both and default sensibly.
+ * Void a card sale taken on this terminal. SmartPay identifies the original by
+ * its voucher number (printed on its slip); we keep it per sale so the cashier
+ * usually just taps the row.
  */
 @Composable
 fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
@@ -55,17 +56,14 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
         return
     }
 
-    val refundable = records.filter { it.kind == "sale" && it.status == "approved" && it.paymentMethod == "card" }
+    val voidable = records.filter { it.kind == "sale" && it.status == "approved" && it.paymentMethod == "card" }
 
-    fun run(kind: String) {
+    fun runVoid() {
         val original = selected ?: return
         val intentMode = cfg.ecrMode == "intent"
-        // SmartPay identifies the original by its VOUCHER number (printed on the
-        // slip). Sales taken before v1.6 didn't capture it — ask for it instead
-        // of sending an order number SmartPay will reject.
         val reference = (original.voucherNo ?: voucherEntry.trim().ifBlank { null })
             ?: if (intentMode) {
-                message = "Enter the voucher number from the original slip to ${if (kind == "void") "void" else "refund"} it."
+                message = "Enter the voucher number from the original slip to void it."
                 return
             } else {
                 original.ecrOrderNo
@@ -74,18 +72,14 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
         message = null
         scope.launch {
             val orderNo = CheckoutViewModel.newOrderNo()
-            val result = if (kind == "void") {
-                app.ecr().voidPurchase(orderNo, reference)
-            } else {
-                app.ecr().refund(original.netMinor, orderNo, reference)
-            }
+            val result = app.ecr().voidPurchase(orderNo, reference)
             busy = false
             if (result.approved) {
                 app.history.add(
                     TxnRecord(
                         localId = UUID.randomUUID().toString(),
                         at = System.currentTimeMillis(),
-                        kind = kind,
+                        kind = "void",
                         grossMinor = original.netMinor,
                         netMinor = original.netMinor,
                         redeemPoints = 0,
@@ -100,11 +94,9 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
                         voucherNo = result.voucherNo,
                     ),
                 )
-                app.history.update(original.localId) { it.copy(status = if (kind == "void") "voided" else "refunded") }
-                message = if (kind == "void") "Void approved" else "Refund approved"
-                // print the void/refund slip — the customer needs proof too
+                app.history.update(original.localId) { it.copy(status = "voided") }
                 slip = ReceiptData(
-                    brandName = server?.brandName?.ifBlank { null } ?: "Partners Points",
+                    brandName = server?.brandName?.ifBlank { null } ?: "",
                     branchName = server?.branchName,
                     terminalLabel = server?.terminalLabel ?: cfg.terminalLabel,
                     at = System.currentTimeMillis(),
@@ -114,25 +106,15 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
                     netMinor = original.netMinor,
                     currency = cfg.currency,
                     paymentMethod = "card",
-                    maskedPan = result.maskedPan ?: original.maskedPan,
-                    authNo = result.authNo,
                     memberName = original.memberName,
                     earnedPoints = 0,
                     redeemedPoints = 0,
                     balanceAfter = null,
                     pointsCode = server?.pointsCode ?: "PTS",
-                    kind = kind,
-                    cardType = result.cardType,
-                    voucherNo = result.voucherNo,
-                    referNo = result.referNo,
-                    batchNo = result.batchNo,
-                    terminalNo = result.terminalNo,
-                    merchantNo = result.merchantNo,
-                    transTime = result.transTime,
-                    responseCode = result.responseCode,
-                    aid = result.aid,
+                    kind = "void",
                 )
                 selected = null
+                voucherEntry = ""
             } else {
                 message = result.message
             }
@@ -140,8 +122,8 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
     }
 
     TerminalScaffold(
-        title = "Refund / void",
-        subtitle = "Pick the original sale",
+        title = "Void",
+        subtitle = "Cancel a sale taken on this terminal",
         onBack = onBack,
         bottomBar = {
             val sel = selected
@@ -149,28 +131,32 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = RfmColor.Destructive) }
                     if (sel.voucherNo == null && cfg.ecrMode == "intent") {
-                        androidx.compose.material3.OutlinedTextField(
+                        OutlinedTextField(
                             value = voucherEntry,
-                            onValueChange = { voucherEntry = it.filter { c -> c.isLetterOrDigit() } },
+                            onValueChange = { voucherEntry = it.filter { ch -> ch.isLetterOrDigit() } },
                             label = { Text("Voucher no. from the original slip") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
                     }
-                    PrimaryAction("Refund ${formatAmountWithCurrency(sel.netMinor, cfg.currency)}", loading = busy) { run("refund") }
-                    PrimaryAction("Void (same day)", color = RfmColor.Muted, contentColor = RfmColor.Ink, loading = busy) { run("void") }
+                    PrimaryAction(
+                        "Void ${formatAmountWithCurrency(sel.netMinor, cfg.currency)}",
+                        loading = busy,
+                        color = RfmColor.Coral,
+                        contentColor = RfmColor.Ink,
+                    ) { runVoid() }
                 }
             } else {
                 message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = RfmColor.Lime900) }
             }
         },
     ) {
-        if (refundable.isEmpty()) {
+        if (voidable.isEmpty()) {
             Spacer(Modifier.height(24.dp))
-            Text("No refundable card sales on this terminal yet.", style = MaterialTheme.typography.bodyMedium, color = RfmColor.MutedFg)
+            Text("No card sales on this terminal yet.", style = MaterialTheme.typography.bodyMedium, color = RfmColor.MutedFg)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(refundable, key = { it.localId }) { r ->
+                items(voidable, key = { it.localId }) { r ->
                     RfmCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -192,7 +178,7 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
                                 r.voucherNo?.let {
                                     Text("Voucher $it", style = MaterialTheme.typography.labelSmall, color = RfmColor.MutedFg)
                                 }
-}
+                            }
                             Text(r.ecrOrderNo.takeLast(8), style = MaterialTheme.typography.labelSmall, color = RfmColor.MutedFg)
                         }
                     }

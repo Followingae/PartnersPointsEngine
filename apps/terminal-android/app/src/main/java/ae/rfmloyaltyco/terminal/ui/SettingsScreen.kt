@@ -82,13 +82,12 @@ fun SettingsScreen(app: TerminalApp, onBack: () -> Unit, onRepair: () -> Unit) {
                 netMinor = 12050,
                 currency = cfg.currency,
                 paymentMethod = "card",
-                maskedPan = "•••• 0000",
-                authNo = "TEST",
                 memberName = "Test print",
                 earnedPoints = 120,
                 redeemedPoints = 500,
                 balanceAfter = 2480,
                 pointsCode = serverCfg?.pointsCode ?: "PTS",
+                stamps = listOf(ae.rfmloyaltyco.terminal.receipt.ReceiptStamp("Coffee card", 7, 9)),
             ),
         ) { testPrint = false }
         return
