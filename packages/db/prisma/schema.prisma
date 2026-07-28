@@ -401,9 +401,15 @@ model RoleAssignment {
   @@map("role_assignment")
 }
 
+/**
+ * A refresh token's subject is either a staff user or a customer — exactly one,
+ * enforced by a check constraint. Customer sessions used to be stored against
+ * `userId`, which is a foreign key to staff accounts, so they always failed.
+ */
 model RefreshToken {
   id          String   @id @default(uuid(7))
-  userId      String   @map("user_id")
+  userId      String?  @map("user_id")
+  personId    String?  @map("person_id")
   platformId  String   @map("platform_id") // scope key for RLS during refresh
   tokenHash   String   @unique @map("token_hash") // sha256 of the opaque refresh token
   expiresAt   DateTime @map("expires_at")
@@ -413,9 +419,11 @@ model RefreshToken {
   ip          String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   UserAccount? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person Person?      @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([personId])
   @@index([platformId])
   @@map("refresh_token")
 }
@@ -536,6 +544,7 @@ model Person {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   memberships CustomerMembership[]
+  refreshTokens RefreshToken[]
 
   @@index([platformId])
   @@map("person")

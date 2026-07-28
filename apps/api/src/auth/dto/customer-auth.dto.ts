@@ -17,6 +17,12 @@ export class OtpRequestDto {
   brandId?: string;
 }
 
+export class WalletRefreshDto {
+  @ApiProperty()
+  @IsString()
+  refreshToken!: string;
+}
+
 /** Wallet sign-in: the app has no brand yet — the cards are what reveal them. */
 export class WalletOtpVerifyDto {
   @ApiProperty({ example: '+971500000001' })

@@ -1,7 +1,7 @@
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../auth.service';
-import { OtpRequestDto, OtpVerifyDto, WalletOtpVerifyDto } from '../dto/customer-auth.dto';
+import { OtpRequestDto, OtpVerifyDto, WalletOtpVerifyDto, WalletRefreshDto } from '../dto/customer-auth.dto';
 
 /** Customer auth: phone OTP → JWT (per-brand, closed-loop). */
 @ApiTags('auth')
@@ -33,5 +33,12 @@ export class CustomerAuthController {
   @ApiOperation({ summary: 'Verify the code and open a wallet session spanning the person’s brands.' })
   wallet(@Body() dto: WalletOtpVerifyDto) {
     return this.auth.verifyOtpForWallet(dto.phone, dto.code);
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Renew a wallet session so the app doesn’t sign the customer out hourly.' })
+  refresh(@Body() dto: WalletRefreshDto) {
+    return this.auth.refreshWallet(dto.refreshToken);
   }
 }

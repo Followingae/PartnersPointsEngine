@@ -157,8 +157,49 @@ export class AuthService {
     };
     const accessToken = await this.tokens.issueAccess(claims);
     const refreshToken = await this.tokens.issueRefresh({ sub: person.id, surface: 'customer' });
-    await this.storeRefresh(refreshToken, person.id, person.platformId);
+    await this.storeRefresh(refreshToken, person.id, person.platformId, 'person');
     return { accessToken, refreshToken, expiresIn: this.accessTtl(), personId: person.id };
+  }
+
+  /**
+   * Renew a wallet session.
+   *
+   * Access tokens last minutes; without this the app would drop the customer
+   * back to the sign-in screen several times an hour. The old token is revoked
+   * as the new one is issued, so a stolen refresh token stops working the
+   * moment the real device next renews.
+   */
+  async refreshWallet(refreshToken: string): Promise<TokenPair> {
+    let payload: { sub: string; surface: ApiSurface };
+    try {
+      payload = await this.tokens.verifyRefresh(refreshToken);
+    } catch {
+      throw new UnauthorizedException('invalid refresh token');
+    }
+    if (payload.surface !== 'customer') throw new UnauthorizedException('not a customer session');
+
+    const tokenHash = sha256(refreshToken);
+    const stored = await this.db.refreshToken.findUnique({ where: { tokenHash } });
+    if (!stored || stored.revokedAt || stored.expiresAt < new Date() || stored.personId !== payload.sub) {
+      throw new UnauthorizedException('refresh token not active');
+    }
+    await this.db.refreshToken.update({ where: { tokenHash }, data: { revokedAt: new Date() } });
+
+    const claims: AccessClaims = {
+      sub: payload.sub,
+      surface: 'customer',
+      platformId: stored.platformId,
+      scopeLevel: 'platform',
+      groupId: null,
+      brandId: null,
+      branchId: null,
+      actorType: 'customer',
+      wallet: true,
+    };
+    const accessToken = await this.tokens.issueAccess(claims);
+    const nextRefresh = await this.tokens.issueRefresh({ sub: payload.sub, surface: 'customer' });
+    await this.storeRefresh(nextRefresh, payload.sub, stored.platformId, 'person');
+    return { accessToken, refreshToken: nextRefresh, expiresIn: this.accessTtl() };
   }
 
   /**
@@ -186,7 +227,7 @@ export class AuthService {
     };
     const accessToken = await this.tokens.issueAccess(claims);
     const refreshToken = await this.tokens.issueRefresh({ sub: personId, surface: 'customer' });
-    await this.storeRefresh(refreshToken, personId, membership.platformId);
+    await this.storeRefresh(refreshToken, personId, membership.platformId, 'person');
     return { accessToken, refreshToken, expiresIn: this.accessTtl() };
   }
 
@@ -212,7 +253,7 @@ export class AuthService {
     };
     const accessToken = await this.tokens.issueAccess(claims);
     const refreshToken = await this.tokens.issueRefresh({ sub: person.id, surface: 'customer' });
-    await this.storeRefresh(refreshToken, person.id, membership.platformId);
+    await this.storeRefresh(refreshToken, person.id, membership.platformId, 'person');
     return { accessToken, refreshToken, expiresIn: this.accessTtl() };
   }
 
@@ -264,12 +305,22 @@ export class AuthService {
     return { accessToken, refreshToken, expiresIn: this.accessTtl() };
   }
 
-  private async storeRefresh(refreshToken: string, userId: string, platformId: string): Promise<string> {
+  /**
+   * `subject` decides which column the token hangs off. Customer sessions used
+   * to be written to `userId`, which is a foreign key to staff accounts, so
+   * every customer sign-in failed the constraint.
+   */
+  private async storeRefresh(
+    refreshToken: string,
+    subjectId: string,
+    platformId: string,
+    subject: 'user' | 'person' = 'user',
+  ): Promise<string> {
     const tokenHash = sha256(refreshToken);
     const ttl = this.config.get<number>('JWT_REFRESH_TTL_SECONDS') ?? 2_592_000;
     await this.db.refreshToken.create({
       data: {
-        userId,
+        ...(subject === 'user' ? { userId: subjectId } : { personId: subjectId }),
         platformId,
         tokenHash,
         expiresAt: new Date(Date.now() + ttl * 1000),
