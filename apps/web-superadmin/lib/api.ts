@@ -272,6 +272,19 @@ export const getCustomers = (p: { q?: string; limit?: number; offset?: number } 
 export const getCustomerDetail = (personId: string) =>
   api<AdminCustomerDetail>(`/admin/customers/${personId}`);
 
+export interface AdminVoucherRow {
+  id: string; code: string; status: string; rewardName: string; brandName: string;
+  customerName: string | null; loyaltyId: string | null; pointsSpent: string;
+  createdAt: string; redeemedAt: string | null; expiresAt: string | null;
+}
+export interface AdminRewardItem { id: string; name: string; pointsCost: string; kind: string }
+export const getVouchers = (p: { q?: string; status?: string; brandId?: string; limit?: number; offset?: number } = {}) =>
+  api<{ rows: AdminVoucherRow[]; total: number }>(`/admin/vouchers${qs(p)}`);
+export const getBrandRewards = (brandId: string) => api<AdminRewardItem[]>(`/admin/brands/${brandId}/rewards`);
+export const issueVoucher = (body: { membershipId: string; catalogItemId: string; expiresInDays?: number; reason?: string }) =>
+  api<{ id: string; code: string; rewardName: string }>('/admin/vouchers', { method: 'POST', body: JSON.stringify(body) });
+export const cancelVoucher = (id: string) => api(`/admin/vouchers/${id}/cancel`, { method: 'POST' });
+
 export interface EReceiptAd {
   enabled?: boolean; headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string;
 }

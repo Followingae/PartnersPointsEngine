@@ -1,13 +1,13 @@
 'use client';
 
-import { Users } from 'lucide-react';
+import { Gift, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { PageHeader } from '@/components/form';
+import { Button, Field, Modal, PageHeader, Select } from '@/components/form';
 import { Badge, Card, Drawer, EmptyState, SearchInput, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import {
-  getCustomerDetail, getCustomers,
-  type AdminCustomerDetail, type AdminCustomerRow,
+  getBrandRewards, getCustomerDetail, getCustomers, issueVoucher,
+  type AdminCustomerDetail, type AdminCustomerMembership, type AdminCustomerRow, type AdminRewardItem,
 } from '@/lib/api';
 
 /** Platform-wide customer visibility: every person, across every brand. */
@@ -19,6 +19,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<AdminCustomerDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [gifting, setGifting] = useState<AdminCustomerMembership | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -126,9 +127,11 @@ export default function CustomersPage() {
                         <p className="text-xs text-muted-foreground">{m.pointsCode} available</p>
                       </div>
                     </div>
-                    <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                      <span>Lifetime {Number(m.lifetime).toLocaleString()}</span>
-                      <span>Since {new Date(m.joinedAt).toLocaleDateString('en-GB')}</span>
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Lifetime {Number(m.lifetime).toLocaleString()} · since {new Date(m.joinedAt).toLocaleDateString('en-GB')}</span>
+                      <Button variant="outline" size="sm" onClick={() => setGifting(m)}>
+                        <Gift size={13} /> Give reward
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -156,7 +159,95 @@ export default function CustomersPage() {
           </div>
         )}
       </Drawer>
+
+      {gifting ? (
+        <GiftRewardModal
+          membership={gifting}
+          onClose={() => setGifting(null)}
+          onDone={() => { setGifting(null); if (detail) open(detail.id); }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Give a customer a reward without charging points — service recovery and
+ * goodwill. Recorded in the audit log with the stated reason.
+ */
+function GiftRewardModal({
+  membership, onClose, onDone,
+}: { membership: AdminCustomerMembership; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const [rewards, setRewards] = useState<AdminRewardItem[]>([]);
+  const [rewardId, setRewardId] = useState('');
+  const [expiry, setExpiry] = useState('30');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [issued, setIssued] = useState<{ code: string; rewardName: string } | null>(null);
+
+  useEffect(() => {
+    getBrandRewards(membership.brandId)
+      .then((r) => { setRewards(r); setRewardId(r[0]?.id ?? ''); })
+      .catch((e) => toast('error', e instanceof Error ? e.message : 'Failed'));
+  }, [membership.brandId, toast]);
+
+  async function submit() {
+    if (!rewardId) return;
+    setSaving(true);
+    try {
+      const v = await issueVoucher({
+        membershipId: membership.membershipId,
+        catalogItemId: rewardId,
+        expiresInDays: Number(expiry) || undefined,
+        reason: reason.trim() || undefined,
+      });
+      setIssued({ code: v.code, rewardName: v.rewardName });
+      toast('success', 'Reward issued');
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : 'Failed');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Give a reward" subtitle={`${membership.brandName} · ${membership.loyaltyId}`}>
+      {issued ? (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border/70 bg-muted/40 p-5 text-center">
+            <p className="text-sm text-muted-foreground">{issued.rewardName}</p>
+            <p className="mt-1 font-mono text-2xl font-bold tracking-wider">{issued.code}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              It&apos;s in the customer&apos;s app now. They can also read this code out at the till.
+            </p>
+          </div>
+          <Button onClick={onDone}>Done</Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {rewards.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              This brand has no active rewards yet — add one to its catalogue first.
+            </p>
+          ) : (
+            <>
+              <Select
+                label="Reward"
+                value={rewardId}
+                onChange={setRewardId}
+                options={rewards.map((r) => ({ value: r.id, label: `${r.name} (${Number(r.pointsCost).toLocaleString()} pts)` }))}
+                hint="Issued free — the customer is not charged points."
+              />
+              <Field label="Expires in (days)" value={expiry} onChange={setExpiry} placeholder="30" />
+              <Field label="Reason" value={reason} onChange={setReason} placeholder="e.g. Complaint — cold coffee, 28 Jul" hint="Saved to the audit log." />
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button onClick={submit} loading={saving} disabled={!rewardId}>Issue reward</Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }
 
