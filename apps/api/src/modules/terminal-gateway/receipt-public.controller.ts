@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 
 /**
@@ -38,6 +39,74 @@ export class ReceiptPublicController {
     );
   }
 
+  /** Real PDF — browsers' print-to-PDF is unreliable on mobile. */
+  @Get(':token/pdf')
+  async pdf(@Param('token') token: string, @Res() res: Response) {
+    const r = await this.prisma.receipt.findUnique({ where: { token } });
+    if (!r) throw new NotFoundException();
+    const brandRows = await this.prisma.$queryRaw<{ branding: unknown }[]>`
+      SELECT ereceipt_brand(${r.brandId}) AS branding`;
+    const brand = (brandRows[0]?.branding ?? {}) as BrandProfile;
+
+    const doc = new PDFDocument({ size: [340, 620], margin: 28 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="receipt-${r.orderNo}.pdf"`);
+    doc.pipe(res);
+
+    const ink = '#15150F';
+    const muted = '#6E6E6B';
+    const accent = /^#[0-9a-fA-F]{6}$/.test(brand.primaryColor ?? '') ? brand.primaryColor! : ink;
+    const when = r.createdAt.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai',
+    });
+
+    doc.rect(0, 0, 340, 6).fill(accent);
+    doc.fillColor(ink).font('Helvetica-Bold').fontSize(20).text(r.brandName, 28, 34);
+    doc.fillColor(muted).font('Helvetica').fontSize(10).text(when);
+    if (r.kind !== 'sale') {
+      doc.moveDown(0.6).fillColor('#C2004A').font('Helvetica-Bold').fontSize(12).text(r.kind.toUpperCase());
+    }
+
+    doc.moveDown(1.2);
+    doc.fillColor(muted).font('Helvetica').fontSize(11).text('Total paid');
+    doc.fillColor(ink).font('Helvetica-Bold').fontSize(30).text(money(r.netMinor, r.currency));
+
+    doc.moveDown(0.8);
+    const line = (label: string, value: string, bold = false) => {
+      const y = doc.y;
+      doc.fillColor(muted).font('Helvetica').fontSize(11).text(label, 28, y);
+      doc.fillColor(ink).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(11)
+        .text(value, 28, y, { width: 284, align: 'right' });
+      doc.moveDown(0.45);
+    };
+    line('Subtotal', money(r.grossMinor, r.currency));
+    if (r.discountMinor > 0n) line('Points discount', `-${money(r.discountMinor, r.currency)}`);
+    line('Paid', money(r.netMinor, r.currency), true);
+    line('Payment', r.paymentMethod === 'cash' ? 'Cash' : ['Card', r.maskedPan].filter(Boolean).join(' '));
+    if (r.authNo) line('Auth', r.authNo);
+
+    if (r.memberName) {
+      doc.moveDown(0.6);
+      doc.strokeColor('#E7E5DE').moveTo(28, doc.y).lineTo(312, doc.y).stroke();
+      doc.moveDown(0.8);
+      doc.fillColor(muted).font('Helvetica').fontSize(10).text('LOYALTY');
+      doc.moveDown(0.3);
+      line('Member', r.memberName, true);
+      if (r.earnedPoints > 0n) line('Points earned', `+${pts(r.earnedPoints)} ${r.pointsCode}`, true);
+      if (r.redeemedPoints > 0n) line('Points redeemed', `-${pts(r.redeemedPoints)} ${r.pointsCode}`);
+      if (r.balanceAfter != null) line('Balance', `${pts(r.balanceAfter)} ${r.pointsCode}`, true);
+    }
+
+    const contact = [brand.website, brand.instagram ? `@${brand.instagram.replace(/^@/, '')}` : null, brand.publicPhone]
+      .filter(Boolean).join('   ·   ');
+    doc.moveDown(1.2);
+    doc.fillColor(muted).font('Helvetica').fontSize(9)
+      .text(`Order ${r.orderNo}`, 28, doc.y, { width: 284, align: 'center' });
+    if (contact) doc.text(contact, { width: 284, align: 'center' });
+    doc.text('Powered by Partners Points', { width: 284, align: 'center' });
+    doc.end();
+  }
+
   @Get(':token/ad')
   async adClick(@Param('token') token: string, @Res() res: Response) {
     const r = await this.prisma.receipt.findUnique({ where: { token }, select: { platformId: true } });
@@ -67,29 +136,32 @@ function shell(title: string, body: string): string {
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --canvas:#F4F3EF;--card:#fff;--ink:#131310;--muted:#6E6E6B;--faint:#9A9A95;
-    --line:#E7E5DE;--lime:#C5F04A;--lime-deep:#6F8A15;--blush:#C23E6E;--radius:26px;
+    --canvas:#F4F3EF;--card:#fff;--ink:#15150F;--muted:#5A5A55;--faint:#7C7C76;
+    --line:#E3E1DA;--lime:#C5F04A;--lime-deep:#5E7712;--blush:#C2004A;--radius:26px;
   }
   @media(prefers-color-scheme:dark){
-    :root{--canvas:#0d0d10;--card:#17171c;--ink:#F2F2F2;--muted:#A5A5AC;--faint:#71717A;--line:#26262e;--lime-deep:#B8DC3A;--blush:#FF8FBA}
+    :root{--canvas:#0d0d10;--card:#17171c;--ink:#F5F5F2;--muted:#B8B8B2;--faint:#94948E;--line:#2A2A32;--lime-deep:#C7E85A;--blush:#FF8FBA}
   }
   *{box-sizing:border-box;margin:0}
-  body{background:var(--canvas);color:var(--ink);font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  body{background:var(--canvas);color:var(--ink);font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Roboto,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
   .wrap{max-width:440px;margin:0 auto;padding:18px 16px 40px}
   .display{font-family:'Bricolage Grotesque','Hanken Grotesk',sans-serif;letter-spacing:-.02em}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .pad{padding:20px 22px}
   .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  /* readability: muted text was too light against the warm canvas */
   .muted{color:var(--muted)}.faint{color:var(--faint)}
-  .tiny{font-size:12.5px}.sm{font-size:14px}
+  .tiny{font-size:13.5px}.sm{font-size:15px}
   .divider{height:1px;background:var(--line);margin:14px 0}
   .dash{border:0;border-top:1px dashed var(--line);margin:16px 0}
   a{color:inherit}
   .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 15px 'Hanken Grotesk',sans-serif;cursor:pointer;text-decoration:none}
   .btn:active{transform:scale(.99)}
   .social{display:flex;flex-wrap:wrap;gap:8px}
-  .social a{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13.5px;font-weight:600;text-decoration:none}
+  .social a{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}
+  .social a svg{flex:0 0 auto;opacity:.75}
+  .btn svg{flex:0 0 auto}
   @media print{
     :root{--canvas:#fff;--card:#fff;--ink:#000;--line:#ddd}
     body{background:#fff}
@@ -112,6 +184,19 @@ function notFoundBody(): string {
     <p style="color:var(--muted)">This receipt may still be syncing from the store — try again in a minute.</p>
   </div>`;
 }
+
+/** Inline 1.7px-stroke icons — no external requests, print cleanly. */
+const svg = (paths: string) =>
+  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICON = {
+  globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/>'),
+  instagram: svg('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/>'),
+  facebook: svg('<path d="M14.5 8.5H17V5.5h-2.5A3.5 3.5 0 0 0 11 9v2H9v3h2v7h3v-7h2.2l.8-3H14V9.2c0-.4.2-.7.5-.7z"/>'),
+  tiktok: svg('<path d="M15 4v9.2a3.8 3.8 0 1 1-3-3.7"/><path d="M15 4c.5 2.2 2 3.6 4.2 3.8"/>'),
+  x: svg('<path d="M4 4l16 16M20 4L4 20"/>'),
+  phone: svg('<path d="M5 4h3.5l1.6 4-2 1.4a12 12 0 0 0 5.5 5.5l1.4-2 4 1.6V19a1.6 1.6 0 0 1-1.8 1.6A15.5 15.5 0 0 1 3.4 5.8 1.6 1.6 0 0 1 5 4z"/>'),
+  download: svg('<path d="M12 4v11M7.5 11l4.5 4.5L16.5 11M5 19h14"/>'),
+} as const;
 
 interface BrandProfile {
   primaryColor?: string; logoUrl?: string; website?: string; publicPhone?: string;
@@ -174,16 +259,21 @@ function receiptBody(
   </div>`;
 
   // ── sponsored: directly under the hero, the highest-value slot ───────────
+  // Full-bleed image on top, exactly like the console preview. Accept http(s)
+  // and hide the <img> if the host refuses it rather than leaving a broken box.
+  const adImg = ad?.imageUrl && /^https?:\/\//i.test(ad.imageUrl)
+    ? `<img src="${esc(ad.imageUrl)}" alt="" loading="lazy"
+           onerror="this.style.display='none'"
+           style="display:block;width:100%;height:180px;object-fit:cover;background:var(--line)">`
+    : '';
   const adBlock = ad?.headline
-    ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:flex;align-items:stretch;text-decoration:none;color:inherit;margin-top:12px;overflow:hidden">
-        ${ad.imageUrl && /^https:\/\//.test(ad.imageUrl)
-          ? `<img src="${esc(ad.imageUrl)}" alt="" style="width:96px;flex:0 0 96px;object-fit:cover">`
-          : `<div style="width:6px;flex:0 0 6px;background:var(--lime)"></div>`}
-        <div style="padding:13px 15px;min-width:0;flex:1">
+    ? `<a class="card no-print" href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit;margin-top:12px;overflow:hidden">
+        ${adImg}
+        <div style="padding:15px 18px">
           <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.1em">Sponsored</div>
-          <div style="font-weight:700;font-size:15px;margin-top:1px">${esc(ad.headline)}</div>
-          ${ad.body ? `<div class="tiny muted" style="margin-top:1px">${esc(ad.body)}</div>` : ''}
-          <div style="display:inline-block;background:var(--lime);color:#131310;font-weight:700;font-size:12px;border-radius:999px;padding:5px 12px;margin-top:9px">${esc(ad.ctaLabel ?? 'Learn more')} →</div>
+          <div style="font-weight:700;font-size:17px;margin-top:2px">${esc(ad.headline)}</div>
+          ${ad.body ? `<div class="sm muted" style="margin-top:2px">${esc(ad.body)}</div>` : ''}
+          <div style="display:inline-block;background:var(--lime);color:#15150F;font-weight:700;font-size:13.5px;border-radius:999px;padding:7px 15px;margin-top:11px">${esc(ad.ctaLabel ?? 'Learn more')} →</div>
         </div>
        </a>`
     : '';
@@ -209,12 +299,14 @@ function receiptBody(
 
   // ── merchant links ───────────────────────────────────────────────────────
   const socials: string[] = [];
-  if (brand.website) socials.push(`<a href="${esc(socialUrl('https://', brand.website))}" target="_blank" rel="noopener">Website</a>`);
-  if (brand.instagram) socials.push(`<a href="${esc(socialUrl('https://instagram.com/', brand.instagram))}" target="_blank" rel="noopener">Instagram</a>`);
-  if (brand.facebook) socials.push(`<a href="${esc(socialUrl('https://facebook.com/', brand.facebook))}" target="_blank" rel="noopener">Facebook</a>`);
-  if (brand.tiktok) socials.push(`<a href="${esc(socialUrl('https://tiktok.com/@', brand.tiktok))}" target="_blank" rel="noopener">TikTok</a>`);
-  if (brand.x) socials.push(`<a href="${esc(socialUrl('https://x.com/', brand.x))}" target="_blank" rel="noopener">X</a>`);
-  if (brand.publicPhone) socials.push(`<a href="tel:${esc(brand.publicPhone)}">Call</a>`);
+  const socialLink = (href: string, icon: string, label: string) =>
+    `<a href="${esc(href)}" target="_blank" rel="noopener">${icon}<span>${label}</span></a>`;
+  if (brand.website) socials.push(socialLink(socialUrl('https://', brand.website), ICON.globe, 'Website'));
+  if (brand.instagram) socials.push(socialLink(socialUrl('https://instagram.com/', brand.instagram), ICON.instagram, 'Instagram'));
+  if (brand.facebook) socials.push(socialLink(socialUrl('https://facebook.com/', brand.facebook), ICON.facebook, 'Facebook'));
+  if (brand.tiktok) socials.push(socialLink(socialUrl('https://tiktok.com/@', brand.tiktok), ICON.tiktok, 'TikTok'));
+  if (brand.x) socials.push(socialLink(socialUrl('https://x.com/', brand.x), ICON.x, 'X'));
+  if (brand.publicPhone) socials.push(`<a href="tel:${esc(brand.publicPhone)}">${ICON.phone}<span>Call</span></a>`);
 
   const merchantBlock = (socials.length || brand.address)
     ? `<div style="margin-top:12px;text-align:center">
@@ -223,9 +315,10 @@ function receiptBody(
       </div>`
     : '';
 
+  // A real generated PDF — mobile browsers handle print-to-PDF badly.
   const actions = `
   <div class="no-print" style="margin-top:12px">
-    <button type="button" class="btn" onclick="window.print()">⬇︎ Save as PDF</button>
+    <a class="btn" href="/v1/r/${esc(r.token)}/pdf" target="_blank" rel="noopener">${ICON.download} Download PDF</a>
   </div>`;
 
   return `${hero}${adBlock}${details}${merchantBlock}${actions}

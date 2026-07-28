@@ -1,65 +1,86 @@
 /**
- * Design tokens ported from the Claude Design handoff "Partners Points - App".
- * The web design used CSS variables that flipped on data-theme; in React Native
- * we resolve them to a JS palette per theme via useTokens() (see theme.tsx).
+ * Partners Points — design tokens (customer app v3).
+ *
+ * Lifted from `.design-ref/customer-app/Partners Points - Customer App.dc.html`.
+ * v3 is light-only and typeset entirely in Plus Jakarta Sans — the earlier dark
+ * palette and the Bricolage/Plex pairing are gone.
  */
-export type ThemeName = 'light' | 'dark';
 
-export interface Tokens {
-  canvas: string;
-  card: string;
-  ink: string;
-  soft: string;
-  faint: string;
-  line: string;
-  chip: string;
-  barbg: string;
-  map: string;
-  mapline: string;
-  /** Soft hero shadow for elevated cards (use with the `elevation` helper). */
-  elevColor: string;
-}
+export const C = {
+  /** Page background — warm off-white. */
+  canvas: '#F4F3EF',
+  /** Cards, sheets, anything raised. */
+  surface: '#FFFFFF',
+  /** Primary text + primary buttons. */
+  ink: '#15150F',
+  /** Deepest black — device chrome, QR screen, hero cards. */
+  black: '#0b0a0d',
 
-export const PALETTE: Record<ThemeName, Tokens> = {
-  light: {
-    canvas: '#F2F2F2',
-    card: '#ffffff',
-    ink: '#262626',
-    soft: 'rgba(38,38,38,0.6)',
-    faint: 'rgba(38,38,38,0.36)',
-    line: 'rgba(38,38,38,0.08)',
-    chip: '#ECECEF',
-    barbg: 'rgba(255,255,255,0.92)',
-    map: '#e3e6ea',
-    mapline: '#d4d9df',
-    elevColor: 'rgba(38,38,38,0.18)',
-  },
-  dark: {
-    canvas: '#0f0f13',
-    card: '#1b1b21',
-    ink: '#F2F2F2',
-    soft: 'rgba(242,242,242,0.6)',
-    faint: 'rgba(242,242,242,0.36)',
-    line: 'rgba(242,242,242,0.09)',
-    chip: '#26262e',
-    barbg: 'rgba(27,27,33,0.9)',
-    map: '#17171d',
-    mapline: '#26262e',
-    elevColor: 'rgba(0,0,0,0.7)',
-  },
-};
+  // text tones over the canvas
+  muted: 'rgba(21,21,15,.68)',
+  soft: 'rgba(21,21,15,.62)',
+  faint: 'rgba(21,21,15,.45)',
+  hairline: 'rgba(21,21,15,.10)',
+  wash: '#EFEEEA',
 
-/** Fixed brand accents — used as literals in the design regardless of theme. */
-export const BRAND = {
-  blue: '#0B04D9',
-  deep: '#070459',
-  lime: '#BFF205',
-  coral: '#F2622E',
-  purple: '#7A36D9',
-  sky: '#1B78F2',
+  // accents
+  lime: '#E1FF3D',
+  orange: '#FF4A1C',
+  blue: '#1B5CFF',
+  electric: '#0B04D9',
+  green: '#00B37E',
+  greenDeep: '#0A6B4B',
+  purple: '#7B2FF7',
+  pink: '#FF1F6B',
+  crimson: '#C2004A',
+  amber: '#B25A00',
+  slate: '#1A1D22',
 } as const;
 
-/** Map a font family + weight to the @expo-google-fonts family name. */
+/** Semantic aliases so screens read by meaning, not by colour. */
+export const S = {
+  earn: C.green,
+  earnInk: C.greenDeep,
+  burn: C.pink,
+  spend: C.crimson,
+  alert: C.orange,
+  info: C.blue,
+  highlight: C.lime,
+} as const;
+
+export const R = {
+  chip: 999,
+  card: 18,
+  tile: 16,
+  control: 14,
+  small: 13,
+  sheet: 26,
+} as const;
+
+export const SP = {
+  gutter: 26,
+  gap: 14,
+  tight: 8,
+} as const;
+
+/** Soft, low-contrast elevation — the design leans on tone, not shadow. */
+export const shadow = {
+  card: {
+    shadowColor: '#15150F',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
+  },
+  raised: {
+    shadowColor: '#15150F',
+    shadowOpacity: 0.1,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 6,
+  },
+} as const;
+
 type Weight = 400 | 500 | 600 | 700 | 800;
 const JAKARTA: Record<Weight, string> = {
   400: 'PlusJakartaSans_400Regular',
@@ -68,42 +89,22 @@ const JAKARTA: Record<Weight, string> = {
   700: 'PlusJakartaSans_700Bold',
   800: 'PlusJakartaSans_800ExtraBold',
 };
-const BRICOLAGE: Record<Weight, string> = {
-  400: 'BricolageGrotesque_400Regular',
-  500: 'BricolageGrotesque_500Medium',
-  600: 'BricolageGrotesque_600SemiBold',
-  700: 'BricolageGrotesque_700Bold',
-  800: 'BricolageGrotesque_800ExtraBold',
-};
-const MONO: Record<400 | 500 | 600, string> = {
-  400: 'IBMPlexMono_400Regular',
-  500: 'IBMPlexMono_500Medium',
-  600: 'IBMPlexMono_600SemiBold',
-};
 
-export const font = {
-  /** Body / UI — Plus Jakarta Sans */
-  sans: (w: Weight = 400) => JAKARTA[w],
-  /** Display / headings & big numbers — Bricolage Grotesque */
-  display: (w: Weight = 700) => BRICOLAGE[w],
-  /** Codes / labels — IBM Plex Mono */
-  mono: (w: 400 | 500 | 600 = 500) => MONO[w],
-};
+/** Plus Jakarta Sans is the whole type system in v3. */
+export const font = (w: Weight = 500) => JAKARTA[w];
 
-/** All font family names to register with expo-font's useFonts. */
-export const ALL_FONT_KEYS = [
-  ...Object.values(JAKARTA),
-  ...Object.values(BRICOLAGE),
-  ...Object.values(MONO),
-];
+/** Font families to register with expo-font's useFonts. */
+export const ALL_FONT_KEYS = Object.values(JAKARTA);
 
-/** iOS-style soft shadow for elevated cards (apply spread to a View style). */
-export function elevation(color: string) {
-  return {
-    shadowColor: color,
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 1,
-    shadowRadius: 22,
-    elevation: 8,
-  };
-}
+/** Type scale observed in the design. */
+export const T = {
+  h1: { fontFamily: font(600), fontSize: 32, letterSpacing: -0.96 },
+  h2: { fontFamily: font(600), fontSize: 24, letterSpacing: -0.6 },
+  h3: { fontFamily: font(600), fontSize: 19, letterSpacing: -0.3 },
+  stat: { fontFamily: font(600), fontSize: 44, letterSpacing: -1.3 },
+  body: { fontFamily: font(500), fontSize: 15 },
+  bodyStrong: { fontFamily: font(600), fontSize: 15 },
+  small: { fontFamily: font(500), fontSize: 13 },
+  tiny: { fontFamily: font(500), fontSize: 11.5 },
+  label: { fontFamily: font(500), fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' as const },
+} as const;
