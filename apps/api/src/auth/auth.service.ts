@@ -18,6 +18,14 @@ export interface TokenPair {
   expiresIn: number;
 }
 
+/** Shape returned by the wallet_person_by_phone definer function. */
+interface WalletPerson {
+  id: string;
+  platformId: string;
+  fullName: string | null;
+  memberships: Array<{ membershipId: string; brandId: string; brandName: string; status: string }>;
+}
+
 const SCOPE_PRECEDENCE: Record<ScopeLevel, number> = {
   platform: 0,
   group: 1,
@@ -105,6 +113,69 @@ export class AuthService {
   requestOtp(phone: string): { sent: true } {
     this.otp.issue(phone);
     return { sent: true };
+  }
+
+  /**
+   * Sign in to the wallet, which spans every brand the person belongs to.
+   *
+   * The per-brand `verifyOtp` below can't serve the customer app: it needs a
+   * brand up front, and the app doesn't know one until it has seen the cards.
+   * The person is read through a definer function because sign-in happens
+   * before any tenant context exists.
+   */
+  async verifyOtpForWallet(phone: string, code: string): Promise<TokenPair & { personId: string }> {
+    if (!this.otp.verify(phone, code)) throw new UnauthorizedException('invalid or expired code');
+    const rows = await this.db.$queryRaw<{ person: WalletPerson | null }[]>`
+      SELECT wallet_person_by_phone(${sha256(phone)}) AS person`;
+    const person = rows[0]?.person ?? null;
+    if (!person) throw new UnauthorizedException('not a member');
+
+    const claims: AccessClaims = {
+      sub: person.id,
+      surface: 'customer',
+      platformId: person.platformId,
+      // A wallet has no single brand; everything behind it reads through the
+      // wallet_* definer functions rather than RLS.
+      scopeLevel: 'platform',
+      groupId: null,
+      brandId: null,
+      branchId: null,
+      actorType: 'customer',
+      wallet: true,
+    };
+    const accessToken = await this.tokens.issueAccess(claims);
+    const refreshToken = await this.tokens.issueRefresh({ sub: person.id, surface: 'customer' });
+    await this.storeRefresh(refreshToken, person.id, person.platformId);
+    return { accessToken, refreshToken, expiresIn: this.accessTtl(), personId: person.id };
+  }
+
+  /**
+   * Exchange a wallet session for a brand-scoped customer token, so the
+   * existing per-brand endpoints (rewards, redemption, partners) can serve a
+   * card's detail screens. Membership is re-checked here rather than trusted
+   * from the wallet token.
+   */
+  async brandTokenForWallet(personId: string, brandId: string): Promise<TokenPair> {
+    const membership = await this.db.customerMembership.findUnique({
+      where: { personId_brandId: { personId, brandId } },
+    });
+    if (!membership || membership.status !== 'active') {
+      throw new UnauthorizedException('not a member of this brand');
+    }
+    const claims: AccessClaims = {
+      sub: personId,
+      surface: 'customer',
+      platformId: membership.platformId,
+      scopeLevel: 'brand',
+      groupId: membership.groupId,
+      brandId: membership.brandId,
+      branchId: null,
+      actorType: 'customer',
+    };
+    const accessToken = await this.tokens.issueAccess(claims);
+    const refreshToken = await this.tokens.issueRefresh({ sub: personId, surface: 'customer' });
+    await this.storeRefresh(refreshToken, personId, membership.platformId);
+    return { accessToken, refreshToken, expiresIn: this.accessTtl() };
   }
 
   async verifyOtp(phone: string, code: string, brandId: string): Promise<TokenPair> {

@@ -18,6 +18,13 @@ export interface AccessClaims {
   elevated?: boolean;
   /** The platform user a brand-scoped impersonation token was minted for. */
   onBehalfOf?: string | null;
+  /**
+   * A customer's person-level wallet session, which spans their brands and so
+   * carries no brand scope. It reads only through the wallet_* definer
+   * functions, never through RLS, and CustomerJwtGuard rejects it outright — a
+   * token with no brand must never reach an endpoint that expects one.
+   */
+  wallet?: boolean;
 }
 
 @Injectable()

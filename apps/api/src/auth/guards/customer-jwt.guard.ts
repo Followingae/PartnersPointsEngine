@@ -31,6 +31,11 @@ export class CustomerJwtGuard implements CanActivate {
     if (claims.surface !== 'customer') {
       throw new UnauthorizedException('token not valid for this surface');
     }
+    // A wallet session spans brands and carries none, so it must never bind
+    // tenant context here — that would leave brand-scoped queries unfiltered.
+    if (claims.wallet) {
+      throw new UnauthorizedException('wallet token cannot be used for brand-scoped requests');
+    }
     req.tenant = claimsToTenant(claims);
     return true;
   }

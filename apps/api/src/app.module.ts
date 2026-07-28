@@ -25,6 +25,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { TeamModule } from './modules/team/team.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { PartnershipsModule } from './modules/partnerships/partnerships.module';
+import { CustomerWalletModule } from './modules/customer-wallet/customer-wallet.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { PartnershipsModule } from './modules/partnerships/partnerships.module';
     TeamModule,
     ApiKeysModule,
     PartnershipsModule,
+    CustomerWalletModule,
   ],
 })
 export class AppModule {}
