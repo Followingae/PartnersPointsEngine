@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Android 11+ package visibility: without this, getPackageInfo/resolveActivity
+         are filtered and SmartPay appears "not installed". -->
+    <queries>
+        <package android:name="com.app.smartpay" />
+    </queries>
+
     <!-- Bluetooth transport option for the ECR link (unused when socket/USB is selected). -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />

@@ -266,7 +266,11 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 null // cash: settled at the till
             }
-            val paymentOk = method == "cash" || (ecrResult?.approved == true)
+            var paymentOk = method == "cash" || (ecrResult?.approved == true)
+            // Verify what was actually charged (SmartPay echoes trans_amount back).
+            if (paymentOk && ecrResult?.amountMinor != null && ecrResult.amountMinor != net) {
+                loyaltyNote = "Charged ${ecrResult.amountMinor} vs expected $net — verify before reconciling"
+            }
 
             if (!paymentOk) {
                 // 3a — release the hold
@@ -439,6 +443,7 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
         authNo = ecr?.authNo,
         status = status,
         note = note,
+        voucherNo = ecr?.voucherNo,
     )
 
     private fun statusOf(ecr: EcrPaymentResult?): String = when (ecr?.status) {

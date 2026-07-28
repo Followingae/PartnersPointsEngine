@@ -7,6 +7,7 @@ import ae.rfmloyaltyco.terminal.data.SettingsStore
 import ae.rfmloyaltyco.terminal.ecr.DemoEcrTransport
 import ae.rfmloyaltyco.terminal.ecr.EcrTransport
 import ae.rfmloyaltyco.terminal.ecr.FeitianEcrTransport
+import ae.rfmloyaltyco.terminal.ecr.SmartPayIntentTransport
 import ae.rfmloyaltyco.terminal.receipt.ReceiptPrinter
 import ae.rfmloyaltyco.terminal.receipt.ReceiptRenderer
 import android.app.Application
@@ -55,6 +56,9 @@ class TerminalApp : Application() {
             again?.shutdown()
             val built = when (cfg.ecrMode) {
                 "demo" -> DemoEcrTransport()
+                // same-device app-to-app (default on all-in-one SmartPOS)
+                "intent" -> SmartPayIntentTransport(this)
+                // separate-terminal ECR SDK transports
                 else -> FeitianEcrTransport(this, cfg.ecrMode, cfg.ecrDevice)
             }
             ecrTransport = built

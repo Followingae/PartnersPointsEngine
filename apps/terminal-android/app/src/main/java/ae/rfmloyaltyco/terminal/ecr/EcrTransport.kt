@@ -14,6 +14,7 @@ data class EcrPaymentResult(
     val voucherNo: String? = null,
     val referNo: String? = null,
     val paymentMethod: String? = null,
+    val amountMinor: Long? = null,
     val raw: String? = null,
 ) {
     enum class Status { APPROVED, DECLINED, CANCELLED, TIMEOUT, LINK_ERROR }

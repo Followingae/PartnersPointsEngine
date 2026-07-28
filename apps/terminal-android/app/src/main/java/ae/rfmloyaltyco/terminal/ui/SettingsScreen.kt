@@ -119,27 +119,53 @@ fun SettingsScreen(app: TerminalApp, onBack: () -> Unit, onRepair: () -> Unit) {
                 Text("SmartPay link (ECR)", style = MaterialTheme.typography.titleMedium, color = RfmColor.Ink)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("demo" to "Demo", "socket" to "Socket", "serial_usb" to "USB", "bt4" to "Bluetooth").forEach { (value, label) ->
+                    listOf("intent" to "SmartPay", "demo" to "Demo").forEach { (value, label) ->
                         SecondaryAction(
                             label = if (ecrMode == value) "● $label" else label,
                             modifier = Modifier.weight(1f),
                         ) { ecrMode = value }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = ecrDevice,
-                    onValueChange = { ecrDevice = it },
-                    label = { Text("Device (socket IP / BT name)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("socket" to "Socket", "serial_usb" to "USB", "bt4" to "Bluetooth").forEach { (value, label) ->
+                        SecondaryAction(
+                            label = if (ecrMode == value) "● $label" else label,
+                            modifier = Modifier.weight(1f),
+                        ) { ecrMode = value }
+                    }
+                }
+                if (ecrMode !in listOf("intent", "demo")) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = ecrDevice,
+                        onValueChange = { ecrDevice = it },
+                        label = { Text("Device (socket IP:port / BT name)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Same-terminal SmartPay: socket · 127.0.0.1 (enable ECR → SOCKET in SmartPay). " +
-                        "If SmartPay shows a port, use 127.0.0.1:PORT. If localhost won't link, try the terminal's own Wi-Fi IP. Demo simulates approvals.",
+                    when (ecrMode) {
+                        "intent" -> "All-in-one terminal: SmartPay opens directly on this device for each sale. No cables, no ECR settings."
+                        "demo" -> "Simulated approvals for training — no real payment is taken."
+                        else -> "Separate payment terminal over the ECR SDK (socket / USB / Bluetooth)."
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = RfmColor.MutedFg,
                 )
+                if (ecrMode == "intent") {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (ae.rfmloyaltyco.terminal.ecr.SmartPayIntentBridge.isInstalled(app))
+                            "✓ SmartPay detected on this terminal"
+                        else
+                            "⚠ SmartPay app not detected — payments will fail until it's installed",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (ae.rfmloyaltyco.terminal.ecr.SmartPayIntentBridge.isInstalled(app)) RfmColor.Lime600 else RfmColor.Destructive,
+                    )
+                }
             }
 
             RfmCard {

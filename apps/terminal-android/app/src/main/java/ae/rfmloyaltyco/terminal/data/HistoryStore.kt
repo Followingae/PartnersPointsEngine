@@ -28,6 +28,8 @@ data class TxnRecord(
     val loyaltyRedeemTxnId: String? = null,
     val note: String? = null,
     val eReceiptToken: String? = null,
+    /** SmartPay voucher number — required to void/refund this transaction. */
+    val voucherNo: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("localId", localId).put("at", at).put("kind", kind)
@@ -38,7 +40,7 @@ data class TxnRecord(
         .put("paymentMethod", paymentMethod).put("maskedPan", maskedPan)
         .put("authNo", authNo).put("status", status)
         .put("loyaltyEarnTxnId", loyaltyEarnTxnId).put("loyaltyRedeemTxnId", loyaltyRedeemTxnId)
-        .put("note", note).put("eReceiptToken", eReceiptToken)
+        .put("note", note).put("eReceiptToken", eReceiptToken).put("voucherNo", voucherNo)
 
     companion object {
         fun fromJson(j: JSONObject): TxnRecord = TxnRecord(
@@ -61,6 +63,7 @@ data class TxnRecord(
             loyaltyRedeemTxnId = j.optString("loyaltyRedeemTxnId").ifBlank { null },
             note = j.optString("note").ifBlank { null },
             eReceiptToken = j.optString("eReceiptToken").ifBlank { null },
+            voucherNo = j.optString("voucherNo").ifBlank { null },
         )
     }
 }

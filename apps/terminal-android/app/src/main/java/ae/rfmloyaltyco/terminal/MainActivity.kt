@@ -12,9 +12,12 @@ import ae.rfmloyaltyco.terminal.ui.ResultScreen
 import ae.rfmloyaltyco.terminal.ui.RewardsScreen
 import ae.rfmloyaltyco.terminal.ui.SaleScreen
 import ae.rfmloyaltyco.terminal.ui.SettingsScreen
+import ae.rfmloyaltyco.terminal.ecr.SmartPayIntentBridge
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +49,19 @@ class MainActivity : ComponentActivity() {
                 val checkout: CheckoutViewModel = viewModel()
                 val state by checkout.state.collectAsStateWithLifecycle()
                 val app = application as TerminalApp
+
+                // App-to-app SmartPay: the Activity owns the result launcher; the
+                // bridge marshals transport requests here and awaits the outcome.
+                val payLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult(),
+                ) { res -> SmartPayIntentBridge.deliver(res.resultCode, res.data) }
+
+                LaunchedEffect(Unit) {
+                    SmartPayIntentBridge.launchRequests.collect { intent ->
+                        runCatching { payLauncher.launch(intent) }
+                            .onFailure { SmartPayIntentBridge.deliverFailure(it.message ?: "Could not open SmartPay") }
+                    }
+                }
 
                 // saga-driven navigation: paying + outcome screens follow the state machine
                 LaunchedEffect(state.paying, state.outcome) {

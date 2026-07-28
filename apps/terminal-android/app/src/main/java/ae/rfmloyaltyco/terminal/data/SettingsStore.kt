@@ -40,7 +40,7 @@ class SettingsStore(context: Context) {
         publishableKeyId = prefs.getString(K_PK, "")!!,
         secret = decrypt(prefs.getString(K_SECRET_ENC, "")!!),
         terminalLabel = prefs.getString(K_LABEL, "Terminal")!!,
-        ecrMode = prefs.getString(K_ECR_MODE, "demo")!!,
+        ecrMode = prefs.getString(K_ECR_MODE, "intent")!!,
         ecrDevice = prefs.getString(K_ECR_DEVICE, "127.0.0.1")!!,
         earnOnNet = prefs.getBoolean(K_EARN_NET, true),
         autoPrint = prefs.getBoolean(K_AUTO_PRINT, true),

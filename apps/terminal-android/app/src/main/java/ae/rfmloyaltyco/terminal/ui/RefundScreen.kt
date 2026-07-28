@@ -53,10 +53,13 @@ fun RefundScreen(app: TerminalApp, onBack: () -> Unit) {
         message = null
         scope.launch {
             val orderNo = CheckoutViewModel.newOrderNo()
+            // SmartPay identifies the original by its voucher number; the ECR SDK
+            // path uses our order number.
+            val reference = original.voucherNo ?: original.ecrOrderNo
             val result = if (kind == "void") {
-                app.ecr().voidPurchase(orderNo, original.ecrOrderNo)
+                app.ecr().voidPurchase(orderNo, reference)
             } else {
-                app.ecr().refund(original.netMinor, orderNo, original.ecrOrderNo)
+                app.ecr().refund(original.netMinor, orderNo, reference)
             }
             busy = false
             if (result.approved) {
