@@ -25,10 +25,12 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- sha256() is built in from Postgres 11; digest() would need pgcrypto, which
+  -- isn't guaranteed to be installed.
   INSERT INTO customer_identifier (id, membership_id, brand_id, group_id, platform_id, type, value_hash, created_at)
   VALUES (
     gen_random_uuid()::text, m.id, m.brand_id, m.group_id, m.platform_id,
-    'qr', encode(digest(m.loyalty_id, 'sha256'), 'hex'), now()
+    'qr', encode(sha256(m.loyalty_id::bytea), 'hex'), now()
   )
   ON CONFLICT (brand_id, type, value_hash) DO NOTHING;
 

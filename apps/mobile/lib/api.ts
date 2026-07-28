@@ -90,11 +90,52 @@ async function request<T>(path: string, opts: RequestInit, token: string | null)
 /** Unauthenticated call — sign-in only. */
 const publicApi = <T>(path: string, opts: RequestInit = {}) => request<T>(path, opts, null);
 
-/** Person-level call on the wallet session. */
+/**
+ * Renews the wallet session. Shared so that several screens failing at once
+ * produce one refresh rather than a stampede that revokes each other's tokens.
+ */
+let refreshing: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  refreshing ??= (async () => {
+    try {
+      const rt = await AsyncStorage.getItem(REFRESH_TOKEN);
+      if (!rt) return false;
+      const r = await request<{ accessToken: string; refreshToken: string }>(
+        '/customer/auth/refresh',
+        { method: 'POST', body: JSON.stringify({ refreshToken: rt }) },
+        null,
+      );
+      await saveSession(r.accessToken, r.refreshToken);
+      brandTokens.clear();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+/**
+ * Person-level call on the wallet session.
+ *
+ * Access tokens are short-lived, so an expired one is renewed and the call
+ * retried once. Only a refresh that itself fails means the customer is really
+ * signed out.
+ */
 export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = await getWalletToken();
   if (!token) throw new ApiError('Signed out', 401);
-  return request<T>(path, opts, token);
+  try {
+    return await request<T>(path, opts, token);
+  } catch (e) {
+    if (!(e instanceof ApiError) || !e.isAuth) throw e;
+    if (!(await refreshSession())) throw e;
+    const fresh = await getWalletToken();
+    return request<T>(path, opts, fresh);
+  }
 }
 
 // ── per-brand sessions ─────────────────────────────────────────────────────
@@ -236,6 +277,12 @@ export interface DiscoverBrand {
   pointsCode: string;
   joined: boolean;
 }
+
+/** The value to render as a QR at this brand's till. */
+export const getScanCode = (brandId: string) =>
+  api<{ value: string; loyaltyId: string; membershipId: string }>(
+    `/customer/wallet/cards/${brandId}/scan-code`,
+  );
 
 export const getCards = () => api<Card[]>('/customer/wallet/cards');
 export const getVouchers = () => api<Voucher[]>('/customer/wallet/vouchers');
