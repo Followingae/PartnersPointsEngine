@@ -26,7 +26,13 @@ data class EcrPaymentResult(
     val aid: String? = null,
     val tvr: String? = null,
     val tsi: String? = null,
+    val cid: String? = null,
+    val ac: String? = null,
+    val currencyCode: String? = null,
+    val transType: String? = null,
     val appLabel: String? = null,
+    /** Every extra SmartPay returned, so nothing is lost from the slip. */
+    val extras: Map<String, String> = emptyMap(),
     val raw: String? = null,
 ) {
     enum class Status { APPROVED, DECLINED, CANCELLED, TIMEOUT, LINK_ERROR }

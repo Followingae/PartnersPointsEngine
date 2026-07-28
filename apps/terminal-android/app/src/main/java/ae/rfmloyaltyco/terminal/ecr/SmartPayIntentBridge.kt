@@ -155,7 +155,12 @@ object SmartPayIntentBridge {
                 aid = data.stringLike("aid"),
                 tvr = data.stringLike("tvr"),
                 tsi = data.stringLike("tsi"),
+                cid = data.stringLike("cid"),
+                ac = data.stringLike("ac"),
+                currencyCode = data.stringLike("currency_code"),
+                transType = data.stringLike("trans_type"),
                 appLabel = data.stringLike("app_label") ?: data.stringLike("app_name"),
+                extras = data.allExtras(),
                 raw = dump,
             )
         }
@@ -189,6 +194,15 @@ object SmartPayIntentBridge {
 
     private fun Intent.stringLike(key: String): String? =
         extras?.get(key)?.toString()?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
+
+    /** Snapshot every extra so the slip can print fields we didn't anticipate. */
+    private fun Intent.allExtras(): Map<String, String> {
+        val b = extras ?: return emptyMap()
+        return b.keySet().mapNotNull { k ->
+            val v = b.get(k)?.toString()?.trim()
+            if (v.isNullOrEmpty() || v == "null") null else k to v
+        }.toMap()
+    }
 
     private const val TAG = "SmartPayIntent"
 }

@@ -109,7 +109,7 @@ fun HistoryScreen(app: TerminalApp, onBack: () -> Unit) {
 private fun receiptFromRecord(app: TerminalApp, r: TxnRecord, currency: String, terminalLabel: String): ReceiptData {
     val server = app.settings.cachedServerConfig()
     return ReceiptData(
-        brandName = server?.brandName?.ifBlank { null } ?: "Partners Points",
+        brandName = server?.brandName?.ifBlank { null } ?: "",
         branchName = server?.branchName,
         terminalLabel = server?.terminalLabel ?: terminalLabel,
         at = r.at,

@@ -57,7 +57,12 @@ data class ReceiptData(
     val aid: String? = null,
     val tvr: String? = null,
     val tsi: String? = null,
+    val cid: String? = null,
+    val ac: String? = null,
+    val currencyCode: String? = null,
     val appLabel: String? = null,
+    /** Anything else the payment app returned, printed verbatim. */
+    val extras: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -93,7 +98,8 @@ class ReceiptRenderer(private val context: Context) {
         }
 
         // ── merchant header ──────────────────────────────────────────────────
-        y = center(c, d.brandName.ifBlank { "Partners Points" }, display, 30f, y, bold = true)
+        // merchant name only — the RFM logo above is the platform's mark
+        y = center(c, d.brandName, display, 30f, y, bold = true)
         y = center(c, listOfNotNull(d.branchName, d.terminalLabel).joinToString(" · "), sans, 16f, y)
         y += 6f
         y = rule(c, y)
@@ -115,17 +121,34 @@ class ReceiptRenderer(private val context: Context) {
 
         val tender = if (d.paymentMethod == "cash") "CASH" else (d.cardType ?: "CARD")
         y = row(c, tender, d.maskedPan ?: "", y, mono, 15f)
-        d.appLabel?.let { y = row(c, "App", it, y, mono, 14f) }
-        listOfNotNull(
-            d.authNo?.let { "Auth" to it },
-            d.voucherNo?.let { "Voucher" to it },
-            d.referNo?.let { "RRN" to it },
-            d.batchNo?.let { "Batch" to it },
-            d.merchantNo?.let { "MID" to it },
-            d.terminalNo?.let { "TID" to it },
-            d.aid?.let { "AID" to it },
-            d.responseCode?.let { "Resp" to it },
-        ).forEach { (k, v) -> y = row(c, k, v, y, mono, 14f) }
+
+        // Full acquirer slip — known fields in reading order, then anything else
+        // the payment app returned so nothing is dropped.
+        val known = linkedMapOf<String, String?>(
+            "App" to d.appLabel,
+            "Expiry" to d.cardExpiry,
+            "Auth" to d.authNo,
+            "Voucher" to d.voucherNo,
+            "RRN" to d.referNo,
+            "Batch" to d.batchNo,
+            "MID" to d.merchantNo,
+            "TID" to d.terminalNo,
+            "Currency" to d.currencyCode,
+            "AID" to d.aid,
+            "TVR" to d.tvr,
+            "TSI" to d.tsi,
+            "CID" to d.cid,
+            "AC" to d.ac,
+            "Resp" to d.responseCode,
+        )
+        known.forEach { (k, v) -> if (!v.isNullOrBlank()) y = row(c, k, v, y, mono, 14f) }
+
+        val printedValues = known.values.filterNotNull().toSet()
+        d.extras
+            .filterKeys { it !in EXTRA_SKIP }
+            .filterValues { it.isNotBlank() && it !in printedValues }
+            .forEach { (k, v) -> y = row(c, k.replace('_', ' '), v.take(28), y, mono, 13f) }
+
         y = center(c, d.transTime ?: timestamp(d.at), mono, 14f, y + 2f)
 
         if (d.paymentMethod != "cash" && d.kind == "sale") {
@@ -185,17 +208,46 @@ class ReceiptRenderer(private val context: Context) {
         y = center(c, "Thank you — see you again soon", sans, 15f, y)
         y += 16f
 
-        val out = Bitmap.createBitmap(bmp, 0, 0, WIDTH, y.toInt().coerceAtMost(bmp.height))
-        if (out !== bmp) bmp.recycle()
+        val cropped = Bitmap.createBitmap(bmp, 0, 0, WIDTH, y.toInt().coerceAtMost(bmp.height))
+        if (cropped !== bmp) bmp.recycle()
+        return threshold(cropped)
+    }
+
+    /** Flatten to pure black/white — no grey pixels for the head to smear. */
+    private fun threshold(src: Bitmap): Bitmap {
+        val w = src.width
+        val h = src.height
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, 0, 0, w, h)
+        for (i in px.indices) {
+            val p = px[i]
+            val lum = ((p shr 16 and 0xFF) * 77 + (p shr 8 and 0xFF) * 151 + (p and 0xFF) * 28) shr 8
+            px[i] = if (lum < 150) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        }
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        out.setPixels(px, 0, w, 0, 0, w, h)
+        src.recycle()
         return out
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private fun paint(tf: Typeface, size: Float, bold: Boolean = false) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    /**
+     * Thermal heads over-burn: antialiased grey edges and heavy weights bleed
+     * into neighbouring dots and smear. Text is drawn aliased and in regular
+     * weight; the final bitmap is thresholded to pure 1-bit black/white.
+     */
+    private fun paint(tf: Typeface, size: Float, bold: Boolean = false) = Paint().apply {
+        isAntiAlias = false
+        isSubpixelText = false
         color = Color.BLACK
-        typeface = if (bold) Typeface.create(tf, Typeface.BOLD) else tf
+        typeface = tf
         textSize = size
+        // 'bold' now means a hair of weight, not a fat synthetic stroke
+        if (bold) {
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = size * 0.012f
+        }
     }
 
     private fun center(c: Canvas, text: String, tf: Typeface, size: Float, y: Float, bold: Boolean = false): Float {
@@ -229,5 +281,15 @@ class ReceiptRenderer(private val context: Context) {
         /** 58 mm thermal head = 384 dots. */
         const val WIDTH = 384
         private const val MARGIN = 16f
+
+        /** Plumbing/duplicate keys that don't belong on a customer slip. */
+        private val EXTRA_SKIP = setOf(
+            "errorCode", "errorMsg", "AppId", "package_name", "activity_name",
+            "print_flag", "is_print", "printReceipt", "order_no", "trans_amount",
+            "card_no", "cardType", "auth_no", "voucher_no", "refer_no", "batch_no",
+            "merchant_no", "terminal_no", "trans_time", "card_expire_date",
+            "response_code", "aid", "tvr", "tsi", "cid", "ac", "currency_code",
+            "app_label", "app_name", "trans_type",
+        )
     }
 }

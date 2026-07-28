@@ -72,7 +72,7 @@ fun SettingsScreen(app: TerminalApp, onBack: () -> Unit, onRepair: () -> Unit) {
         PrintReceiptOverlay(
             app = app,
             data = ae.rfmloyaltyco.terminal.receipt.ReceiptData(
-                brandName = serverCfg?.brandName?.ifBlank { null } ?: "Partners Points",
+                brandName = serverCfg?.brandName?.ifBlank { null } ?: "",
                 branchName = serverCfg?.branchName,
                 terminalLabel = serverCfg?.terminalLabel ?: cfg.terminalLabel,
                 at = System.currentTimeMillis(),

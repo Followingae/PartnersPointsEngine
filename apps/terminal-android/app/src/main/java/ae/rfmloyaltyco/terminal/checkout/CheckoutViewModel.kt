@@ -367,7 +367,7 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 ).copy(eReceiptToken = eToken),
             )
             val receipt = ReceiptData(
-                brandName = server?.brandName?.ifBlank { null } ?: "Partners Points",
+                brandName = server?.brandName?.ifBlank { null } ?: "",
                 branchName = server?.branchName,
                 terminalLabel = server?.terminalLabel ?: cfg.terminalLabel,
                 at = System.currentTimeMillis(),
@@ -399,7 +399,11 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 aid = ecrResult?.aid,
                 tvr = ecrResult?.tvr,
                 tsi = ecrResult?.tsi,
+                cid = ecrResult?.cid,
+                ac = ecrResult?.ac,
+                currencyCode = ecrResult?.currencyCode,
                 appLabel = ecrResult?.appLabel,
+                extras = ecrResult?.extras ?: emptyMap(),
             )
             _state.update {
                 it.copy(
