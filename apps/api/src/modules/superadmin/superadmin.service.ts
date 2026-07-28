@@ -445,6 +445,166 @@ export class SuperadminService {
     });
   }
 
+  // ── platform-wide customer visibility ────────────────────────────────────
+
+  /**
+   * Search every customer on the platform, across all brands. Phone lookup is
+   * by hash (numbers are stored encrypted), so an exact E.164 or local number
+   * both work; name and loyalty id are substring matches.
+   */
+  async listCustomers(ctx: TenantContext, query: { q?: string; limit?: number; offset?: number }) {
+    const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+    const q = (query.q ?? '').trim();
+    const take = Math.min(query.limit ?? 50, 200);
+    const skip = query.offset ?? 0;
+
+    // "0501234567" / "+971501234567" / "971501234567" → the stored hash
+    const digits = q.replace(/[^\d+]/g, '');
+    const e164 = digits.startsWith('+') ? digits
+      : digits.startsWith('00') ? `+${digits.slice(2)}`
+        : digits.startsWith('0') ? `+971${digits.slice(1)}`
+          : digits.startsWith('971') ? `+${digits}`
+            : digits.length === 9 ? `+971${digits}` : null;
+
+    return this.tenants.run(ctx, async (tx) => {
+      const where: Prisma.PersonWhereInput = {
+        platformId: ctx.platformId,
+        ...(q
+          ? {
+              OR: [
+                { fullName: { contains: q, mode: 'insensitive' } },
+                ...(e164 ? [{ phoneHash: sha256(e164) }] : []),
+                { memberships: { some: { loyaltyId: { contains: q, mode: 'insensitive' } } } },
+              ],
+            }
+          : {}),
+      };
+      const [rows, total] = await Promise.all([
+        tx.person.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take,
+          skip,
+          select: {
+            id: true,
+            fullName: true,
+            phoneEnc: true,
+            createdAt: true,
+            status: true,
+            memberships: { select: { id: true, loyaltyId: true, brandId: true } },
+          },
+        }),
+        tx.person.count({ where }),
+      ]);
+      // membership carries brandId only — resolve the names in one pass
+      const brandIds = [...new Set(rows.flatMap((p) => p.memberships.map((m) => m.brandId)))];
+      const brands = brandIds.length
+        ? await tx.brand.findMany({ where: { id: { in: brandIds } }, select: { id: true, name: true } })
+        : [];
+      const brandName = new Map(brands.map((b) => [b.id, b.name]));
+      return {
+        rows: rows.map((p) => ({
+          id: p.id,
+          fullName: p.fullName,
+          phone: this.revealPhone(p.phoneEnc),
+          status: p.status,
+          createdAt: p.createdAt,
+          brands: p.memberships.map((m) => brandName.get(m.brandId) ?? '—'),
+          memberships: p.memberships.length,
+        })),
+        total,
+      };
+    });
+  }
+
+  /** One customer across every brand they belong to: balances, tiers, activity. */
+  async customerDetail(ctx: TenantContext, personId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const p = await tx.person.findFirst({
+        where: { id: personId, platformId: ctx.platformId },
+        select: {
+          id: true, fullName: true, phoneEnc: true, emailEnc: true, gender: true,
+          birthdate: true, status: true, createdAt: true,
+          memberships: {
+            select: { id: true, loyaltyId: true, status: true, joinedAt: true, brandId: true },
+            orderBy: { joinedAt: 'asc' },
+          },
+        },
+      });
+      if (!p) throw new NotFoundException('customer not found');
+
+      const membershipIds = p.memberships.map((m) => m.id);
+      const balances = membershipIds.length
+        ? await tx.$queryRaw<{ customer_id: string; available: bigint; lifetime: bigint }[]>`
+            SELECT la.customer_id,
+                   (ab.posted_credits - ab.posted_debits - ab.pending_debits) AS available,
+                   ab.posted_credits AS lifetime
+              FROM ledger_account la
+              JOIN account_balance ab ON ab.account_id = la.id
+             WHERE la.account_type = 'points_liability'
+               AND la.customer_id IN (${Prisma.join(membershipIds)})`
+        : [];
+      const byMembership = new Map(balances.map((b) => [b.customer_id, b]));
+
+      const recent = membershipIds.length
+        ? await tx.terminalTransaction.findMany({
+            where: { membershipId: { in: membershipIds } },
+            orderBy: { createdAt: 'desc' },
+            take: 25,
+            select: { id: true, intent: true, state: true, points: true, amountMinor: true, createdAt: true, brandId: true },
+          })
+        : [];
+      const brandRows = await tx.brand.findMany({
+        where: { id: { in: [...new Set(p.memberships.map((m) => m.brandId))] } },
+        select: { id: true, name: true, pointsCurrencyCode: true },
+      });
+      const brandById = new Map(brandRows.map((b) => [b.id, b]));
+
+      return {
+        id: p.id,
+        fullName: p.fullName,
+        phone: this.revealPhone(p.phoneEnc),
+        email: this.revealPhone(p.emailEnc),
+        gender: p.gender,
+        birthdate: p.birthdate,
+        status: p.status,
+        createdAt: p.createdAt,
+        memberships: p.memberships.map((m) => {
+          const b = byMembership.get(m.id);
+          return {
+            membershipId: m.id,
+            brandId: m.brandId,
+            brandName: brandById.get(m.brandId)?.name ?? '—',
+            pointsCode: brandById.get(m.brandId)?.pointsCurrencyCode ?? 'PTS',
+            loyaltyId: m.loyaltyId,
+            status: m.status,
+            joinedAt: m.joinedAt,
+            available: (b?.available ?? 0n).toString(),
+            lifetime: (b?.lifetime ?? 0n).toString(),
+          };
+        }),
+        recent: recent.map((t) => ({
+          id: t.id,
+          intent: t.intent,
+          state: t.state,
+          points: t.points?.toString() ?? null,
+          amountMinor: t.amountMinor?.toString() ?? null,
+          at: t.createdAt,
+          brandName: brandById.get(t.brandId)?.name ?? null,
+        })),
+      };
+    });
+  }
+
+  private revealPhone(blob: Uint8Array | null | undefined): string | null {
+    if (!blob) return null;
+    try {
+      return this.crypto.decrypt(blob);
+    } catch {
+      return null;
+    }
+  }
+
   /** eReceipt engagement: volumes, scan-through rate, ad clicks (per brand + total). */
   async receiptStats(ctx: TenantContext) {
     return this.tenants.run(ctx, async (tx) => {

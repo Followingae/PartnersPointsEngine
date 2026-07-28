@@ -173,6 +173,20 @@ export class SuperadminController {
     return this.superadmin.setTerminalStatus(ctx, terminalId, dto.status);
   }
 
+  @Get('customers')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'Search customers across every brand on the platform.' })
+  listCustomers(@CurrentTenant() ctx: TenantContext, @Query() query: AdminListQueryDto) {
+    return this.superadmin.listCustomers(ctx, query);
+  }
+
+  @Get('customers/:personId')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'One customer across all their brand memberships.' })
+  customerDetail(@CurrentTenant() ctx: TenantContext, @Param('personId') personId: string) {
+    return this.superadmin.customerDetail(ctx, personId);
+  }
+
   @Get('receipt-stats')
   @RequirePermissions('platform.report.read')
   @ApiOperation({ summary: 'eReceipt engagement analytics (scans, views, ad clicks).' })

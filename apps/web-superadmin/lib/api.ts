@@ -253,6 +253,25 @@ export interface ReceiptStats {
 }
 export const getReceiptStats = () => api<ReceiptStats>('/admin/receipt-stats');
 
+export interface AdminCustomerRow {
+  id: string; fullName: string | null; phone: string | null; status: string;
+  createdAt: string; brands: string[]; memberships: number;
+}
+export interface AdminCustomerMembership {
+  membershipId: string; brandId: string; brandName: string; pointsCode: string;
+  loyaltyId: string; status: string; joinedAt: string; available: string; lifetime: string;
+}
+export interface AdminCustomerDetail {
+  id: string; fullName: string | null; phone: string | null; email: string | null;
+  gender: string | null; birthdate: string | null; status: string; createdAt: string;
+  memberships: AdminCustomerMembership[];
+  recent: Array<{ id: string; intent: string; state: string; points: string | null; amountMinor: string | null; at: string; brandName: string | null }>;
+}
+export const getCustomers = (p: { q?: string; limit?: number; offset?: number } = {}) =>
+  api<{ rows: AdminCustomerRow[]; total: number }>(`/admin/customers${qs(p)}`);
+export const getCustomerDetail = (personId: string) =>
+  api<AdminCustomerDetail>(`/admin/customers/${personId}`);
+
 export interface EReceiptAd {
   enabled?: boolean; headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string;
 }
