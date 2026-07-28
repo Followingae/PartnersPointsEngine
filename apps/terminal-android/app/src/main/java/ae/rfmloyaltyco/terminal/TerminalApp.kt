@@ -36,7 +36,12 @@ class TerminalApp : Application() {
         receiptRenderer = ReceiptRenderer(this)
     }
 
-    fun receiptPrinter(): ReceiptPrinter = ReceiptPrinter(this, demo = settings.snapshot().ecrMode == "demo")
+    /**
+     * Always drive the real thermal printer when the Feitian print service is
+     * present — payments in demo mode still print real receipts. Simulation is
+     * only the fallback on non-Feitian hardware (handled inside print()).
+     */
+    fun receiptPrinter(): ReceiptPrinter = ReceiptPrinter(this, demo = false)
 
     /** ECR transport for the current settings; rebuilt when the ECR config changes. */
     fun ecr(): EcrTransport {

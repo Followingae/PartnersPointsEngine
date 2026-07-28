@@ -65,7 +65,34 @@ fun SettingsScreen(app: TerminalApp, onBack: () -> Unit, onRepair: () -> Unit) {
     var autoPrint by remember { mutableStateOf(cfg.autoPrint) }
     var pin by remember { mutableStateOf(cfg.adminPin) }
     var saved by remember { mutableStateOf(false) }
+    var testPrint by remember { mutableStateOf(false) }
     val serverCfg = remember { app.settings.cachedServerConfig() }
+
+    if (testPrint) {
+        PrintReceiptOverlay(
+            app = app,
+            data = ae.rfmloyaltyco.terminal.receipt.ReceiptData(
+                brandName = serverCfg?.brandName?.ifBlank { null } ?: "Partners Points",
+                branchName = serverCfg?.branchName,
+                terminalLabel = serverCfg?.terminalLabel ?: cfg.terminalLabel,
+                at = System.currentTimeMillis(),
+                orderNo = "TESTPRINT" + (System.currentTimeMillis() / 1000),
+                grossMinor = 12550,
+                discountMinor = 500,
+                netMinor = 12050,
+                currency = cfg.currency,
+                paymentMethod = "card",
+                maskedPan = "•••• 0000",
+                authNo = "TEST",
+                memberName = "Test print",
+                earnedPoints = 120,
+                redeemedPoints = 500,
+                balanceAfter = 2480,
+                pointsCode = serverCfg?.pointsCode ?: "PTS",
+            ),
+        ) { testPrint = false }
+        return
+    }
 
     TerminalScaffold(
         title = "Settings",
@@ -140,6 +167,8 @@ fun SettingsScreen(app: TerminalApp, onBack: () -> Unit, onRepair: () -> Unit) {
                         colors = SwitchDefaults.colors(checkedTrackColor = RfmColor.Lime600),
                     )
                 }
+                Spacer(Modifier.height(10.dp))
+                SecondaryAction("Test print receipt") { testPrint = true }
                 Spacer(Modifier.height(10.dp))
                 Text(
                     serverCfg?.let { s ->
