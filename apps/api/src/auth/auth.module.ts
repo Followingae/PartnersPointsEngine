@@ -62,6 +62,8 @@ import { TerminalHmacGuard } from './guards/terminal-hmac.guard';
     HmacService,
     EnvelopeCryptoService,
     NonceStoreService,
+    // The workers module sends transaction alerts through this.
+    SmsSenderService,
   ],
 })
 export class AuthModule {}

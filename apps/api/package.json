@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "openapi:gen": "node dist/openapi-export.js",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "verify:boot": "node scripts/verify-boot.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
