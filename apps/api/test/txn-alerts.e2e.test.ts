@@ -185,31 +185,53 @@ describe('Transaction alerts', () => {
     expect(await prisma.outbox.count({ where: { publishedAt: null, aggregate: 'points', brandId } })).toBe(0);
   });
 
-  it('the recipient lookup carries what the message needs', async () => {
-    const rows = await prisma.$queryRaw<{ r: { firstName: string; brandName: string; priorEarns: number } | null }[]>`
-      SELECT txn_alert_recipient(${membershipId}) AS r`;
-    const who = rows[0]!.r!;
+  /** The latest earn for this member — the alert context is keyed by transaction. */
+  const latestEarn = async () => {
+    const t = await prisma.terminalTransaction.findFirst({
+      where: { membershipId, intent: 'earn' },
+      orderBy: { createdAt: 'desc' },
+    });
+    return t!.id;
+  };
+
+  it('the alert context carries everything the message needs', async () => {
+    const id = await latestEarn();
+    const rows = await prisma.$queryRaw<{ ctx: AlertCtx | null }[]>`
+      SELECT txn_alert_context(${id}) AS ctx`;
+    const who = rows[0]!.ctx!;
     expect(who.firstName).toBe('Alert');
     expect(who.brandName).toBe('Alerts Cafe');
-    expect(Number(who.priorEarns)).toBeGreaterThan(0);
+    // Every table this reads is under tenant RLS, and the relay has no tenant —
+    // a direct select returns nothing, which is what silently held every alert.
+    expect(who.phoneEnc).not.toBeNull();
   });
 
   it('an opted-out customer is not a recipient at all', async () => {
+    const id = await latestEarn();
     await prisma.person.update({ where: { id: personId }, data: { txnAlertsOptOut: true } });
-    const rows = await prisma.$queryRaw<{ r: unknown | null }[]>`
-      SELECT txn_alert_recipient(${membershipId}) AS r`;
+    const rows = await prisma.$queryRaw<{ ctx: AlertCtx | null }[]>`
+      SELECT txn_alert_context(${id}) AS ctx`;
     // Consent is enforced at the source, so no caller can message them by mistake.
-    expect(rows[0]!.r).toBeNull();
+    expect(rows[0]!.ctx).toBeNull();
     await prisma.person.update({ where: { id: personId }, data: { txnAlertsOptOut: false } });
   });
 
   it('a customer with no phone on file is not a recipient', async () => {
-    const p = await prisma.person.create({ data: { platformId, fullName: 'No Phone' } });
-    const m = await prisma.customerMembership.create({
-      data: { personId: p.id, brandId, groupId, platformId, loyaltyId: `NP-${randomUUID().slice(0, 6)}` },
-    });
-    const rows = await prisma.$queryRaw<{ r: unknown | null }[]>`
-      SELECT txn_alert_recipient(${m.id}) AS r`;
-    expect(rows[0]!.r).toBeNull();
+    const id = await latestEarn();
+    const saved = await prisma.person.findUniqueOrThrow({ where: { id: personId } });
+    await prisma.person.update({ where: { id: personId }, data: { phoneEnc: null } });
+    const rows = await prisma.$queryRaw<{ ctx: AlertCtx | null }[]>`
+      SELECT txn_alert_context(${id}) AS ctx`;
+    expect(rows[0]!.ctx).toBeNull();
+    await prisma.person.update({ where: { id: personId }, data: { phoneEnc: saved.phoneEnc } });
   });
+
 });
+
+interface AlertCtx {
+  firstName: string;
+  brandName: string;
+  phoneEnc: string | null;
+  priorEarns: number;
+  receiptToken: string | null;
+}

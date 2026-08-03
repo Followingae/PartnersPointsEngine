@@ -66,25 +66,31 @@ export class TxnAlertService {
   }
 
   private async handle(eventType: string, payload: Record<string, unknown>): Promise<boolean> {
-    const membershipId = payload.membershipId as string | undefined;
-    if (!membershipId) return false;
+    const transactionId = payload.transactionId as string | undefined;
+    if (!transactionId) return false;
 
-    const rows = await this.prisma.$queryRaw<{ r: Recipient | null }[]>`
-      SELECT txn_alert_recipient(${membershipId}) AS r`;
-    const who = rows[0]?.r;
+    // Everything in one definer call. Each table on this path — outbox,
+    // terminal_transaction, customer_membership, person — is under tenant RLS,
+    // and this relay spans brands, so a direct read returns nothing.
+    const rows = await this.prisma.$queryRaw<{ ctx: AlertContext | null }[]>`
+      SELECT txn_alert_context(${transactionId}) AS ctx`;
+    const who = rows[0]?.ctx;
     // Null means opted out, or no phone on file. Either way, nothing to send.
     if (!who) return false;
 
     const phone = this.reveal(who.phoneEnc);
     if (!phone) return false;
 
-    const receiptToken = await this.receiptTokenFor(payload.transactionId as string | undefined);
+    const receiptToken = who.receiptToken;
     // The template's button is a receipt link; without one there's nothing to
     // link to, so hold the message rather than send a dead button.
-    if (!receiptToken) return false;
+    if (!receiptToken) {
+      this.logger.warn(`no receipt for transaction ${transactionId} — alert held`);
+      return false;
+    }
 
     const points = String(payload.points ?? '0');
-    const first = Number(who.priorEarns ?? 0) <= 1;
+    const first = Number(who.priorEarns ?? 0) === 0;
 
     switch (eventType) {
       case 'points.earned':
@@ -123,27 +129,6 @@ export class TxnAlertService {
     return delivered;
   }
 
-  /** The receipt the message links to, if the till wrote one for this sale. */
-  private async receiptTokenFor(transactionId?: string): Promise<string | null> {
-    if (!transactionId) return null;
-    const txn = await this.prisma.terminalTransaction.findUnique({
-      where: { id: transactionId },
-      select: { membershipId: true, createdAt: true, brandId: true },
-    });
-    if (!txn?.membershipId) return null;
-    // Receipts carry no transaction id, so match on the member and the moment.
-    const receipt = await this.prisma.receipt.findFirst({
-      where: {
-        brandId: txn.brandId,
-        membershipId: txn.membershipId,
-        createdAt: { gte: new Date(txn.createdAt.getTime() - 5 * 60_000) },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: { token: true },
-    });
-    return receipt?.token ?? null;
-  }
-
   private reveal(b64: string | null): string | null {
     if (!b64) return null;
     try {
@@ -154,7 +139,8 @@ export class TxnAlertService {
   }
 }
 
-interface Recipient {
+interface AlertContext {
+  membershipId: string;
   personId: string;
   firstName: string;
   phoneEnc: string | null;
@@ -162,4 +148,5 @@ interface Recipient {
   pointsCode: string;
   currency: string;
   priorEarns: number;
+  receiptToken: string | null;
 }
