@@ -72,6 +72,13 @@ jobs:
       - name: API integration tests (ledger/loyalty/terminal/engagement/reporting)
         run: pnpm --filter @rfm-loyalty/api test
 
+      # The image ships `pnpm deploy --prod`, so a runtime import of a
+      # devDependency compiles, tests and boots locally, then exits on
+      # MODULE_NOT_FOUND in the container — and the platform quietly keeps
+      # serving the previous build. This is the step that catches that.
+      - name: Every imported package survives the production prune
+        run: pnpm --filter @rfm-loyalty/api verify:prod-deps
+
       - name: Generate OpenAPI spec (boots module graph)
         run: pnpm --filter @rfm-loyalty/api openapi:gen
 

@@ -71,6 +71,9 @@ importers:
       pdfkit:
         specifier: ^0.19.1
         version: 0.19.1
+      pg:
+        specifier: ^8.13.1
+        version: 8.21.0
       pino-http:
         specifier: ^10.3.0
         version: 10.5.0
@@ -117,9 +120,6 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
-      pg:
-        specifier: ^8.13.1
-        version: 8.21.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
