@@ -159,12 +159,31 @@ export interface Effect {
   reason?: string;
 }
 
+/**
+ * A matched rule that made this earn bigger, named.
+ *
+ * The engine has always applied happy hours and campaign boosts correctly, but
+ * a decision that only carries a number can't tell anybody *why* — so the till
+ * showed a doubled figure with nothing beside it and the receipt printed the
+ * total as if it were ordinary. This is what those two surfaces name it by.
+ */
+export interface EarnBonus {
+  id: string;
+  name: string;
+  /** 2 for a double-points hour. Absent when the rule only adds flat points. */
+  factor?: number;
+  /** Flat points the rule added on top. Absent for a pure multiplier. */
+  points?: number;
+}
+
 export interface EarnDecision {
   points: number;
   base: number;
   multiplier: number;
   cappedAt: number | null;
   matchedRuleIds: string[];
+  /** Only the rules worth telling the customer about — see `EarnBonus`. */
+  bonuses: EarnBonus[];
   effects: Effect[];
 }
 
@@ -174,12 +193,33 @@ export function evaluateEarn(rules: EarnRule[], ctx: EarnContext): EarnDecision 
   let multiplier = 1;
   let cap = Number.POSITIVE_INFINITY;
   const matchedRuleIds: string[] = [];
+  const bonuses: EarnBonus[] = [];
 
   for (const rule of [...rules].filter((r) => r.enabled).sort((a, b) => a.priority - b.priority)) {
     // Type-scoped rules only fire on a matching channel; untyped rules apply to both.
     if (rule.channel && rule.channel !== ctx.session.channel) continue;
     if (!evaluateCondition(rule.condition, ctx)) continue;
     matchedRuleIds.push(rule.id);
+
+    // A rule that multiplies or adds flat points is a campaign the customer
+    // should hear about. The everyday "1 point per dirham" rule is not — it
+    // earns nothing extra, and naming it on every receipt would bury the ones
+    // that do.
+    const factor = rule.actions
+      .filter((a): a is Extract<EarnAction, { type: 'multiplier' }> => a.type === 'multiplier')
+      .reduce((f, a) => f * a.factor, 1);
+    const flat = rule.actions
+      .filter((a): a is Extract<EarnAction, { type: 'bonus' }> => a.type === 'bonus')
+      .reduce((p, a) => p + a.points, 0);
+    if (factor !== 1 || flat > 0) {
+      bonuses.push({
+        id: rule.id,
+        name: rule.name,
+        ...(factor !== 1 ? { factor } : {}),
+        ...(flat > 0 ? { points: flat } : {}),
+      });
+    }
+
     for (const action of rule.actions) {
       switch (action.type) {
         case 'perAmount':
@@ -218,6 +258,8 @@ export function evaluateEarn(rules: EarnRule[], ctx: EarnContext): EarnDecision 
     multiplier,
     cappedAt: Number.isFinite(cap) && capped < raw ? cap : null,
     matchedRuleIds,
+    // An earn that came to nothing has nothing to celebrate, whatever matched.
+    bonuses: points > 0 ? bonuses : [],
     effects: points > 0 ? [{ type: 'addPoints', points, pointState: 'active' }] : [],
   };
 }

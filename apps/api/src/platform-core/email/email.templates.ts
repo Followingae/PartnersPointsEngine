@@ -188,12 +188,32 @@ export interface ReceiptEmailData {
   memberName?: string | null;
   /** Rewards used on this sale, so the email agrees with the printed slip. */
   vouchers?: Array<{ rewardName: string; code: string; discountMinor: number }>;
+  /** Campaigns that made this earn bigger — a happy hour, a double-points day. */
+  bonuses?: Array<{ name: string; factor?: number; points?: number }>;
   /** Where the full receipt lives — this email is the summary, not the record. */
   receiptUrl: string;
 }
 
+/**
+ * What a campaign did, in three words: "2× points", "+50 points".
+ *
+ * Trailing zeroes read as precision that isn't there, so 1.50 becomes 1.5 and
+ * 2.00 becomes 2.
+ */
+export function bonusValue(b: { factor?: number; points?: number }): string {
+  if (b.factor !== undefined && b.factor !== 1) {
+    const x = b.factor % 1 === 0
+      ? String(b.factor)
+      : b.factor.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+    return `${x}× points`;
+  }
+  if (b.points) return `+${num(b.points)} points`;
+  return 'Applied';
+}
+
 export function receiptEmail(d: ReceiptEmailData): { subject: string; html: string; text: string } {
   const earned = Number(d.earnedPoints);
+  const bonuses = d.bonuses ?? [];
   const gross = d.grossMinor ?? d.netMinor;
 
   const row = (label: string, value: string, opts: { strong?: boolean; accent?: string } = {}) => `
@@ -235,6 +255,7 @@ export function receiptEmail(d: ReceiptEmailData): { subject: string; html: stri
         ${row('Subtotal', money(gross, d.currency))}
         ${Number(d.discountMinor ?? 0) > 0 ? row('Points discount', `− ${money(d.discountMinor!, d.currency)}`, { accent: BLUE }) : ''}
         ${rewardRows}
+        ${bonuses.map((b) => row(b.name, bonusValue(b), { accent: BLUE })).join('')}
         ${row('Paid', money(d.netMinor, d.currency), { strong: true })}
         ${d.balanceAfter != null ? row('Points balance', `${num(d.balanceAfter)} ${d.pointsCode}`) : ''}
       </table>
@@ -256,6 +277,7 @@ export function receiptEmail(d: ReceiptEmailData): { subject: string; html: stri
     text:
       `${d.brandName}\n${money(d.netMinor, d.currency)}\n` +
       `${earned > 0 ? `+${num(earned)} ${d.pointsCode} earned\n` : ''}` +
+      bonuses.map((b) => `${b.name}: ${bonusValue(b)}\n`).join('') +
       `Order ${d.orderNo}\n\nFull receipt: ${d.receiptUrl}\n\npartnerspoints.ae`,
   };
 }

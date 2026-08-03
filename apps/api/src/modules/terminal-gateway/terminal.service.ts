@@ -232,6 +232,8 @@ export class TerminalService {
       balanceAfter?: number;
       pointsCode?: string;
       memberToken?: string;
+      /** Named campaigns behind the earn, from the transaction the till just posted. */
+      bonuses?: Array<{ id?: string; name: string; factor?: number; points?: number }>;
     },
   ) {
     // Which rewards were applied to this sale is something the server already
@@ -258,6 +260,17 @@ export class TerminalService {
             select: { code: true, catalogItem: { select: { name: true, payload: true } } },
           })
         : [];
+      // Trusted from the till because the till got it from us: it is the
+      // decision this very sale was posted with, and re-deriving it here would
+      // re-evaluate today's rules against a sale that has already happened.
+      const bonuses = (dto.bonuses ?? [])
+        .filter((b) => b.name && (b.factor !== undefined || (b.points ?? 0) > 0))
+        .map((b) => ({
+          name: String(b.name).slice(0, 80),
+          ...(b.factor !== undefined ? { factor: b.factor } : {}),
+          ...(b.points ? { points: b.points } : {}),
+        }));
+
       const vouchers = applied.map((v) => {
         const payload = (v.catalogItem?.payload ?? {}) as { discountMinor?: number };
         return {
@@ -291,6 +304,7 @@ export class TerminalService {
           pointsCode: dto.pointsCode ?? 'PTS',
           membershipId: claims?.membershipId ?? null,
           vouchers,
+          bonuses,
         },
         select: { id: true },
       });
@@ -310,6 +324,7 @@ export class TerminalService {
         pointsCode: dto.pointsCode ?? 'PTS',
         memberName: dto.memberName ?? null,
         vouchers,
+        bonuses,
         receiptUrl: `${this.publicBaseUrl()}/r/${dto.token}`,
       });
 
@@ -521,7 +536,17 @@ export class TerminalService {
           belowMinimum: BigInt(dto.redeemPoints) < BigInt(cfg.minRedeemPoints),
         };
       }
-      return { earn: { points: decision.points, base: decision.base, multiplier: decision.multiplier }, redeem };
+      return {
+        earn: {
+          points: decision.points,
+          base: decision.base,
+          multiplier: decision.multiplier,
+          // What's making this bigger than usual — the till has no other way to
+          // know a happy hour is running.
+          bonuses: decision.bonuses,
+        },
+        redeem,
+      };
     });
   }
 
@@ -579,6 +604,10 @@ export class TerminalService {
           ...mapTxn(created),
           completed: r.gamification.completed ?? [],
           stamps: r.gamification.stamps ?? [],
+          // Named here as well as on the quote: the receipt is printed from the
+          // transaction, and a quote can be minutes stale by the time the sale
+          // lands — an hour can end between the two.
+          bonuses: r.decision.bonuses ?? [],
         };
       }
 

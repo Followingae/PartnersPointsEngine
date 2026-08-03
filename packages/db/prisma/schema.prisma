@@ -496,6 +496,8 @@ model Receipt {
   pointsCode     String    @default("PTS") @map("points_code")
   /** Rewards applied to this sale: [{ code, rewardName, discountMinor }]. */
   vouchers       Json      @default("[]")
+  /** Campaigns that made this earn bigger: [{ id, name, factor?, points? }]. */
+  bonuses        Json      @default("[]")
   viewCount      Int       @default(0) @map("view_count")
   adClicks       Int       @default(0) @map("ad_clicks")
   firstViewedAt  DateTime? @map("first_viewed_at")

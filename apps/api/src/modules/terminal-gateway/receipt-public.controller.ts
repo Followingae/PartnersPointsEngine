@@ -2,6 +2,9 @@ import { Controller, Get, Headers, NotFoundException, Param, Res } from '@nestjs
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import PDFDocument from 'pdfkit';
+// Shared with the emailed receipt on purpose — the printed slip, the page and
+// the email must not describe the same campaign three different ways.
+import { bonusValue } from '../../platform-core/email/email.templates';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 
 /**
@@ -94,6 +97,7 @@ export class ReceiptPublicController {
       doc.moveDown(0.3);
       line('Member', r.memberName, true);
       if (r.earnedPoints > 0n) line('Points earned', `+${pts(r.earnedPoints)} ${r.pointsCode}`, true);
+      for (const b of receiptBonuses(r.bonuses)) line(b.name, bonusValue(b));
       if (r.redeemedPoints > 0n) line('Points redeemed', `-${pts(r.redeemedPoints)} ${r.pointsCode}`);
       if (r.balanceAfter != null) line('Balance', `${pts(r.balanceAfter)} ${r.pointsCode}`, true);
     }
@@ -152,6 +156,23 @@ function receiptVouchers(raw: unknown): ReceiptVoucher[] {
     const { code, rewardName, discountMinor } = v as Record<string, unknown>;
     if (typeof code !== 'string' || typeof rewardName !== 'string') return [];
     return [{ code, rewardName, discountMinor: typeof discountMinor === 'number' ? discountMinor : 0 }];
+  });
+}
+
+/**
+ * Receipt.bonuses, likewise free-form JSON — a campaign row needs a name and
+ * something it actually did, or it is noise on a receipt.
+ */
+function receiptBonuses(raw: unknown): Array<{ name: string; factor?: number; points?: number }> {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((b) => {
+    if (!b || typeof b !== 'object') return [];
+    const { name, factor, points } = b as Record<string, unknown>;
+    if (typeof name !== 'string' || !name) return [];
+    const f = typeof factor === 'number' && factor !== 1 ? factor : undefined;
+    const pt = typeof points === 'number' && points > 0 ? points : undefined;
+    if (f === undefined && pt === undefined) return [];
+    return [{ name, ...(f !== undefined ? { factor: f } : {}), ...(pt !== undefined ? { points: pt } : {}) }];
   });
 }
 
@@ -304,6 +325,7 @@ function receiptBody(
     memberName: string | null; earnedPoints: bigint; redeemedPoints: bigint;
     balanceAfter: bigint | null; pointsCode: string; createdAt: Date; token: string;
     vouchers?: unknown;
+    bonuses?: unknown;
   },
   brand: BrandProfile,
   store: StoreLink | null,
@@ -374,11 +396,23 @@ function receiptBody(
     )
     .join('');
 
+  // Why the points were bigger than usual. A happy hour that says nothing on the
+  // receipt is indistinguishable, to the customer, from one that didn't run.
+  const bonusRows = receiptBonuses(r.bonuses)
+    .map(
+      (b) => `<div class="row sm" style="margin-top:5px">
+        <span class="muted">${esc(b.name)}</span>
+        <span style="color:var(--lime-deep,#4B7F00);font-weight:600">${esc(bonusValue(b))}</span>
+      </div>`,
+    )
+    .join('');
+
   const details = `
   <div class="card" style="margin-top:12px"><div style="padding:16px 18px">
     <div class="row sm"><span class="muted">Subtotal</span><span>${money(r.grossMinor, r.currency)}</span></div>
     ${r.discountMinor > 0n ? `<div class="row sm" style="margin-top:5px"><span class="muted">Points discount</span><span style="color:var(--blush)">−${money(r.discountMinor, r.currency)}</span></div>` : ''}
     ${rewardRows}
+    ${bonusRows}
     <div class="row sm" style="margin-top:5px"><span class="muted">Paid</span><span style="font-weight:700">${money(r.netMinor, r.currency)}</span></div>
     ${loyaltyRows}
     <div class="row tiny mono" style="margin-top:12px;color:var(--faint)">

@@ -93,6 +93,7 @@ class TerminalApi(private val settings: SettingsStore) {
             earnBase = earn?.optLong("base") ?: 0L,
             earnMultiplier = earn?.optDouble("multiplier", 1.0) ?: 1.0,
             redeemAffordable = redeem?.optBoolean("affordable"),
+            bonuses = parseBonuses(earn?.optJSONArray("bonuses")),
         )
     }
 
@@ -139,6 +140,22 @@ class TerminalApi(private val settings: SettingsStore) {
         false
     }
 
+    /**
+     * A campaign row is only worth showing if it says what it did — a name with
+     * neither a factor nor points is noise on a receipt somebody keeps.
+     */
+    private fun parseBonuses(arr: JSONArray?): List<EarnBonus> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val name = o.optString("name")
+            if (name.isBlank()) return@mapNotNull null
+            val factor = if (o.has("factor")) o.optDouble("factor", 1.0).takeIf { it != 1.0 } else null
+            val points = if (o.has("points")) o.optLong("points").takeIf { it > 0L } else null
+            if (factor == null && points == null) null else EarnBonus(name, factor, points)
+        }
+    }
+
     private fun parseTxn(res: JSONObject) = Txn(
         id = res.getString("id"),
         intent = res.getString("intent"),
@@ -168,6 +185,7 @@ class TerminalApi(private val settings: SettingsStore) {
                 }
             }
         } ?: emptyList(),
+        bonuses = parseBonuses(res.optJSONArray("bonuses")),
     )
 
     /** Rewards this member can use right now (so the cashier can just tap one). */
@@ -350,7 +368,36 @@ data class Quote(
     val earnBase: Long,
     val earnMultiplier: Double,
     val redeemAffordable: Boolean?,
+    /** Campaigns making this earn bigger than usual — happy hours and the like. */
+    val bonuses: List<EarnBonus> = emptyList(),
 )
+
+/**
+ * A named campaign behind an earn.
+ *
+ * The engine has always applied these; nothing ever said so. A doubled figure
+ * with no explanation beside it looks the same to a customer as a promotion
+ * that silently failed to run, and the same to the merchant running it.
+ */
+data class EarnBonus(
+    val name: String,
+    /** 2.0 for a double-points hour; null when the rule only adds flat points. */
+    val factor: Double?,
+    /** Flat points added on top; null for a pure multiplier. */
+    val points: Long?,
+) {
+    /** "2x points" / "+50 points" — trailing zeroes read as precision that isn't there. */
+    val label: String
+        get() = when {
+            factor != null && factor != 1.0 -> {
+                val x = if (factor % 1.0 == 0.0) factor.toLong().toString()
+                        else factor.toString().trimEnd('0').trimEnd('.')
+                "${x}x points"
+            }
+            points != null && points > 0L -> "+$points points"
+            else -> "Applied"
+        }
+}
 
 /** Server-owned points→money valuation. All surfaces share this exact math. */
 data class RedemptionRate(
@@ -403,6 +450,7 @@ data class Txn(
     val amountMinor: Long?,
     val completed: List<CompletedChallenge> = emptyList(),
     val stamps: List<StampCard> = emptyList(),
+    val bonuses: List<EarnBonus> = emptyList(),
 )
 
 /** A challenge/stamp card the member just completed. */

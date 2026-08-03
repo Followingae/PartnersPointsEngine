@@ -308,6 +308,18 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
                     )
+                    // A happy hour is worth saying out loud while the customer is
+                    // still at the counter — and it tells the cashier the campaign
+                    // is actually running, which a bare number never could.
+                    quote.bonuses.forEach { b ->
+                        Text(
+                            "${b.name} · ${b.label}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = RfmColor.Ink,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
         }

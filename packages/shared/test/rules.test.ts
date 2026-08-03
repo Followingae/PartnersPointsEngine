@@ -82,4 +82,45 @@ describe('earn evaluation', () => {
     expect(d.points).toBe(0);
     expect(d.matchedRuleIds).toEqual([]);
   });
+
+  /**
+   * The receipt and the till read `bonuses` to name why an earn was bigger.
+   * The everyday earning rule must stay out of it — printing "1 point per
+   * dirham" on every slip would bury the promotion that actually ran.
+   */
+  describe('bonuses — what the receipt can name', () => {
+    it('names a happy hour and leaves the base rule out of it', () => {
+      const rules: EarnRule[] = [
+        { id: 'base', name: 'Points per dirham', priority: 0, enabled: true, actions: [{ type: 'perAmount', pointsPerUnit: 1, unitMinor: 100 }] },
+        { id: 'hh', name: 'Happy Hour', priority: 1, enabled: true, actions: [{ type: 'multiplier', factor: 2 }] },
+      ];
+      const d = evaluateEarn(rules, base);
+      expect(d.bonuses).toEqual([{ id: 'hh', name: 'Happy Hour', factor: 2 }]);
+    });
+
+    it('names a flat bonus by its points', () => {
+      const rules: EarnRule[] = [
+        { id: 'b', name: 'Weekend treat', priority: 0, enabled: true, actions: [{ type: 'bonus', points: 50 }] },
+      ];
+      expect(evaluateEarn(rules, base).bonuses).toEqual([{ id: 'b', name: 'Weekend treat', points: 50 }]);
+    });
+
+    it('says nothing when the campaign did not fire', () => {
+      const rules: EarnRule[] = [
+        { id: 'base', name: 'Points per dirham', priority: 0, enabled: true, actions: [{ type: 'perAmount', pointsPerUnit: 1, unitMinor: 100 }] },
+        { id: 'hh', name: 'Happy Hour', priority: 1, enabled: true, condition: { attr: 'session.channel', op: 'eq', value: 'online' }, actions: [{ type: 'multiplier', factor: 2 }] },
+      ];
+      expect(evaluateEarn(rules, base).bonuses).toEqual([]);
+    });
+
+    it('celebrates nothing when the earn came to nothing', () => {
+      const rules: EarnRule[] = [
+        { id: 'hh', name: 'Happy Hour', priority: 0, enabled: true, actions: [{ type: 'multiplier', factor: 2 }] },
+      ];
+      // Nothing to multiply — a doubled zero is still zero.
+      const d = evaluateEarn(rules, { session: { channel: 'in_store' } });
+      expect(d.points).toBe(0);
+      expect(d.bonuses).toEqual([]);
+    });
+  });
 });

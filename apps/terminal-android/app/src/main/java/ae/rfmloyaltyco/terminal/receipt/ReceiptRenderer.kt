@@ -50,7 +50,18 @@ data class ReceiptData(
     val unlocked: List<String> = emptyList(),
     /** Rewards handed over on this sale — printed with their numbers. */
     val vouchers: List<ReceiptVoucher> = emptyList(),
+    /** Campaigns behind the earn, so a happy hour is visible on the slip. */
+    val bonuses: List<ReceiptBonus> = emptyList(),
 )
+
+/**
+ * A campaign that made the earn bigger, as it appears on the slip.
+ *
+ * `label` arrives already worded ("2x points") rather than being derived here:
+ * the printed slip, the eReceipt page and the emailed copy must not describe
+ * the same promotion three different ways.
+ */
+data class ReceiptBonus(val name: String, val label: String)
 
 /** A reward applied to the sale, as it appears on the slip. */
 data class ReceiptVoucher(
@@ -116,6 +127,12 @@ class ReceiptRenderer(private val context: Context) {
                 y = center(c, "POINTS EARNED", body, 18f, y)
                 y = center(c, "+${fmt(d.earnedPoints)}", heading, 62f, y)
                 y = center(c, d.pointsCode, body, 17f, y)
+                // Why it was bigger than usual — directly under the number it
+                // explains, where someone reading the total is already looking.
+                d.bonuses.forEach { b ->
+                    y += 4f
+                    y = center(c, b.name.uppercase() + "  ·  " + b.label.uppercase(), heading, 20f, y)
+                }
                 y += 6f
             }
             if (d.redeemedPoints > 0) {

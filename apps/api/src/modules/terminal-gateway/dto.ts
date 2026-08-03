@@ -76,6 +76,16 @@ export class CreateReceiptDto {
   @IsOptional()
   @IsString()
   memberToken?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Campaigns behind the earn, echoed back from the transaction response: [{ name, factor?, points? }]. ' +
+      'Printed and emailed so a happy hour is visible on the receipt rather than being a bigger number with no explanation.',
+  })
+  @IsOptional()
+  @IsArray()
+  bonuses?: Array<{ name: string; factor?: number; points?: number }>;
 }
 
 class CartItemDto {

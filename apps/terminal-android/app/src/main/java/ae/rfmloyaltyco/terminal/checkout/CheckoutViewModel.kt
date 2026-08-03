@@ -409,6 +409,12 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
 
+            // The campaigns behind this earn, named. Taken from the transaction
+            // the server actually posted; the quote is the fallback for an earn
+            // that went to the outbox and has no transaction to read yet.
+            val earnBonuses = earnTxn?.bonuses?.takeIf { it.isNotEmpty() }
+                ?: _state.value.quote?.bonuses.orEmpty()
+
             val balanceAfter = member?.context?.let { c -> c.availablePoints - redeemPoints + earnedPoints }
             // eReceipt: client-generated token so the printed QR is valid even if
             // the upload replays later from the outbox.
@@ -434,6 +440,25 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 // Lets the server attach the rewards used on this sale to the
                 // eReceipt, so the digital copy matches the printed slip.
                 .apply { member?.token?.let { put("memberToken", it) } }
+                // So the eReceipt and the emailed copy name the happy hour too,
+                // not just the slip that came out of the printer.
+                .apply {
+                    if (earnBonuses.isNotEmpty()) {
+                        put(
+                            "bonuses",
+                            org.json.JSONArray().apply {
+                                earnBonuses.forEach { b ->
+                                    put(
+                                        org.json.JSONObject()
+                                            .put("name", b.name)
+                                            .apply { b.factor?.let { put("factor", it) } }
+                                            .apply { b.points?.let { put("points", it) } },
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
             viewModelScope.launch {
                 runCatching { api.createReceipt(receiptPayload) }
                     .onFailure { outbox.enqueueReceipt(receiptPayload) }
@@ -464,6 +489,7 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                 loyaltyId = member?.context?.loyaltyId?.ifBlank { null },
                 memberPhoneMasked = member?.takeIf { it.identifierType == "phone" }?.identifierValue?.let { maskPhone(it) },
                 eReceiptUrl = eUrl,
+                bonuses = earnBonuses.map { ae.rfmloyaltyco.terminal.receipt.ReceiptBonus(it.name, it.label) },
                 stamps = earnTxn?.stamps.orEmpty().map { ReceiptStamp(it.name, it.progress, it.target) },
                 unlocked = earnTxn?.completed.orEmpty().mapNotNull { it.badgeName ?: it.name.takeIf { _ -> it.voucherCode != null } },
                 vouchers = snapshot.redeemedVouchers.map { v ->
