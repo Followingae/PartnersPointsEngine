@@ -27,39 +27,99 @@ export class PiiBackfillService implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     if (process.env.SKIP_DB === '1' || process.env.NODE_ENV === 'test') return;
     try {
-      const { repaired, checked } = await this.run();
-      if (repaired > 0) {
-        this.logger.warn(`re-encrypted PII on ${repaired} of ${checked} rows that were stored in the clear`);
+      const r = await this.run();
+      if (r.repaired || r.failed) {
+        this.logger.warn(
+          `PII backfill: ${r.repaired} re-encrypted, ${r.failed} failed, ${r.checked} checked`,
+        );
+      }
+      if (r.failed) {
+        // Say so plainly — a partial sweep leaving PII in the clear is exactly
+        // the kind of thing that goes unnoticed until it matters.
+        this.logger.error(`${r.failed} row(s) still hold unencrypted PII — see errors above`);
       }
     } catch (e) {
       // Never block startup for this — the app is still serviceable.
-      this.logger.error(`PII backfill failed: ${(e as Error).message}`);
+      this.logger.error(`PII backfill aborted: ${(e as Error).message}`);
     }
   }
 
-  async run(): Promise<{ checked: number; repaired: number }> {
+  async run(): Promise<{ checked: number; repaired: number; failed: number; skipped: number }> {
     const rows = await this.prisma.$queryRaw<
       Array<{ id: string; phone_enc: Buffer | null; email_enc: Buffer | null }>
     >`SELECT id, phone_enc, email_enc FROM pii_encryption_candidates()`;
 
     let repaired = 0;
+    let failed = 0;
+    let skipped = 0;
+
     for (const row of rows) {
-      const phone = this.crypto.readMaybeEncrypted(row.phone_enc);
-      const email = this.crypto.readMaybeEncrypted(row.email_enc);
-      if (!phone.wasPlaintext && !email.wasPlaintext) continue;
+      // One bad row must never abort the sweep — that is precisely what left
+      // six of seven rows unencrypted the first time this ran.
+      try {
+        const phone = this.crypto.readMaybeEncrypted(row.phone_enc);
+        const email = this.crypto.readMaybeEncrypted(row.email_enc);
+        if (!phone.wasPlaintext && !email.wasPlaintext) {
+          skipped++;
+          continue;
+        }
 
-      // Null leaves the column alone, so only what was plaintext is rewritten.
-      const nextPhone = phone.wasPlaintext && phone.value
-        ? Buffer.from(this.crypto.encrypt(phone.value))
-        : null;
-      const nextEmail = email.wasPlaintext && email.value
-        ? Buffer.from(this.crypto.encrypt(email.value))
-        : null;
+        // Null leaves the column alone, so only what was plaintext is rewritten.
+        const nextPhone = phone.wasPlaintext && phone.value
+          ? Buffer.from(this.crypto.encrypt(phone.value))
+          : null;
+        const nextEmail = email.wasPlaintext && email.value
+          ? Buffer.from(this.crypto.encrypt(email.value))
+          : null;
 
-      await this.prisma.$queryRaw`
-        SELECT pii_set_encrypted(${row.id}, ${nextPhone}::bytea, ${nextEmail}::bytea)`;
-      repaired++;
+        const [res] = await this.prisma.$queryRaw<Array<{ pii_set_encrypted: boolean }>>`
+          SELECT pii_set_encrypted(${row.id}, ${nextPhone}, ${nextEmail}) AS pii_set_encrypted`;
+        if (!res?.pii_set_encrypted) {
+          failed++;
+          this.logger.error(`person ${row.id}: update matched no row`);
+          continue;
+        }
+
+        if (await this.verify(row.id, phone.value, email.value)) {
+          repaired++;
+        } else {
+          failed++;
+        }
+      } catch (e) {
+        failed++;
+        this.logger.error(`person ${row.id}: ${(e as Error).message}`);
+      }
     }
-    return { checked: rows.length, repaired };
+    return { checked: rows.length, repaired, failed, skipped };
+  }
+
+  /**
+   * Reads the row back and confirms it now decrypts to what it held before.
+   *
+   * Worth the extra query: writing ciphertext that doesn't decrypt, or that
+   * decrypts to something else, would lose a customer's phone number
+   * irrecoverably. Better to know immediately than to discover it when a
+   * message fails to send.
+   */
+  private async verify(
+    personId: string,
+    expectedPhone: string | null,
+    expectedEmail: string | null,
+  ): Promise<boolean> {
+    const [row] = await this.prisma.$queryRaw<
+      Array<{ id: string; phone_enc: Buffer | null; email_enc: Buffer | null }>
+    >`SELECT id, phone_enc, email_enc FROM pii_encryption_candidates() WHERE id = ${personId}`;
+    if (!row) return false;
+
+    const phone = this.crypto.readMaybeEncrypted(row.phone_enc);
+    const email = this.crypto.readMaybeEncrypted(row.email_enc);
+
+    const phoneOk = expectedPhone === null || (!phone.wasPlaintext && phone.value === expectedPhone);
+    const emailOk = expectedEmail === null || (!email.wasPlaintext && email.value === expectedEmail);
+    if (!phoneOk || !emailOk) {
+      this.logger.error(`person ${personId}: re-encrypted value did not verify`);
+      return false;
+    }
+    return true;
   }
 }
