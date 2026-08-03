@@ -5,6 +5,8 @@
  *
  *   SMOKE_BASE_URL=http://localhost:3001 node scripts/smoke.mjs
  */
+import { randomUUID } from 'node:crypto';
+
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3001';
 const EMAIL = process.env.SMOKE_EMAIL ?? 'admin@camel-bean.dev';
 const PASSWORD = process.env.SMOKE_PASSWORD ?? 'ChangeMe123!';
@@ -44,7 +46,11 @@ const rewardsList = await fetch(`${BASE}/v1/manage/rewards?limit=5`, { headers: 
 check('GET /v1/manage/rewards → { rows, total }', Array.isArray(rewardsList?.rows) && typeof rewardsList?.total === 'number');
 
 // Full CRUD round-trip: create → PATCH → clone → DELETE(archive).
-const created = await fetch(`${BASE}/v1/manage/rewards`, { method: 'POST', headers: auth, body: JSON.stringify({ name: 'SMOKE reward', pointsCost: 123, kind: 'voucher' }) }).then(json);
+// Unique per run. Reward names are unique within a brand, so a fixed name made
+// this whole block fail with a 409 the moment the database wasn't empty —
+// against a seeded CI database, or twice in a row locally.
+const rewardName = `SMOKE reward ${randomUUID().slice(0, 8)}`;
+const created = await fetch(`${BASE}/v1/manage/rewards`, { method: 'POST', headers: auth, body: JSON.stringify({ name: rewardName, pointsCost: 123, kind: 'voucher' }) }).then(json);
 check('POST reward → id', typeof created?.id === 'string');
 const patched = await fetch(`${BASE}/v1/manage/rewards/${created?.id}`, { method: 'PATCH', headers: auth, body: JSON.stringify({ pointsCost: 321 }) }).then(json);
 check('PATCH reward → updated cost', patched?.pointsCost === '321');
