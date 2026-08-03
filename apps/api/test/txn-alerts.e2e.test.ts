@@ -194,6 +194,66 @@ describe('Transaction alerts', () => {
     return t!.id;
   };
 
+  describe('one sale, one message', () => {
+    const at = (seconds: number) => new Date(Date.UTC(2026, 7, 3, 12, 0, seconds));
+    const ev = (type: string, seconds: number, payload: Record<string, unknown>) => ({
+      id: `o-${type}-${seconds}`,
+      event_type: type,
+      created_at: at(seconds),
+      payload: { membershipId: 'm1', transactionId: `t-${seconds}`, ...payload },
+    });
+
+    it('merges an earn and a redemption from the same purchase', async () => {
+      const { groupBySale } = await import('../src/modules/workers/txn-alert.service');
+      // What a redeem-and-earn sale actually writes: two events, seconds apart.
+      const sales = groupBySale([
+        ev('points.redeemed', 0, { points: '500', rewardName: 'Free coffee' }),
+        ev('points.earned', 2, { points: '42' }),
+      ]);
+
+      expect(sales).toHaveLength(1);
+      expect(sales[0]!.earnedPoints).toBe('42');
+      expect(sales[0]!.redeemedReward).toBe('Free coffee');
+      // Anchored on the redemption — that's the transaction the receipt is
+      // written against.
+      expect(sales[0]!.anchorTransactionId).toBe('t-0');
+    });
+
+    it('keeps two genuinely separate visits apart', async () => {
+      const { groupBySale } = await import('../src/modules/workers/txn-alert.service');
+      const sales = groupBySale([
+        ev('points.earned', 0, { points: '10' }),
+        ev('points.earned', 600, { points: '20' }), // ten minutes later
+      ]);
+      expect(sales).toHaveLength(2);
+    });
+
+    it('never merges two different customers', async () => {
+      const { groupBySale } = await import('../src/modules/workers/txn-alert.service');
+      const sales = groupBySale([
+        ev('points.earned', 0, { points: '10' }),
+        { ...ev('points.earned', 1, { points: '20' }), payload: { membershipId: 'm2', transactionId: 't-x', points: '20' } },
+      ]);
+      expect(sales).toHaveLength(2);
+    });
+
+    it('ignores a zero-point earn — nothing worth saying', async () => {
+      const { groupBySale } = await import('../src/modules/workers/txn-alert.service');
+      const sales = groupBySale([ev('points.earned', 0, { points: '0' })]);
+      expect(sales[0]!.earnedPoints).toBeNull();
+    });
+
+    it('does not fold an adjustment into a sale', async () => {
+      const { groupBySale } = await import('../src/modules/workers/txn-alert.service');
+      // An adjustment apologises for a missed visit; it isn't part of a purchase.
+      const sales = groupBySale([
+        ev('points.earned', 0, { points: '10' }),
+        ev('points.adjusted', 1, { points: '50' }),
+      ]);
+      expect(sales[0]!.adjustedPoints).toBe('50');
+    });
+  });
+
   it('the alert context carries everything the message needs', async () => {
     const id = await latestEarn();
     const rows = await prisma.$queryRaw<{ ctx: AlertCtx | null }[]>`
