@@ -1,3 +1,4 @@
+import { INCREMENTAL_MIGRATIONS } from '@rfm-loyalty/db';
 import { Client } from 'pg';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -14,15 +15,12 @@ import { join } from 'node:path';
  *
  * Deliberately narrow:
  *
- * · Only the files named below run. The baseline, RLS and ledger scripts are
- *   not in the list and never will be — re-running those against a live
- *   database is a different and far more dangerous operation than adding a
- *   column, and it should stay a decision somebody makes on purpose.
- * · Every file here is written to be idempotent (`IF NOT EXISTS`,
- *   `CREATE OR REPLACE`, and a `DROP … IF EXISTS` for the exact signature being
- *   created), so the ledger below is an optimisation and a record, not the
- *   thing standing between us and a double-apply. `schema-migrator.e2e.test.ts`
- *   runs the whole list twice and is what keeps that true.
+ * · Only `INCREMENTAL_MIGRATIONS` runs — the same list `db:apply` and the test
+ *   harness use, so the three cannot drift. The baseline, RLS and ledger
+ *   scripts are not on it and never will be.
+ * · Every file on it is idempotent, and `schema-migrator.e2e.test.ts` runs the
+ *   whole list twice to keep that true — so the ledger below is an optimisation
+ *   and a record, not the thing standing between us and a double-apply.
  * · A file already in the ledger is skipped, so editing one after it has been
  *   applied does not re-run it. Corrections go in a new file.
  * · One transaction per file. A file that fails leaves nothing half-applied and
@@ -31,27 +29,7 @@ import { join } from 'node:path';
  *   not match is worse than an API that is briefly down: the first corrupts
  *   data quietly, the second pages somebody.
  */
-const AUTO_APPLY = [
-  '2026-06-18_allowance_topup_request.sql',
-  '2026-07-28_customer_wallet.sql',
-  '2026-07-28_otp_code.sql',
-  '2026-07-28_wallet_scan_code.sql',
-  '2026-07-28_customer_refresh_tokens.sql',
-  '2026-07-28_wallet_join_brand.sql',
-  '2026-07-28_stamp_cards.sql',
-  '2026-07-28_redemption_config.sql',
-  '2026-07-28_ereceipt_brand.sql',
-  '2026-07-28_person_access_and_receipts.sql',
-  '2026-07-28_superadmin_control.sql',
-  '2026-08-03_profile_and_alerts.sql',
-  '2026-08-03_claim_txn_alerts.sql',
-  '2026-08-03_txn_alert_context.sql',
-  '2026-08-03_pii_backfill.sql',
-  '2026-08-03_claim_alerts_settled.sql',
-  '2026-08-03_wallet_sessions.sql',
-  '2026-08-03_receipt_bonuses.sql',
-  '2026-08-03_terminal_releases.sql',
-] as const;
+const AUTO_APPLY = INCREMENTAL_MIGRATIONS;
 
 const LEDGER = `
   CREATE TABLE IF NOT EXISTS schema_migration (

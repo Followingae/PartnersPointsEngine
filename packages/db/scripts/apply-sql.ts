@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client } from 'pg';
+import { INCREMENTAL_MIGRATIONS } from '../src/migrations';
 
 async function main(): Promise<void> {
   const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -25,6 +26,14 @@ async function main(): Promise<void> {
     console.log('Applied RLS policies.');
     await client.query(ledger);
     console.log('Applied ledger integrity (triggers + constraints).');
+    // The baseline is the world as it was; everything since is here. Without
+    // this a fresh database is missing every column added after the baseline,
+    // which is exactly how CI ended up testing against a schema no environment
+    // actually runs.
+    for (const name of INCREMENTAL_MIGRATIONS) {
+      await client.query(readFileSync(join(sqlDir, name), 'utf8'));
+      console.log(`Applied ${name}.`);
+    }
   } finally {
     await client.end();
   }
