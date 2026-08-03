@@ -34,6 +34,13 @@ export class CustomerController {
     return this.loyalty.history(ctx, membershipId);
   }
 
+  @Get('expiring')
+  @ApiOperation({ summary: 'The member’s own points due to expire, grouped by month.' })
+  async expiring(@CurrentTenant() ctx: TenantContext) {
+    const membershipId = await this.loyalty.resolveCustomerMembership(ctx);
+    return this.loyalty.expiring(ctx, membershipId);
+  }
+
   @Get('rewards')
   @ApiOperation({ summary: 'Reward catalog for this brand.' })
   rewards(@CurrentTenant() ctx: TenantContext) {

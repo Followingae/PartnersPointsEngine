@@ -2,12 +2,21 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Body, EmptyState, ErrorState, H1, Loading, Screen, pts } from '@/components/UI';
+import { ConversionStatus } from '@/lib/api';
 import { C } from '@/lib/tokens';
 import { GroupLabel, ListRow, TopBar } from '@/components/RewardKit';
 import { ConversionRow, useConversions } from './_data';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** A settled transfer needs no label; the unhappy ones say what happened. */
+const STATUS: Record<ConversionStatus, string> = {
+  completed: '',
+  pending: 'in progress',
+  failed: 'failed, refunded',
+  reversed: 'reversed, refunded',
+};
 
 /** "July", or "July 2025" once the year is no longer the current one. */
 function monthOf(iso: string): string {
@@ -74,20 +83,20 @@ export default function TransferHistory() {
             <View key={`${g.month}-${gi}`}>
               <GroupLabel style={gi > 0 ? { marginTop: 22 } : undefined}>{g.month}</GroupLabel>
               {g.rows.map((r, i) => {
-                const failed = r.status === 'failed';
-                const sub = [dayOf(r.createdAt), r.brandName, failed ? 'failed, refunded' : r.status]
+                const undone = r.status === 'failed' || r.status === 'reversed';
+                const sub = [dayOf(r.createdAt), r.brandName, STATUS[r.status]]
                   .filter(Boolean)
                   .join(' · ');
                 return (
                   <ListRow
                     key={r.id}
                     title={
-                      failed
+                      undone
                         ? `${pts(Number(r.sourcePoints))} pts`
                         : `${pts(Number(r.sourcePoints))} pts → ${pts(Number(r.partnerPoints))} Lulu`
                     }
                     sub={sub}
-                    value={failed ? 'Refunded' : undefined}
+                    value={undone ? 'Refunded' : undefined}
                     valueTone="faint"
                     divider={i > 0}
                   />

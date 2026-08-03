@@ -25,11 +25,10 @@ export default function LinkLulu() {
   }, [signedOut, router]);
 
   const card = data?.card;
-  const preview = data?.preview;
   // The partner key belongs to the merchant's deal, not the app — the preview is
   // where it is published.
-  const partnerKey = preview?.partner?.key;
-  const blocked = blockedReason(preview);
+  const partnerKey = data?.terms?.partner.key;
+  const blocked = blockedReason(data?.preview);
 
   async function submit() {
     if (!card || !partnerKey || sent.current) return;
@@ -37,10 +36,12 @@ export default function LinkLulu() {
     setBusy(true);
     setFailed(null);
     try {
-      await linkPartner(card.brandId, partnerKey, member.trim());
+      // The partner normalises the reference, so the confirmation shows back
+      // what was actually linked rather than what was typed.
+      const { partnerMemberRef } = await linkPartner(card.brandId, partnerKey, member.trim());
       router.replace({
         pathname: '/convert/linked',
-        params: { brandId: card.brandId, memberRef: member.trim() },
+        params: { brandId: card.brandId, memberRef: partnerMemberRef },
       });
     } catch (e) {
       if (e instanceof ApiError && e.isAuth) {

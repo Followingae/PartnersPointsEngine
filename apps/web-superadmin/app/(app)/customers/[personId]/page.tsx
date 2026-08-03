@@ -37,7 +37,7 @@ const voucherStatus = (s: string) => VOUCHER_STATUS[s] ?? { tone: 'neutral' as c
 /** Only a reward the customer still holds can be taken back. */
 const isRevocable = (s: string) => s === 'issued' || s === 'reserved';
 
-type Tab = 'overview' | 'activity' | 'rewards' | 'memberships';
+type Tab = 'overview' | 'activity' | 'rewards' | 'challenges' | 'memberships';
 type Feed = 'all' | 'points' | 'rewards';
 
 const isRewardEvent = (t: AdminCustomerActivity['type']) => t.startsWith('voucher_');
@@ -108,6 +108,7 @@ export default function CustomerDetailPage() {
     { key: 'overview', label: 'Overview' },
     { key: 'activity', label: 'Activity', count: d?.activity.length },
     { key: 'rewards', label: 'Rewards', count: d?.vouchers.length },
+    { key: 'challenges', label: 'Challenges', count: d?.challenges?.length },
     { key: 'memberships', label: 'Memberships', count: d?.memberships.length },
   ];
 
@@ -246,6 +247,51 @@ export default function CustomerDetailPage() {
                 )}
               </Card>
             </div>
+          ) : tab === 'challenges' ? (
+            <Card className="p-6">
+              {d.challenges?.length ? (
+                <div className="space-y-4">
+                  {d.challenges.map((c) => {
+                    const done = Number(c.progress);
+                    const target = Math.max(Number(c.target), 1);
+                    const ready = done >= target;
+                    return (
+                      <div key={c.id} className="rounded-2xl border border-border/70 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{c.name}</span>
+                              {c.isStampCard && <Badge tone="neutral">Stamp card</Badge>}
+                              {ready && <Badge tone="lime">Ready</Badge>}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {c.brandName ?? '—'}
+                              {c.completions > 0 && ` · completed ${c.completions}×`}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right font-display text-lg font-bold">
+                            {done}<span className="text-sm text-muted-foreground">/{target}</span>
+                          </div>
+                        </div>
+                        {c.isStampCard ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {Array.from({ length: target }, (_, i) => (
+                              <span key={i} className={`inline-block h-4 w-4 rounded-full ${i < done ? 'bg-ink' : 'border border-border'}`} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div className="h-full rounded-full bg-ink" style={{ width: `${c.progressPct}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState title="No challenge progress" hint="Challenges this customer is taking part in will appear here." />
+              )}
+            </Card>
           ) : tab === 'activity' ? (
             <Card className="p-6">
               <SectionTitle

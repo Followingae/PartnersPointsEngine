@@ -555,6 +555,27 @@ export class SuperadminService {
             select: { id: true, intent: true, state: true, points: true, amountMinor: true, createdAt: true, brandId: true },
           })
         : [];
+      // Gamification, per membership. Superadmin could previously see balances
+      // and transactions but nothing about challenges — so "why hasn't this
+      // customer had their free coffee" had no answer from the platform side.
+      const progress = membershipIds.length
+        ? await tx.challengeProgress.findMany({
+            where: { membershipId: { in: membershipIds } },
+            include: {
+              challenge: {
+                select: { id: true, name: true, kind: true, target: true, repeatable: true, brandId: true, enabled: true },
+              },
+            },
+          })
+        : [];
+      const awards = membershipIds.length
+        ? await tx.badgeAward.findMany({
+            where: { membershipId: { in: membershipIds } },
+            include: { badge: { select: { name: true, icon: true } } },
+            orderBy: { awardedAt: 'desc' },
+          })
+        : [];
+
       const brandRows = await tx.brand.findMany({
         where: { id: { in: [...new Set(p.memberships.map((m) => m.brandId))] } },
         select: { id: true, name: true, pointsCurrencyCode: true },
@@ -637,6 +658,30 @@ export class SuperadminService {
           amountMinor: t.amountMinor?.toString() ?? null,
           at: t.createdAt,
           brandName: brandById.get(t.brandId)?.name ?? null,
+        })),
+        challenges: progress
+          // A disabled challenge's progress is history, not something to chase.
+          .filter((r) => r.challenge.enabled)
+          .map((r) => {
+            const target = r.challenge.target > 0n ? r.challenge.target : 1n;
+            return {
+              id: r.challenge.id,
+              name: r.challenge.name,
+              kind: r.challenge.kind,
+              isStampCard: r.challenge.repeatable && r.challenge.kind === 'visits',
+              brandName: brandById.get(r.challenge.brandId)?.name ?? null,
+              target: target.toString(),
+              progress: r.progress.toString(),
+              progressPct: Math.min(100, Number((r.progress * 100n) / target)),
+              completions: r.completions,
+              completedAt: r.completedAt,
+            };
+          }),
+        badges: awards.map((a) => ({
+          name: a.badge.name,
+          icon: a.badge.icon,
+          awardedAt: a.awardedAt,
+          brandName: brandById.get(brandOfMembership.get(a.membershipId) ?? '')?.name ?? null,
         })),
         activity,
         vouchers: voucherRows.map((v) => ({

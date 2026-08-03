@@ -238,6 +238,21 @@ export interface CustomerProfile {
   activity: CustomerActivityEvent[];
   vouchers: CustomerVoucher[];
   badges: Array<{ name: string; icon: string | null; awardedAt: string }>;
+  /** Every live challenge and stamp card, with where this customer stands. */
+  challenges: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    isStampCard: boolean;
+    target: string;
+    progress: string;
+    progressPct: number;
+    completions: number;
+    completedAt: string | null;
+    rewardPoints: string;
+    rewardName: string | null;
+    endsAt: string | null;
+  }>;
   referrals: { made: number; qualified: number };
 }
 

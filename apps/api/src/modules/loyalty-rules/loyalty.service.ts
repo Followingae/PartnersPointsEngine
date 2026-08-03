@@ -140,6 +140,77 @@ export class LoyaltyService {
     });
   }
 
+  /**
+   * The member's own points, grouped by the month they are due to expire.
+   *
+   * There is no lot table, so this reproduces exactly the FIFO the expiry sweep
+   * settles with: debits consume the earliest-expiring credits first, and
+   * credits with no expiry bucket are consumed last because they never lapse.
+   * Reading it any other way would tell a customer points are safe that the
+   * sweep is about to take, or the reverse.
+   *
+   * Held points (a redemption authorised but not yet captured) count as spent —
+   * they are already committed, so warning about them would be a false alarm.
+   * Buckets already in the past are consumed but never reported: the sweep has
+   * taken them, or is about to, and there is nothing left to act on.
+   */
+  async expiring(ctx: TenantContext, membershipId: string) {
+    return this.tenants.run(ctx, async (tx) => {
+      const acc = await this.findLiabilityAccount(tx, ctx, membershipId);
+      if (!acc) return { total: '0', buckets: [] };
+
+      const lots = await tx.$queryRaw<{ expiry_bucket: Date | null; points: bigint }[]>`
+        SELECT e.expiry_bucket, coalesce(sum(e.amount_minor), 0)::bigint AS points
+          FROM entry e
+         WHERE e.account_id = ${acc.id} AND e.direction = 'credit'
+         GROUP BY e.expiry_bucket
+         ORDER BY e.expiry_bucket ASC NULLS LAST`;
+
+      const balRows = await tx.$queryRaw<{ posted_debits: bigint; pending_debits: bigint }[]>`
+        SELECT posted_debits, pending_debits FROM account_balance WHERE account_id = ${acc.id}`;
+      let spent = balRows[0]
+        ? BigInt(balRows[0].posted_debits) + BigInt(balRows[0].pending_debits)
+        : 0n;
+
+      // `expiry_bucket` is a DATE, which Prisma hands back at UTC midnight — so
+      // compare against a UTC midnight too, or a bucket dated today is dropped
+      // wherever the server's clock sits behind UTC.
+      const now = new Date();
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+      const byMonth = new Map<string, { points: bigint; from: Date }>();
+      let total = 0n;
+      for (const lot of lots) {
+        let left = BigInt(lot.points);
+        if (spent > 0n) {
+          const eaten = spent < left ? spent : left;
+          left -= eaten;
+          spent -= eaten;
+        }
+        if (left <= 0n || !lot.expiry_bucket) continue;
+        const at = new Date(lot.expiry_bucket);
+        if (at < today) continue;
+        const month = `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
+        const seen = byMonth.get(month);
+        if (seen) seen.points += left;
+        else byMonth.set(month, { points: left, from: at });
+        total += left;
+      }
+
+      const day = 24 * 60 * 60 * 1000;
+      return {
+        total: total.toString(),
+        buckets: [...byMonth.entries()].map(([month, b]) => ({
+          month,
+          points: b.points.toString(),
+          /** The earliest date in the month that any of these points lapse. */
+          from: b.from.toISOString().slice(0, 10),
+          daysLeft: Math.max(0, Math.round((b.from.getTime() - today.getTime()) / day)),
+        })),
+      };
+    });
+  }
+
   async catalog(ctx: TenantContext) {
     return this.tenants.run(ctx, (tx) =>
       tx.rewardCatalogItem.findMany({
@@ -613,6 +684,52 @@ export class LoyaltyService {
       });
 
       const badges = await tx.badgeAward.findMany({ where: { membershipId, brandId: ctx.brandId! }, include: { badge: { select: { name: true, icon: true } } }, orderBy: { awardedAt: 'desc' } });
+
+      // Where this customer stands on every live challenge and stamp card.
+      // Badges only ever showed what had already been won; a brand asking "how
+      // close is this person to their free coffee" had nowhere to look.
+      const challengeRows = await tx.challenge.findMany({
+        where: { brandId: ctx.brandId!, enabled: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, kind: true, target: true, repeatable: true, rewardPoints: true, rewardItemId: true, endsAt: true },
+      });
+      const progressRows = challengeRows.length
+        ? await tx.challengeProgress.findMany({
+            where: { membershipId, challengeId: { in: challengeRows.map((c) => c.id) } },
+          })
+        : [];
+      const progressBy = new Map(progressRows.map((p) => [p.challengeId, p]));
+      const rewardIds = challengeRows.map((c) => c.rewardItemId).filter((v): v is string => Boolean(v));
+      const rewardNames = rewardIds.length
+        ? new Map(
+            (await tx.rewardCatalogItem.findMany({
+              where: { id: { in: rewardIds } },
+              select: { id: true, name: true },
+            })).map((r) => [r.id, r.name]),
+          )
+        : new Map<string, string>();
+
+      const challenges = challengeRows.map((c) => {
+        const p = progressBy.get(c.id);
+        const done = p?.progress ?? 0n;
+        const target = c.target > 0n ? c.target : 1n;
+        return {
+          id: c.id,
+          name: c.name,
+          kind: c.kind,
+          /** A repeatable visits challenge is what the apps draw as a stamp card. */
+          isStampCard: c.repeatable && c.kind === 'visits',
+          target: target.toString(),
+          progress: done.toString(),
+          progressPct: Math.min(100, Number((done * 100n) / target)),
+          completions: p?.completions ?? 0,
+          completedAt: p?.completedAt ?? null,
+          rewardPoints: c.rewardPoints.toString(),
+          rewardName: c.rewardItemId ? (rewardNames.get(c.rewardItemId) ?? null) : null,
+          endsAt: c.endsAt,
+        };
+      });
+
       const referralsMade = await tx.referral.count({ where: { referrerMembershipId: membershipId, brandId: ctx.brandId! } });
       const referralsQualified = await tx.referral.count({ where: { referrerMembershipId: membershipId, brandId: ctx.brandId!, status: 'qualified' } });
 
@@ -646,6 +763,7 @@ export class LoyaltyService {
           expiresAt: v.expiresAt,
         })),
         badges: badges.map((a) => ({ name: a.badge.name, icon: a.badge.icon, awardedAt: a.awardedAt })),
+        challenges,
         referrals: { made: referralsMade, qualified: referralsQualified },
       };
     });

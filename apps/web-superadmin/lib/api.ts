@@ -285,6 +285,9 @@ export interface AdminCustomerDetail {
   gender: string | null; birthdate: string | null; status: string; createdAt: string;
   memberships: AdminCustomerMembership[];
   recent: Array<{ id: string; intent: string; state: string; points: string | null; amountMinor: string | null; at: string; brandName: string | null }>;
+  /** Live challenges and stamp cards, with this customer's progress. */
+  challenges: Array<{ id: string; name: string; kind: string; isStampCard: boolean; brandName: string | null; target: string; progress: string; progressPct: number; completions: number; completedAt: string | null }>;
+  badges: Array<{ name: string; icon: string | null; awardedAt: string; brandName: string | null }>;
   activity: AdminCustomerActivity[];
   vouchers: AdminCustomerVoucher[];
 }

@@ -399,31 +399,84 @@ export const redeemReferral = (brandId: string, code: string) =>
 
 // ── convert to partner points (Lulu) ───────────────────────────────────────
 
+/** The reference comes back normalised by the partner — store what it returns. */
 export const linkPartner = (brandId: string, partnerKey: string, memberRef: string) =>
-  brandApi(brandId, '/customer/partners/link', {
+  brandApi<{ linked: true; partnerMemberRef: string }>(brandId, '/customer/partners/link', {
     method: 'POST',
     body: JSON.stringify({ partnerKey, memberRef }),
   });
 
-export interface ConversionPreview {
+/**
+ * A brand's conversion terms, quoted for one exact amount.
+ *
+ * `available` is false when the merchant's deal exists but is paused — every
+ * other field is still present, which is why this and `ConversionUnavailable`
+ * are told apart by `partner` rather than by `available`.
+ */
+export interface ConversionTerms {
+  available: boolean;
+  partner: { key: string; currencyName: string };
+  /** 10000 = one merchant point buys one partner point. */
+  ratioBps: number;
+  /** Smallest transfer the merchant allows; 0 means it sets no floor. */
+  minConversion: number;
+  /** Echoed back — the amount this quote is for. */
   sourcePoints: number;
+  /** What the customer receives, already rounded the way the server rounds. */
   partnerPoints: number;
-  ratioBps?: number;
-  eligible?: boolean;
-  reason?: string | null;
+  /** False until the customer has linked their partner account. */
+  linked: boolean;
+  /** False when the merchant's prepaid allowance can't cover this transfer. */
+  allowanceAvailable: boolean;
 }
 
+/** This brand has no partner deal switched on at all. */
+export interface ConversionUnavailable {
+  available: false;
+  reason: 'not_enabled';
+  partner?: undefined;
+}
+
+export type ConversionPreview = ConversionTerms | ConversionUnavailable;
+
+/** The terms, or undefined when there is no deal to quote against. */
+export const conversionTerms = (p: ConversionPreview | undefined): ConversionTerms | undefined =>
+  p?.partner ? p : undefined;
+
+/** `sourcePoints` must be a whole number ≥ 1 — the server rejects 0. */
 export const previewConvert = (brandId: string, sourcePoints: number) =>
   brandApi<ConversionPreview>(brandId, '/customer/partners/preview', {
     method: 'POST',
     body: JSON.stringify({ sourcePoints }),
   });
 
+export type ConversionStatus = 'pending' | 'completed' | 'failed' | 'reversed';
+
+/** One transfer. Point amounts are decimal strings — the ledger is 64-bit. */
+export interface Conversion {
+  id: string;
+  sourcePoints: string;
+  partnerPoints: string;
+  status: ConversionStatus;
+  /** The partner's own reference, once it has confirmed. */
+  partnerTxnRef: string | null;
+  createdAt: string;
+}
+
+/**
+ * Move points. Settles synchronously and **resolves** with `status: 'failed'`
+ * when the partner refuses — a rejected transfer is a result, not a thrown
+ * error. Only the merchant's own preconditions (minimum, daily cap, unlinked
+ * account, depleted allowance) come back as a 400.
+ *
+ * The idempotency key is minted per call, so calling twice transfers twice.
+ */
 export const convertPoints = (brandId: string, sourcePoints: number) =>
-  brandApi<{ status: string; partnerPoints?: number }>(brandId, '/customer/partners/convert', {
+  brandApi<Conversion>(brandId, '/customer/partners/convert', {
     method: 'POST',
     body: JSON.stringify({ sourcePoints, idempotencyKey: idem() }),
   });
 
+/** This card's transfers, newest first (server caps at 50). */
 export const getConversions = (brandId: string) =>
-  brandApi<unknown[]>(brandId, '/customer/partners/conversions');
+  brandApi<Conversion[]>(brandId, '/customer/partners/conversions');

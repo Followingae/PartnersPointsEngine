@@ -28,13 +28,17 @@ export default function ConvertReview() {
 
   const card = data?.card;
   const preview = data?.preview;
-  const partnerOut = Number(preview?.partnerPoints ?? 0);
+  const terms = data?.terms;
+  const partnerOut = terms?.partnerPoints ?? 0;
 
   const blocked = blockedReason(preview);
   const problem = blocked
-    ?? (preview?.linked === false ? 'Link your partner account before converting.' : null)
+    ?? (terms?.linked === false ? 'Link your partner account before converting.' : null)
     ?? (card && Number(card.available) < points ? 'You no longer have enough points for this transfer.' : null)
-    ?? (preview && partnerOut <= 0 ? 'That amount is too small to convert.' : null);
+    ?? (terms && points < terms.minConversion
+      ? `The smallest transfer at ${card?.brandName ?? 'this brand'} is ${pts(terms.minConversion)} pts.`
+      : null)
+    ?? (terms && partnerOut <= 0 ? 'That amount is too small to convert.' : null);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/convert'));
 
@@ -53,17 +57,19 @@ export default function ConvertReview() {
     <SheetScreen backdrop={C.electric} title="Confirm transfer">
       {loading ? <Loading /> : null}
 
-      {!loading && !preview ? (
+      {!loading && !terms ? (
         <View style={{ marginTop: 22 }}>
-          <Small style={{ fontSize: 13.5, lineHeight: 20 }}>{error ?? 'Could not price this transfer.'}</Small>
+          <Small style={{ fontSize: 13.5, lineHeight: 20 }}>
+            {error ?? blocked ?? 'Could not price this transfer.'}
+          </Small>
           <View style={{ marginTop: 22 }}>
-            <Button label="Try again" onPress={refresh} />
+            {blocked ? null : <Button label="Try again" onPress={refresh} />}
             <TextAction label="Back" onPress={back} />
           </View>
         </View>
       ) : null}
 
-      {preview && card ? (
+      {terms && card ? (
         <>
           <View style={{ marginTop: 22 }}>
             <ListRow
@@ -71,12 +77,12 @@ export default function ConvertReview() {
               sub={`${card.brandName} · ${pts(Number(card.available))} pts available`}
               value={`${pts(points)} pts`}
             />
-            <ListRow title="Rate" sub="Quoted just now" value={rateLabel(preview.ratioBps)} divider />
-            <ListRow title={partnerCurrency(preview)} sub="Credited on confirm" value={pts(partnerOut)} divider />
+            <ListRow title="Rate" sub="Quoted just now" value={rateLabel(terms.ratioBps)} divider />
+            <ListRow title={partnerCurrency(terms)} sub="Credited on confirm" value={pts(partnerOut)} divider />
           </View>
 
           <Small tone="faint" style={{ marginTop: 18, fontSize: 12.5, lineHeight: 19 }}>
-            Transfers are final. {partnerCurrency(preview)} cannot be converted back.
+            Transfers are final. {partnerCurrency(terms)} cannot be converted back.
           </Small>
 
           {problem ? (

@@ -76,6 +76,7 @@ export default function CustomerProfilePage() {
     { key: 'overview', label: 'Overview' },
     { key: 'activity', label: 'Activity', count: p?.activity.length },
     { key: 'rewards', label: 'Rewards', count: p?.vouchers.length },
+    { key: 'challenges', label: 'Challenges', count: p?.challenges?.length },
     { key: 'badges', label: 'Badges', count: p?.badges.length },
     { key: 'identifiers', label: 'Identifiers', count: p?.identifiers.length },
   ];
@@ -206,6 +207,60 @@ export default function CustomerProfilePage() {
                   </table>
                 </div>
               ) : <EmptyState icon={<Gift size={20} />} title="No rewards claimed yet" hint="Vouchers issued, used, gifted or expired will appear here." />}
+            </Card>
+          ) : tab === 'challenges' ? (
+            <Card className="p-6">
+              {p.challenges?.length ? (
+                <div className="space-y-4">
+                  {p.challenges.map((c) => {
+                    const done = Number(c.progress);
+                    const target = Math.max(Number(c.target), 1);
+                    const ready = done >= target;
+                    return (
+                      <div key={c.id} className="rounded-2xl border border-border/70 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{c.name}</span>
+                              {c.isStampCard && <Badge tone="neutral">Stamp card</Badge>}
+                              {ready && <Badge tone="lime">Ready</Badge>}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {c.rewardName ?? (Number(c.rewardPoints) > 0 ? `+${c.rewardPoints} pts` : 'No reward set')}
+                              {c.completions > 0 && ` · completed ${c.completions}×`}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="font-display text-lg font-bold">{done}<span className="text-sm text-muted-foreground">/{target}</span></div>
+                          </div>
+                        </div>
+
+                        {/* Stamps read as stamps; a points goal reads as a bar. */}
+                        {c.isStampCard ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {Array.from({ length: target }, (_, i) => (
+                              <span
+                                key={i}
+                                className={`inline-block h-4 w-4 rounded-full ${i < done ? 'bg-ink' : 'border border-border bg-transparent'}`}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div className="h-full rounded-full bg-ink" style={{ width: `${c.progressPct}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<Award size={20} />}
+                  title="No challenges running"
+                  hint="Challenges and stamp cards you create will show each customer's progress here."
+                />
+              )}
             </Card>
           ) : tab === 'badges' ? (
             <Card className="p-6">

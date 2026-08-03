@@ -62,17 +62,20 @@ export default function ConvertProcessing() {
             pathname: '/convert/success',
             params: {
               brandId,
-              amount: String(points),
-              partnerPoints: String(result.partnerPoints ?? ''),
+              amount: result.sourcePoints,
+              partnerPoints: result.partnerPoints,
             },
           });
           return;
         }
+        // A settled-but-not-completed transfer has already been unwound server
+        // side. The response carries no reason for it, so the screen says only
+        // what it can stand behind.
         router.replace({
           pathname: '/convert/failure',
           params: {
             brandId,
-            amount: String(points),
+            amount: result.sourcePoints,
             outcome: 'failed',
             message: 'The partner did not confirm the transfer.',
           },

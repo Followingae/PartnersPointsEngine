@@ -6,7 +6,7 @@ import {
 } from '@/components/UI';
 import { C, R, font } from '@/lib/tokens';
 import { Footer, Ic, ListRow, TopBar } from '@/components/RewardKit';
-import { blockedReason, partnerCurrency, partnerPointsFor, rateLabel, useConvert } from './_data';
+import { blockedReason, partnerCurrency, partnerPointsFor, rateLabel, stepFor, useConvert } from './_data';
 
 function StepButton({ icon, onPress, disabled }: { icon: 'minus' | 'plus'; onPress: () => void; disabled: boolean }) {
   return (
@@ -48,11 +48,12 @@ export default function Convert() {
   const card = data?.card;
   const cards = data?.cards ?? [];
   const preview = data?.preview;
+  const terms = data?.terms;
 
   const available = Number(card?.available ?? 0);
   // The merchant's minimum sets the step, so every stop on the picker is a valid
   // transfer rather than one the server will reject.
-  const step = Math.max(250, preview?.minConversion ?? 0);
+  const step = stepFor(terms);
   const maxAmount = Math.floor(available / step) * step;
 
   // Start at the smallest valid transfer whenever the terms change: this is a
@@ -63,9 +64,9 @@ export default function Convert() {
   }, [step, card?.brandId]);
 
   const blocked = blockedReason(preview);
-  const linked = preview?.linked === true;
+  const linked = terms?.linked === true;
   const tooPoor = !!preview && !blocked && maxAmount < step;
-  const partnerOut = partnerPointsFor(amount, preview?.ratioBps);
+  const partnerOut = partnerPointsFor(amount, terms?.ratioBps);
 
   const clamp = (next: number) => setAmount(Math.max(step, Math.min(maxAmount, next)));
 
@@ -109,7 +110,7 @@ export default function Convert() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>
-                {partnerCurrency(preview)}
+                {partnerCurrency(terms)}
               </Text>
               <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>
                 {linked ? 'Linked' : 'Tap to link your account'}
@@ -189,7 +190,7 @@ export default function Convert() {
                       {pts(partnerOut)}
                     </Text>
                     <Small style={{ marginTop: 6, fontSize: 12.5, lineHeight: 18 }}>
-                      {partnerCurrency(preview)} · {rateLabel(preview?.ratioBps)}
+                      {partnerCurrency(terms)} · {rateLabel(terms?.ratioBps)}
                     </Small>
                   </View>
                 </>

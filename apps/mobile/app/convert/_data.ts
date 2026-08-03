@@ -1,49 +1,33 @@
 /**
- * Shared loading and shapes for the Lulu conversion flow.
+ * Shared loading and derived values for the Lulu conversion flow.
  *
- * Two things are worked around here rather than in every screen:
- *
- *  · `ConversionPreview` in `lib/api.ts` describes fewer fields than the API
- *    actually returns, and its `sourcePoints`/`partnerPoints` are absent when a
- *    merchant has no partner deal switched on. `Preview` below is the full
- *    server shape; the client type is assignable to it, so nothing is cast.
- *  · `getConversions` is typed `unknown[]`. The row shape is asserted once, in
- *    `useConversions`, instead of at every render site.
+ * `previewConvert` answers with either a brand's full terms or a bare "not
+ * enabled", so every screen needs both: the raw preview to say why it can't
+ * convert, and the narrowed terms to quote a rate. Both are resolved here once
+ * rather than re-narrowed at each render site.
  */
-import { Card, ConversionPreview, getCards, getConversions, previewConvert } from '@/lib/api';
+import {
+  Card,
+  Conversion,
+  ConversionPreview,
+  ConversionTerms,
+  conversionTerms,
+  getCards,
+  getConversions,
+  previewConvert,
+} from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 
-/** What `POST /customer/partners/preview` really returns. */
-export type Preview = Omit<ConversionPreview, 'sourcePoints' | 'partnerPoints'> & {
-  sourcePoints?: number;
-  partnerPoints?: number;
-  /** False when this brand has no partner conversion switched on at all. */
-  available?: boolean;
-  /** False until the customer has linked their partner account. */
-  linked?: boolean;
-  /** Smallest transfer the merchant allows. */
-  minConversion?: number;
-  /** False when the merchant's prepaid allowance is exhausted. */
-  allowanceAvailable?: boolean;
-  partner?: { key: string; currencyName: string };
-};
-
-export interface ConversionRow {
-  id: string;
-  sourcePoints: string;
-  partnerPoints: string;
-  /** `pending` · `completed` · `failed`. */
-  status: string;
-  partnerTxnRef: string | null;
-  createdAt: string;
-  /** Filled in by `useConversions` — the endpoint is already brand-scoped. */
-  brandName?: string;
+/** A transfer plus the card it came out of — history is merged across cards. */
+export interface ConversionRow extends Conversion {
+  brandName: string;
 }
 
 export interface ConvertData {
   cards: Card[];
   card?: Card;
-  preview?: Preview;
+  preview?: ConversionPreview;
+  terms?: ConversionTerms;
 }
 
 /**
@@ -58,7 +42,8 @@ export function useConvert(brandId?: string) {
     const cards = await getCards();
     const card = cards.find((c) => c.brandId === brandId) ?? cards[0];
     if (!card) return { cards };
-    return { cards, card, preview: await previewConvert(card.brandId, 1) };
+    const preview = await previewConvert(card.brandId, 1);
+    return { cards, card, preview, terms: conversionTerms(preview) };
   }, [brandId]);
 }
 
@@ -67,11 +52,12 @@ export function useConvert(brandId?: string) {
  * convenience; this is the number the customer confirms and the server honours.
  */
 export function useQuote(brandId: string | undefined, sourcePoints: number) {
-  return useAsync<{ card?: Card; preview?: Preview }>(async () => {
+  return useAsync<Omit<ConvertData, 'cards'>>(async () => {
     const cards = await getCards();
     const card = cards.find((c) => c.brandId === brandId) ?? cards[0];
     if (!card) return {};
-    return { card, preview: await previewConvert(card.brandId, sourcePoints) };
+    const preview = await previewConvert(card.brandId, sourcePoints);
+    return { card, preview, terms: conversionTerms(preview) };
   }, [brandId, sourcePoints]);
 }
 
@@ -87,7 +73,7 @@ export function useConversions() {
     const cards = await getCards();
     const results = await Promise.allSettled(
       cards.map(async (c) => {
-        const rows = (await getConversions(c.brandId)) as ConversionRow[];
+        const rows = await getConversions(c.brandId);
         return rows.map((r) => ({ ...r, brandName: c.brandName }));
       }),
     );
@@ -98,29 +84,39 @@ export function useConversions() {
 }
 
 /** The partner's name for its own currency — "Lulu Happiness Points". */
-export const partnerCurrency = (p: Preview | undefined) =>
-  p?.partner?.currencyName ?? 'Lulu Happiness Points';
+export const partnerCurrency = (t: ConversionTerms | undefined) =>
+  t?.partner.currencyName ?? 'Lulu Happiness Points';
 
 /** The server's rounding, mirrored so the picker can move without a round trip. */
 export const partnerPointsFor = (sourcePoints: number, ratioBps: number | undefined) =>
   ratioBps ? Math.floor((sourcePoints * ratioBps) / 10000) : 0;
 
-/** "5 : 1" — how many of the customer's points buy one partner point. */
+/** How many of the customer's points buy one partner point, or null if unknown. */
+export const pointsPerPartnerPoint = (ratioBps: number | undefined): number | null =>
+  ratioBps ? 10000 / ratioBps : null;
+
+/** "5 : 1" — the rate, as the confirm screens state it. */
 export function rateLabel(ratioBps: number | undefined): string {
-  if (!ratioBps) return '—';
-  const perPartnerPoint = 10000 / ratioBps;
-  return `${perPartnerPoint.toLocaleString('en-US', { maximumFractionDigits: 2 })} : 1`;
+  const per = pointsPerPartnerPoint(ratioBps);
+  return per === null ? '—' : `${per.toLocaleString('en-US', { maximumFractionDigits: 2 })} : 1`;
 }
 
+/**
+ * The picker's first stop, and the size of every step after it.
+ *
+ * The merchant's own minimum is the floor, so no stop on the picker is an amount
+ * the server would reject. Merchants may set none — the column defaults to 0 —
+ * and a zero step would divide by nothing, so 100 stands in for them.
+ */
+export const stepFor = (t: ConversionTerms | undefined): number =>
+  t && t.minConversion > 0 ? t.minConversion : 100;
+
 /** Why this card can't convert right now, or null when it can. */
-export function blockedReason(p: Preview | undefined): string | null {
+export function blockedReason(p: ConversionPreview | undefined): string | null {
   if (!p) return null;
-  if (p.available === false) {
-    return p.reason === 'not_enabled'
-      ? 'This brand does not convert points to a partner programme yet.'
-      : 'Conversions are paused for this brand right now.';
-  }
-  if (p.allowanceAvailable === false) {
+  if (!p.partner) return 'This brand does not convert points to a partner programme yet.';
+  if (!p.available) return 'Conversions are paused for this brand right now.';
+  if (!p.allowanceAvailable) {
     return 'This brand’s conversion allowance is empty right now. Try again later.';
   }
   return null;
