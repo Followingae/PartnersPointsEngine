@@ -42,22 +42,13 @@ export class TxnAlertService {
    * late is worse than one that never arrives.
    */
   async relay(limit = 50): Promise<{ sent: number; skipped: number }> {
-    // Claim rows atomically before sending. The API runs more than one
-    // instance, so two relays can poll at the same moment; SKIP LOCKED means
-    // each row is taken by exactly one of them and nobody is messaged twice.
-    // Marking published up front also means a crash mid-send loses a message
-    // rather than repeating it — the safer direction for something that reaches
-    // a customer's phone.
+    // Claimed through a definer function: `outbox` is under tenant RLS, and
+    // this relay spans every brand, so it has no tenant context to run under —
+    // a direct query is filtered to nothing. The function also does the
+    // claiming, so two API instances polling together take different rows and
+    // nobody is messaged twice.
     const rows = await this.prisma.$queryRaw<Array<{ id: string; event_type: string; payload: unknown }>>`
-      UPDATE outbox SET published_at = now(), attempts = attempts + 1
-       WHERE id IN (
-         SELECT id FROM outbox
-          WHERE published_at IS NULL AND aggregate = 'points'
-          ORDER BY created_at
-          LIMIT ${limit}
-          FOR UPDATE SKIP LOCKED
-       )
-      RETURNING id, event_type, payload`;
+      SELECT id, event_type, payload FROM claim_txn_alerts(${limit}::int)`;
 
     let sent = 0;
     let skipped = 0;
