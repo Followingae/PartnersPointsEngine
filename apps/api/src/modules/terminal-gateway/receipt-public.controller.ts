@@ -29,10 +29,6 @@ export class ReceiptPublicController {
     }
     await this.prisma.receipt.updateMany({ where: { token, firstViewedAt: null }, data: { firstViewedAt: new Date() } });
     await this.prisma.receipt.update({ where: { token }, data: { viewCount: { increment: 1 }, lastViewedAt: new Date() } });
-    const adRows = await this.prisma.$queryRaw<{ ad: unknown }[]>`SELECT ereceipt_ad(${r.platformId}) AS ad`;
-    const ad = (adRows[0]?.ad ?? null) as {
-      enabled?: boolean; headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string;
-    } | null;
     // Merchant's own profile (website / socials). Read through a definer
     // function: this page has no tenant context, so a direct select is
     // RLS-filtered to nothing.
@@ -40,7 +36,7 @@ export class ReceiptPublicController {
       SELECT ereceipt_brand(${r.brandId}) AS branding`;
     const brand = (brandRows[0]?.branding ?? {}) as BrandProfile;
     res.status(200).type('html').send(
-      shell(`${esc(r.brandName)} — Receipt`, receiptBody(r, ad?.enabled ? ad : null, brand, storeFor(userAgent))),
+      shell(`${esc(r.brandName)} — Receipt`, receiptBody(r, brand, storeFor(userAgent))),
     );
   }
 
@@ -112,15 +108,6 @@ export class ReceiptPublicController {
     doc.end();
   }
 
-  @Get(':token/ad')
-  async adClick(@Param('token') token: string, @Res() res: Response) {
-    const r = await this.prisma.receipt.findUnique({ where: { token }, select: { platformId: true } });
-    if (!r) throw new NotFoundException();
-    const adRows = await this.prisma.$queryRaw<{ ad: unknown }[]>`SELECT ereceipt_ad(${r.platformId}) AS ad`;
-    const ad = (adRows[0]?.ad ?? null) as { ctaUrl?: string } | null;
-    await this.prisma.receipt.update({ where: { token }, data: { adClicks: { increment: 1 } } });
-    res.redirect(302, ad?.ctaUrl && /^https?:\/\//.test(ad.ctaUrl) ? ad.ctaUrl : 'https://partnerspoints.ae');
-  }
 }
 
 // ── rendering ────────────────────────────────────────────────────────────────
@@ -201,12 +188,7 @@ function shell(title: string, body: string): string {
   }
   *{box-sizing:border-box;margin:0}
   body{background:var(--canvas);color:var(--ink);font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Roboto,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
-  /* bottom padding clears the docked sponsored bar */
-  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 40px}
-  /* Reserves the docked banner's height in normal flow. A real element rather
-     than :has() on .wrap, so the last line is never hidden behind the ad on a
-     browser that doesn't support it. */
-  .adspacer{height:calc(clamp(104px,21vh,150px) + 62px)}
+  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 96px}
   .display{font-family:'Bricolage Grotesque','Hanken Grotesk',sans-serif;letter-spacing:-.02em}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -224,71 +206,39 @@ function shell(title: string, body: string): string {
   .social a{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}
   .social a svg{flex:0 0 auto;opacity:.75}
   .btn svg{flex:0 0 auto}
-  /* get-the-app pill — bottom right, lifted clear of the sponsored bar.
-     A pill rather than the official store artwork: Apple's and Google's badges
-     have usage rules and we shouldn't approximate them. Drop the real assets in
-     here when they're licensed. */
+  /* Get-the-app prompt, docked bottom-right.
+     Sits on the card surface with a hairline rather than a slab of ink — a
+     black lozenge over a light receipt read as an error toast. Our own mark
+     rather than Apple's or Google's badge artwork, which has usage rules we
+     shouldn't approximate; drop the licensed assets in when they exist. */
   .getapp{
     position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;
-    display:inline-flex;align-items:center;gap:7px;
-    padding:10px 14px;border-radius:999px;
-    background:var(--ink);color:#fff;text-decoration:none;
-    font-size:12.5px;font-weight:600;line-height:1;
-    box-shadow:0 8px 24px -8px rgba(21,21,15,.45);
+    display:inline-flex;align-items:center;gap:10px;
+    padding:9px 15px 9px 9px;border-radius:999px;
+    background:var(--card);color:var(--ink);text-decoration:none;
+    border:1px solid var(--line);
+    box-shadow:0 10px 30px -14px rgba(21,21,15,.45),0 1px 2px rgba(21,21,15,.05);
+    max-width:calc(100vw - 28px);
   }
-  .getapp svg{opacity:.85}
-  .getapp--raised{bottom:calc(clamp(104px,21vh,150px) + 76px + env(safe-area-inset-bottom))}
-  @media (max-width:360px){ .getapp span{display:none} .getapp{padding:11px} }
+  .getapp-mark{
+    flex:0 0 auto;display:grid;place-items:center;
+    width:30px;height:30px;border-radius:10px;
+    background:#1B1AE5;color:#fff;
+  }
+  .getapp-text{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .getapp-text b{font-size:13px;font-weight:650;line-height:1.25;letter-spacing:-.01em}
+  .getapp-text span{
+    font-size:11.5px;line-height:1.25;color:var(--faint);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  /* On a narrow screen the strapline is the first thing to go, not the name. */
+  @media (max-width:400px){ .getapp-text span{display:none} .getapp{padding:8px 14px 8px 8px} }
 
-  /* sponsored bar — docked, compact, content scrolls behind it */
-  .adbar{
-    position:fixed;left:0;right:0;bottom:0;z-index:5;
-    margin:0 auto;max-width:440px;
-    padding:0 14px calc(14px + env(safe-area-inset-bottom));
-  }
-  .adbar > *{
-    display:block;position:relative;background:var(--card);border:1px solid var(--line);
-    border-radius:18px;overflow:hidden;
-    box-shadow:0 10px 30px -12px rgba(21,21,15,.28);
-  }
-  /* the creative, with the copy set over it */
-  .adshot{position:relative;display:block;line-height:0}
-  .adshot img{display:block;width:100%;height:clamp(104px,21vh,150px);object-fit:cover;object-position:center}
-  .adscrim{
-    position:absolute;inset:0;
-    background:linear-gradient(180deg,rgba(8,8,4,0) 26%,rgba(8,8,4,.62) 68%,rgba(8,8,4,.88) 100%);
-  }
-  .adoverlay{
-    position:absolute;left:0;right:0;bottom:0;
-    display:flex;align-items:flex-end;gap:12px;padding:12px 14px;line-height:normal;
-  }
-  .adplain{display:flex;align-items:center;gap:12px;padding:13px 14px}
-  .adtext{min-width:0;flex:1}
-  .adkicker{
-    font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
-    color:rgba(255,255,255,.72);line-height:1;margin-bottom:5px;
-  }
-  .adplain .adkicker{color:var(--faint)}
-  .adhead{
-    font-size:16px;font-weight:700;line-height:1.2;color:#fff;
-    text-shadow:0 1px 12px rgba(0,0,0,.45);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  }
-  .adplain .adhead{color:var(--ink);text-shadow:none;font-size:15px}
-  .adbody{
-    font-size:12px;line-height:1.3;margin-top:2px;color:rgba(255,255,255,.82);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  }
-  .adplain .adbody{color:var(--muted)}
-  .adcta{
-    flex:none;background:var(--lime);color:#15150F;font-weight:700;font-size:12.5px;
-    border-radius:999px;padding:8px 13px;white-space:nowrap;
-  }
   @media print{
     :root{--canvas:#fff;--card:#fff;--ink:#000;--line:#ddd}
     body{background:#fff}
     .wrap{max-width:100%;padding:0}
-    .no-print,.adbar,.getapp{display:none!important}
+    .no-print,.getapp{display:none!important}
     .card{border:1px solid #ddd;break-inside:avoid}
     @page{margin:14mm}
   }
@@ -355,7 +305,6 @@ function receiptBody(
     balanceAfter: bigint | null; pointsCode: string; createdAt: Date; token: string;
     vouchers?: unknown;
   },
-  ad: { headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string } | null,
   brand: BrandProfile,
   store: StoreLink | null,
 ): string {
@@ -406,48 +355,6 @@ function receiptBody(
   // whole <img> (a hidden-but-present element still showed a broken frame).
   // Compact bar docked to the bottom of the viewport: always in view while the
   // receipt scrolls behind it, without eating a screenful. No JS (CSP-free page).
-  const hasAdLink = Boolean(ad?.ctaUrl && /^https?:\/\//i.test(ad.ctaUrl));
-  const hasAdImage = Boolean(ad?.imageUrl && /^https?:\/\//i.test(ad!.imageUrl!));
-  // The creative runs full-bleed across the top of the docked card, with the
-  // headline, body and CTA in a compact row beneath it — the console preview's
-  // layout. Natural aspect ratio keeps the artwork uncropped; max-height is only
-  // a guard so an unusually tall upload can't eat the screen. Without a creative
-  // the lime rail stands in for the image.
-  // Copy sits ON the artwork over a scrim, so the whole placement costs one
-  // banner's height instead of a banner plus a text block.
-  const adCopy = `
-        <div class="adtext">
-          <div class="adkicker">Sponsored</div>
-          ${ad?.headline ? `<div class="adhead">${esc(ad.headline)}</div>` : ''}
-          ${ad?.body ? `<div class="adbody">${esc(ad.body)}</div>` : ''}
-        </div>
-        ${hasAdLink ? `<div class="adcta">${esc(ad!.ctaLabel ?? 'Open')} →</div>` : ''}`;
-
-  const adInner = hasAdImage
-    ? `<div class="adshot">
-         <img src="${esc(ad!.imageUrl!)}" alt="" loading="lazy">
-         <div class="adscrim"></div>
-         <div class="adoverlay">${adCopy}</div>
-       </div>`
-    : `<div class="adplain">${adCopy}</div>`;
-  // Sits above the ad when there is one, so the two never overlap.
-  const appBlock = store
-    ? `<a class="getapp no-print${ad?.headline || hasAdImage ? ' getapp--raised' : ''}" href="${esc(store.url)}">
-         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-           <rect x="6" y="2.5" width="12" height="19" rx="2.6"></rect><path d="M11 18.6h2"></path>
-         </svg>
-         <span>${esc(store.label)}</span>
-       </a>`
-    : '';
-
-  const adBlock = ad?.headline || hasAdImage
-    ? `<div class="adspacer no-print"></div><div class="adbar no-print">${
-        hasAdLink
-          ? `<a href="/v1/r/${esc(r.token)}/ad" style="display:block;text-decoration:none;color:inherit">${adInner}</a>`
-          : adInner
-      }</div>`
-    : '';
-
   // ── details: payment + loyalty in a single tight card ────────────────────
   const loyaltyRows = r.memberName
     ? `<hr class="dash">
@@ -504,10 +411,30 @@ function receiptBody(
     <a class="btn" href="/v1/r/${esc(r.token)}/pdf" target="_blank" rel="noopener">${ICON.download} Download PDF</a>
   </div>`;
 
+  /**
+   * Get-the-app prompt, docked bottom-right.
+   *
+   * Carries the Partners Points mark rather than a phone glyph, sits on the
+   * card surface rather than a slab of ink, and says what it gets you. The
+   * previous version was a black lozenge that read as an error toast.
+   */
+  const appBlock = store
+    ? `<a class="getapp no-print" href="${esc(store.url)}">
+         <span class="getapp-mark" aria-hidden="true">
+           <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+             <path d="M12 1.6c.55 4.9 3.4 8 8.4 8.9v3c-5 .9-7.85 4-8.4 8.9-.55-4.9-3.4-8-8.4-8.9v-3c5-.9 7.85-4 8.4-8.9Z"/>
+           </svg>
+         </span>
+         <span class="getapp-text">
+           <b>Partners Points</b>
+           <span>Keep every card in one app</span>
+         </span>
+       </a>`
+    : '';
+
   return `${hero}${details}${merchantBlock}${actions}
   <div style="text-align:center;margin-top:18px" class="tiny faint">
     Digital receipt · Powered by <b style="color:var(--muted)">Partners Points</b>
   </div>
-  ${appBlock}
-  ${adBlock}`;
+  ${appBlock}`;
 }
