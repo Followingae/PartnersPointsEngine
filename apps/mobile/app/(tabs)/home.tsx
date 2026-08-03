@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { BrandCard, brandColor, brandInitials } from '@/components/BrandCard';
-import { EmptyState, ErrorState, Header, IconButton, Loading, Screen, pts } from '@/components/UI';
+import { ErrorState, Header, IconButton, Loading, Screen, pts } from '@/components/UI';
+import { WalletsEmpty } from '@/components/WalletsEmpty';
 import { getCards, getProfile } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
@@ -61,14 +62,7 @@ export default function CardsHome() {
 
       {!loading && error && !cards ? <ErrorState message={error} onRetry={refresh} /> : null}
 
-      {!loading && cards && all.length === 0 ? (
-        <EmptyState
-          title="Nothing here yet"
-          body="Join a brand, or scan the code at a till to claim points you already have."
-          actionLabel="Browse brands"
-          onAction={() => router.push('/discover')}
-        />
-      ) : null}
+      {!loading && cards && all.length === 0 ? <WalletsEmpty /> : null}
 
       {deck.length > 0 ? (
         <>

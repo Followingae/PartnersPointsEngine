@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { Button, Screen, Small } from '@/components/UI';
@@ -47,7 +47,7 @@ export default function Phone() {
 
   return (
     <Screen scroll={false} background={C.surface} bottomGap={18}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <BackButton onPress={() => router.back()} />
         </View>
@@ -98,7 +98,7 @@ export default function Phone() {
             By continuing you agree to our Terms and Privacy Policy.
           </Small>
         </Footer>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

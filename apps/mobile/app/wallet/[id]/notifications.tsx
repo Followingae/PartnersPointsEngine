@@ -1,12 +1,22 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { getBrand } from '@/components/BrandCard';
-import { Body, H1, IconButton, Screen, Small } from '@/components/UI';
-import { C, font } from '@/lib/tokens';
+import { Body, ErrorState, H1, IconButton, Loading, Screen, Small } from '@/components/UI';
+import { getCards, getProfile, updateProfile } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
+import { C, S, font } from '@/lib/tokens';
 
-/** 18 · Brand notifications — per-brand send permissions. */
+/**
+ * 18 · Brand notifications.
+ *
+ * The design shows four per-brand switches. There is no per-brand preference
+ * model — the server holds exactly one messaging preference, `txnAlertsOptOut`,
+ * and it is account-wide. Rendering four switches that silently forget three of
+ * themselves is the failure `app/profile/notifications.tsx` already documents,
+ * so this screen shows the one preference that exists and says plainly that it
+ * covers every brand. The others land here when the server can hold them.
+ */
 
 function BackIcon() {
   return (
@@ -34,27 +44,64 @@ function Toggle({ on, onPress }: { on: boolean; onPress: () => void }) {
   );
 }
 
-type Pref = { key: string; title: string; sub: string; on: boolean };
-
-// TODO(api): GET/PATCH /me/cards/:id/notification-preferences.
-const PREFS: Pref[] = [
-  { key: 'earned', title: 'Points earned', sub: 'After every visit', on: true },
-  { key: 'rewards', title: 'Rewards ready', sub: 'When you can afford one', on: true },
-  { key: 'expiring', title: 'Expiring points', sub: '14 days before', on: true },
-  { key: 'offers', title: 'Offers', sub: 'Campaigns and happy hours', on: false },
-];
+function PrefRow({ title, sub, trailing, first }: {
+  title: string; sub: string; trailing: React.ReactNode; first?: boolean;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18,
+        borderTopWidth: first ? 0 : 1, borderTopColor: 'rgba(21,21,15,.08)',
+      }}
+    >
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{title}</Text>
+        <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{sub}</Small>
+      </View>
+      {trailing}
+    </View>
+  );
+}
 
 export default function BrandNotifications() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const brandId = Array.isArray(id) ? id[0]! : id!;
   const router = useRouter();
-  const brand = getBrand(id);
-  const [prefs, setPrefs] = useState(PREFS);
 
-  const toggle = (key: string) =>
-    setPrefs((p) => p.map((x) => (x.key === key ? { ...x, on: !x.on } : x)));
+  const profile = useAsync(getProfile, []);
+  const cards = useAsync(getCards, []);
+
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile.signedOut || cards.signedOut) router.replace('/onboarding/phone');
+  }, [profile.signedOut, cards.signedOut, router]);
+
+  const brandName = cards.data?.find((c) => c.brandId === brandId)?.brandName ?? '';
+  // The stored flag is an opt-*out*; the switch reads as an opt-in.
+  const on = profile.data ? !profile.data.txnAlertsOptOut : false;
+
+  const toggle = async () => {
+    const current = profile.data;
+    if (!current || saving) return;
+    const optOut = !current.txnAlertsOptOut;
+    setSaving(true);
+    setSaveError(null);
+    profile.set((p) => (p ? { ...p, txnAlertsOptOut: optOut } : p));
+    try {
+      const fresh = await updateProfile({ txnAlertsOptOut: optOut });
+      profile.set(() => fresh);
+    } catch (e) {
+      profile.set((p) => (p ? { ...p, txnAlertsOptOut: !optOut } : p));
+      setSaveError(e instanceof Error ? e.message : 'Could not save that. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <Screen background={C.surface} bottomGap={40}>
+    <Screen background={C.surface} bottomGap={40} refreshing={profile.refreshing} onRefresh={profile.refresh}>
       <View style={{ marginTop: 2 }}>
         <IconButton onPress={() => router.back()} style={{ borderRadius: 999 }}>
           <BackIcon />
@@ -62,27 +109,47 @@ export default function BrandNotifications() {
       </View>
 
       <View style={{ marginTop: 20 }}>
-        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>{brand.name}</H1>
-        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5, lineHeight: 20 }}>What this brand can send you</Body>
+        <H1 style={{ fontSize: 30, lineHeight: 35, letterSpacing: -0.75 }}>{brandName || 'Notifications'}</H1>
+        <Body tone="muted" style={{ marginTop: 10, fontSize: 14.5, lineHeight: 20 }}>
+          What you get after a visit — here and at every brand
+        </Body>
       </View>
 
-      <View style={{ marginTop: 24 }}>
-        {prefs.map((p, i) => (
-          <View
-            key={p.key}
-            style={{
-              flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18,
-              borderTopWidth: i === 0 ? 0 : 1, borderTopColor: 'rgba(21,21,15,.08)',
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: font(600), fontSize: 14.5, lineHeight: 20, color: C.ink }}>{p.title}</Text>
-              <Small style={{ marginTop: 3, fontSize: 12.5, lineHeight: 18 }}>{p.sub}</Small>
-            </View>
-            <Toggle on={p.on} onPress={() => toggle(p.key)} />
+      {profile.loading ? (
+        <Loading />
+      ) : profile.error && !profile.data ? (
+        <ErrorState message={profile.error} onRetry={profile.refresh} />
+      ) : (
+        <>
+          <View style={{ marginTop: 24 }}>
+            <PrefRow
+              first
+              title="Points earned"
+              sub="A WhatsApp after each purchase, with your receipt and the points you earned"
+              trailing={saving ? <ActivityIndicator color={C.soft} /> : <Toggle on={on} onPress={toggle} />}
+            />
           </View>
-        ))}
-      </View>
+
+          {saveError ? (
+            <Body style={{ marginTop: 16, fontSize: 14, lineHeight: 20, color: S.spend }}>{saveError}</Body>
+          ) : null}
+
+          <Small style={{ marginTop: 22, fontSize: 12.5, lineHeight: 18 }}>
+            This switch is set once for your whole account, not per brand — turning it off here turns
+            it off for {brandName ? `${brandName} and ` : ''}every other card in your wallet.
+          </Small>
+
+          <Small style={{ marginTop: 12, fontSize: 12.5, lineHeight: 18 }}>
+            Reward, expiry and offer alerts aren’t sent yet. When they are, you’ll be able to choose
+            them brand by brand here.
+          </Small>
+
+          <Small style={{ marginTop: 12, fontSize: 12.5, lineHeight: 18 }}>
+            Sign-in codes are not affected. They are how you get into your account, so they are always
+            sent.
+          </Small>
+        </>
+      )}
     </Screen>
   );
 }

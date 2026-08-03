@@ -418,6 +418,8 @@ model RefreshToken {
   userAgent   String?  @map("user_agent")
   ip          String?
   createdAt   DateTime @default(now()) @map("created_at")
+  /** Carried forward across rotations, so a session keeps its start date. */
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
 
   user   UserAccount? @relation(fields: [userId], references: [id], onDelete: Cascade)
   person Person?      @relation(fields: [personId], references: [id], onDelete: Cascade)

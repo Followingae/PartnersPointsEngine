@@ -10,6 +10,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LockGate } from '@/components/LockGate';
 import { SessionProvider } from '@/lib/session';
 import { C } from '@/lib/tokens';
 
@@ -28,16 +29,18 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
-        <View style={{ flex: 1, backgroundColor: C.canvas }}>
-          <StatusBar style="dark" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: C.canvas },
-              animation: 'slide_from_right',
-            }}
-          />
-        </View>
+        <LockGate>
+          <View style={{ flex: 1, backgroundColor: C.canvas }}>
+            <StatusBar style="dark" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: C.canvas },
+                animation: 'slide_from_right',
+              }}
+            />
+          </View>
+        </LockGate>
       </SessionProvider>
     </SafeAreaProvider>
   );

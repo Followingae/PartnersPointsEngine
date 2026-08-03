@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../../auth/auth.service';
 import { CurrentWallet } from '../../auth/decorators/current-wallet.decorator';
@@ -79,5 +81,25 @@ export class CustomerWalletController {
   @ApiOperation({ summary: 'Mint a brand-scoped customer token for one card.' })
   brandToken(@CurrentWallet() me: WalletPrincipal, @Param('brandId') brandId: string) {
     return this.auth.brandTokenForWallet(me.personId, brandId);
+  }
+
+  @Get('sessions')
+  @ApiOperation({ summary: 'Devices currently signed in to this wallet.' })
+  sessions(@CurrentWallet() me: WalletPrincipal) {
+    return this.wallet.sessions(me.personId, me.sessionId);
+  }
+
+  /**
+   * Sign another device out. The caller's own session is refused rather than
+   * silently ignored — someone tapping it means to sign out, and Sign out is a
+   * different button that also clears the tokens on this device.
+   */
+  @Delete('sessions/:id')
+  @ApiOperation({ summary: 'Sign one other device out of this wallet.' })
+  revokeSession(@CurrentWallet() me: WalletPrincipal, @Param('id') id: string) {
+    if (me.sessionId && id === me.sessionId) {
+      throw new BadRequestException('use sign out to end this device’s session');
+    }
+    return this.wallet.revokeSession(me.personId, id);
   }
 }

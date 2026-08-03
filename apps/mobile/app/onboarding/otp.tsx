@@ -1,8 +1,8 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Screen, Small } from '@/components/UI';
-import { ApiError, requestOtp } from '@/lib/api';
+import { ApiError, getCards, getProfile, requestOtp } from '@/lib/api';
 import { useSession } from '@/lib/session';
 import { C, font } from '@/lib/tokens';
 import { BackButton, Caret, Footer, Sub, Title } from './_components';
@@ -41,6 +41,30 @@ function prettyPhone(e164: string): string {
 }
 
 /**
+ * Where a freshly signed-in person lands.
+ *
+ * The number is the account, so signing in can mean three quite different
+ * things: a till has been earning them points for months (05 shows them what
+ * they already have), they've been here before (straight to the wallet), or
+ * this is genuinely the first time (06 → 07 → 08 sets them up). Guessing wrong
+ * either hides someone's balance or re-asks a returning customer for their
+ * birthday, so both facts are read before deciding.
+ *
+ * A failure here is not worth blocking a successful sign-in over — the wallet
+ * is the safe landing.
+ */
+async function landing(): Promise<'/onboarding/account-found' | '/onboarding/biometric' | '/home'> {
+  try {
+    const [cards, profile] = await Promise.all([getCards(), getProfile()]);
+    if (cards.length > 0) return '/onboarding/account-found';
+    // Nothing to celebrate and nothing to ask — don't make them sit through setup again.
+    return profile.birthdate ? '/home' : '/onboarding/biometric';
+  } catch {
+    return '/home';
+  }
+}
+
+/**
  * 04 · OTP.
  *
  * The six boxes display one hidden input rather than being six inputs — that
@@ -71,7 +95,7 @@ export default function Otp() {
     setError(null);
     try {
       await session.signIn(phone, value);
-      router.replace('/home');
+      router.replace(await landing());
     } catch (e) {
       // Let them correct it here rather than bouncing them back a screen.
       setError(e instanceof ApiError ? e.message : 'That code didn’t work. Try again.');
@@ -104,7 +128,7 @@ export default function Otp() {
 
   return (
     <Screen scroll={false} background={C.surface} bottomGap={18}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <BackButton onPress={() => router.back()} />
         </View>
@@ -160,7 +184,7 @@ export default function Otp() {
             disabled={code.length !== LENGTH}
           />
         </Footer>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

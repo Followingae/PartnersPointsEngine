@@ -7,6 +7,7 @@ import { ErrorState, Loading, Screen } from '@/components/UI';
 import { getCards, getScanCode, type Card } from '@/lib/api';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { useAsync } from '@/lib/useAsync';
+import { useTillWatch } from '@/lib/useTillWatch';
 import { C, font, shadow } from '@/lib/tokens';
 
 const BOX = 252;
@@ -45,6 +46,23 @@ export default function MyQrTab() {
   useEffect(() => {
     if (cards.signedOut || scan.signedOut) router.replace('/onboarding/phone');
   }, [cards.signedOut, scan.signedOut, router]);
+
+  /**
+   * The till has no way to tell the phone it scanned, so while the code is on
+   * screen we watch the activity feed for what it posted. Points that came off
+   * the bill as well as on it is a different receipt (29) from a plain earn (27).
+   */
+  useTillWatch(Boolean(card), ({ earned, spent }) => {
+    const brand = earned?.brandId ?? spent?.brandId ?? undefined;
+    if (spent) {
+      router.replace({ pathname: '/scan/pay-and-earn', params: brand ? { brandId: brand } : {} });
+      return;
+    }
+    router.replace({
+      pathname: '/scan/result',
+      params: { ...(earned ? { eventId: earned.id } : {}), ...(brand ? { brandId: brand } : {}) },
+    });
+  });
 
   return (
     <Screen scroll={false} bottomGap={96} background={C.surface}>

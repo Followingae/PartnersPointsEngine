@@ -61,6 +61,21 @@ class TerminalApi(private val settings: SettingsStore) {
             activePoints = res.optJSONObject("balance")?.optString("active")?.toLongOrNull() ?: 0L,
             availablePoints = res.optJSONObject("balance")?.optString("available")?.toLongOrNull() ?: 0L,
             joinedAt = res.optString("joinedAt").ifBlank { null },
+            challenges = res.optJSONArray("challenges").let { arr ->
+                if (arr == null) emptyList() else (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val target = o.optLong("target")
+                    if (target <= 0L) null else MemberChallenge(
+                        name = o.optString("name").ifBlank { "Challenge" },
+                        unit = o.optString("unit").ifBlank { "progress" },
+                        isStampCard = o.optBoolean("isStampCard"),
+                        progress = o.optLong("progress"),
+                        target = target,
+                        rewardName = o.optString("rewardName").ifBlank { null },
+                        rewardPoints = o.optLong("rewardPoints"),
+                    )
+                }
+            },
         )
     }
 
@@ -306,7 +321,29 @@ data class MemberContext(
     val activePoints: Long,
     val availablePoints: Long,
     val joinedAt: String?,
+    /** Live challenge progress, so the cashier can say how close they are. */
+    val challenges: List<MemberChallenge> = emptyList(),
 )
+
+/**
+ * One challenge this member is part-way through.
+ *
+ * The till only ever reads this. `unit` is "visits" for a visits-based
+ * challenge, which is the difference between "8 of 10 visits" and a bare
+ * "8 of 10" that means nothing to a customer standing at a counter.
+ */
+data class MemberChallenge(
+    val name: String,
+    val unit: String,
+    val isStampCard: Boolean,
+    val progress: Long,
+    val target: Long,
+    val rewardName: String?,
+    val rewardPoints: Long,
+) {
+    val remaining: Long get() = (target - progress).coerceAtLeast(0L)
+    val complete: Boolean get() = progress >= target
+}
 
 data class Quote(
     val earnPoints: Long,

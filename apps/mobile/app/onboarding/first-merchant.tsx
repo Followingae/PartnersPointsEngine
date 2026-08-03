@@ -1,69 +1,124 @@
-import { Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button, Screen } from '@/components/UI';
+import { Button, ErrorState, Loading, Screen } from '@/components/UI';
+import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
+import { getDiscoverBrands, type DiscoverBrand } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
 import { Footer, Monogram, Sub, TextLink, Title } from './_components';
 
-type Nearby = { code: string; name: string; meta: string; bg: string; ink: string; badge: string };
+/**
+ * 08 · First card — four real brands, tappable.
+ *
+ * The design showed distances, but a brand carries no location in the API, so
+ * the second line is what the brand's points are actually called. Tapping a
+ * tile goes to the join sheet rather than joining outright: joining shares the
+ * customer's name and number with the brand, and that is said out loud there.
+ *
+ * Brands already in the wallet are left out — this step is about the first
+ * card, and offering one they hold would be a dead tile.
+ */
 
-/** Brands to join, in the order the design lays them out (row-major). */
-const NEARBY: Nearby[] = [
-  { code: 'CB', name: 'Camel Bean', meta: 'Coffee · 0.4 km', bg: C.orange, ink: C.ink, badge: 'rgba(21,21,15,.17)' },
-  { code: 'BC', name: 'Bloom Coffee', meta: 'Coffee · 0.8 km', bg: C.blue, ink: '#fff', badge: 'rgba(255,255,255,.2)' },
-  { code: 'V', name: 'Verde Market', meta: 'Grocery · 1.2 km', bg: C.green, ink: C.ink, badge: 'rgba(21,21,15,.17)' },
-  { code: 'OT', name: 'Olive & Thyme', meta: 'Dining · 1.4 km', bg: C.pink, ink: C.ink, badge: 'rgba(21,21,15,.17)' },
-];
+const TILES = 4;
 
-function BrandTile({ brand }: { brand: Nearby }) {
+function BrandTile({ brand, onPress }: { brand: DiscoverBrand; onPress: () => void }) {
+  const bg = brandColor(brand.brandId, brand.branding);
+  const ink = brandFg(bg);
+  // The badge is a veil over the fill, so it reads on light and dark brands alike.
+  const badge = ink === '#fff' ? 'rgba(255,255,255,.2)' : 'rgba(21,21,15,.17)';
+
   return (
-    <View
-      style={{
-        flex: 1, height: 120, borderRadius: 20, padding: 16,
-        backgroundColor: brand.bg, justifyContent: 'space-between',
-      }}
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flex: 1,
+          height: 120,
+          borderRadius: 20,
+          padding: 16,
+          backgroundColor: bg,
+          justifyContent: 'space-between',
+        },
+        pressed ? { opacity: 0.85 } : null,
+      ]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-        <Monogram code={brand.code} size={26} radius={9} bg={brand.badge} color={brand.ink} fontSize={10} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: brand.ink }}>
-          {brand.name}
+        <Monogram code={brandInitials(brand.brandName)} size={26} radius={9} bg={badge} color={ink} fontSize={10} />
+        <Text
+          numberOfLines={1}
+          style={{ flexShrink: 1, fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: ink }}
+        >
+          {brand.brandName}
         </Text>
       </View>
 
       <View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          <Text style={{ fontFamily: font(600), fontSize: 26, lineHeight: 30, letterSpacing: -0.78, color: brand.ink }}>0</Text>
-          <Text style={{ fontFamily: font(500), fontSize: 11, lineHeight: 15, color: brand.ink }}>pts</Text>
+          <Text style={{ fontFamily: font(600), fontSize: 26, lineHeight: 30, letterSpacing: -0.78, color: ink }}>0</Text>
+          <Text style={{ fontFamily: font(500), fontSize: 11, lineHeight: 15, color: ink }}>pts</Text>
         </View>
-        <Text style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, lineHeight: 15, color: brand.ink }}>{brand.meta}</Text>
+        <Text numberOfLines={1} style={{ marginTop: 6, fontFamily: font(500), fontSize: 11, lineHeight: 15, color: ink }}>
+          {`Earn ${brand.pointsCode}`}
+        </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
-/** 08 · First card. */
 export default function FirstMerchant() {
   const router = useRouter();
+  const { data, loading, error, signedOut, refresh } = useAsync(getDiscoverBrands, []);
+
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+  }, [signedOut, router]);
+
+  const joinable = (data ?? []).filter((b) => !b.joined).slice(0, TILES);
+  const rows = [joinable.slice(0, 2), joinable.slice(2)].filter((r) => r.length > 0);
 
   return (
     <Screen scroll={false} background={C.surface} bottomGap={18}>
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <View style={{ gap: 12 }}>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {NEARBY.slice(0, 2).map((b) => <BrandTile key={b.code} brand={b} />)}
-          </View>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {NEARBY.slice(2).map((b) => <BrandTile key={b.code} brand={b} />)}
-          </View>
-        </View>
+      {loading ? (
+        <Loading />
+      ) : error && !data ? (
+        <ErrorState message={error} onRetry={refresh} />
+      ) : (
+        <>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            {rows.length > 0 ? (
+              <View style={{ gap: 12 }}>
+                {rows.map((row, i) => (
+                  <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
+                    {row.map((b) => (
+                      <BrandTile key={b.brandId} brand={b} onPress={() => router.push(`/join/${b.brandId}`)} />
+                    ))}
+                    {/* A lone tile on the second row keeps the first row's width. */}
+                    {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
-        <Title style={{ marginTop: 38 }}>Add your first card</Title>
-        <Sub style={{ marginTop: 12, lineHeight: 23 }}>Join a brand and start earning on your next visit.</Sub>
-      </View>
+            <Title style={{ marginTop: rows.length > 0 ? 38 : 0 }}>
+              {rows.length > 0 ? 'Add your first card' : 'No brands to join yet'}
+            </Title>
+            <Sub style={{ marginTop: 12, lineHeight: 23 }}>
+              {rows.length > 0
+                ? 'Join a brand and start earning on your next visit.'
+                : 'New brands appear here as they join Partners Points.'}
+            </Sub>
+          </View>
 
-      <Footer>
-        <Button label="Browse brands" onPress={() => router.replace('/(tabs)/home')} />
-        <TextLink label="Scan a code in store" onPress={() => router.replace('/(tabs)/scan')} />
-      </Footer>
+          <Footer>
+            <Button
+              label={rows.length > 0 ? 'Browse brands' : 'Go to my cards'}
+              onPress={() => router.replace(rows.length > 0 ? '/discover' : '/home')}
+            />
+            <TextLink label="Scan a code in store" onPress={() => router.replace('/scan')} />
+          </Footer>
+        </>
+      )}
     </Screen>
   );
 }

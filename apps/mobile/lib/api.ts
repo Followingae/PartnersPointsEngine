@@ -314,6 +314,23 @@ export const updateProfile = (dto: {
   txnAlertsOptOut?: boolean;
 }) => api<Profile>('/customer/wallet/profile', { method: 'PATCH', body: JSON.stringify(dto) });
 
+/** One device signed in to the wallet. */
+export interface WalletSession {
+  id: string;
+  /** Already human-readable ("iPhone · iOS 18") — render it as given. */
+  device: string;
+  /** The device asking. It can't sign itself out; Sign out does that. */
+  current: boolean;
+  signedInAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+}
+
+export const getSessions = () => api<WalletSession[]>('/customer/wallet/sessions');
+
+export const revokeSession = (id: string) =>
+  api<{ ok: true }>(`/customer/wallet/sessions/${id}`, { method: 'DELETE' });
+
 // ── per-card (brand-scoped) ────────────────────────────────────────────────
 
 export interface Reward {
@@ -387,6 +404,23 @@ export interface Program {
 
 /** How a brand's programme works, and where this member sits in it. */
 export const getProgram = (brandId: string) => brandApi<Program>(brandId, '/customer/program');
+
+export interface ExpiringBucket {
+  /** `YYYY-MM`. */
+  month: string;
+  points: string;
+  /** `YYYY-MM-DD` — the first day in that month any of these points lapse. */
+  from: string;
+  daysLeft: number;
+}
+
+/**
+ * The member's own points due to expire, soonest month first. Already-lapsed
+ * points are never returned: the sweep has taken them and there is nothing left
+ * to spend.
+ */
+export const getExpiring = (brandId: string) =>
+  brandApi<{ total: string; buckets: ExpiringBucket[] }>(brandId, '/customer/expiring');
 
 export const getReferralCode = (brandId: string) =>
   brandApi<{ code: string }>(brandId, '/customer/referral-code');

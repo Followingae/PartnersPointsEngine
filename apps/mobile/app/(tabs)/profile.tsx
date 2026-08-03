@@ -9,6 +9,20 @@ import { detailsSummary } from '@/lib/profile';
 import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
 
+/**
+ * Things you do, above the things you configure.
+ *
+ * Challenges, badges, referrals and the streak were all built and wired but
+ * nothing in the app navigated to them, so they may as well not have existed.
+ * They belong together, ahead of the settings rows.
+ */
+const FEATURE_ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
+  { icon: 'trophy', title: 'Challenges', sub: 'Stamp cards and goals you’re working on', href: '/challenges' },
+  { icon: 'shield', title: 'Badges', sub: 'What you’ve earned so far', href: '/badges' },
+  { icon: 'flame', title: 'Streak', sub: 'Your run of visits', href: '/streak' },
+  { icon: 'share', title: 'Invite friends', sub: 'Share your code, you both benefit', href: '/referrals' },
+];
+
 const ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
   { icon: 'user', title: 'Personal details', sub: 'Name, birthday, nationality', href: '/profile/edit' },
   { icon: 'card', title: 'Linked partners', sub: 'Convert points to a partner', href: '/profile/partners' },
@@ -86,6 +100,18 @@ export default function Profile() {
           </View>
         </View>
       )}
+
+      <View style={{ marginTop: 26 }}>
+        {FEATURE_ROWS.map((r) => (
+          <ListRow
+            key={r.title}
+            lead={<Tile><Icon name={r.icon} size={19} /></Tile>}
+            title={r.title}
+            sub={r.sub}
+            onPress={() => router.push(r.href)}
+          />
+        ))}
+      </View>
 
       <View style={{ marginTop: 26 }}>
         {ROWS.map((r) => (

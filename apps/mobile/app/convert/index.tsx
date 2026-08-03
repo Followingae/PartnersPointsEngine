@@ -50,6 +50,17 @@ export default function Convert() {
   const preview = data?.preview;
   const terms = data?.terms;
 
+  /**
+   * Someone who hasn't linked Lulu yet is shown why they'd want to (36) before
+   * a stepper for points they can't move. Once linked, that screen never gets
+   * in the way again — and this is the only route into it, so it can't be
+   * skipped by opening Convert from the card or from Linked partners.
+   */
+  useEffect(() => {
+    if (!card || !terms || terms.linked) return;
+    router.replace({ pathname: '/convert/intro', params: { brandId: card.brandId } });
+  }, [card, terms, router]);
+
   const available = Number(card?.available ?? 0);
   // The merchant's minimum sets the step, so every stop on the picker is a valid
   // transfer rather than one the server will reject.

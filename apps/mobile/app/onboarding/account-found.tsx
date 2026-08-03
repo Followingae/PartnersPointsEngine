@@ -1,46 +1,97 @@
+import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button, Screen, pts } from '@/components/UI';
+import { Button, ErrorState, Loading, Screen, pts } from '@/components/UI';
+import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
+import { getCards, type Card } from '@/lib/api';
+import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
 import { Footer, Monogram, Sub, Title } from './_components';
 
-type Linked = { code: string; name: string; points: number; bg: string; ink: string };
+/**
+ * 05 · Account found — the moment a returning number is recognised.
+ *
+ * The till has been earning this person points against their phone number for
+ * however long; this is the first time they see them all in one place. So the
+ * cards are their real cards with their real balances — the whole point of the
+ * screen is that the numbers are already theirs.
+ *
+ * Only OTP routes here, and only when the wallet came back non-empty. If it is
+ * empty anyway, don't show an empty celebration — carry on to the next step.
+ */
 
-/** Cards the number already has points on. */
-const LINKED: Linked[] = [
-  { code: 'CB', name: 'Camel Bean', points: 2480, bg: C.orange, ink: C.ink },
-  { code: 'N', name: 'Núr Pâtisserie', points: 1150, bg: C.purple, ink: '#fff' },
-  { code: 'V', name: 'Verde Market', points: 760, bg: C.green, ink: C.ink },
-];
+/** The biggest balances lead; anything past that becomes a closing line. */
+const SHOWN = 3;
 
-function LinkedRow({ card }: { card: Linked }) {
+function LinkedRow({ card }: { card: Card }) {
+  const bg = brandColor(card.brandId, card.branding);
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-      <Monogram code={card.code} size={44} radius={14} bg={card.bg} color={card.ink} fontSize={14} />
-      <Text style={{ flex: 1, fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}>{card.name}</Text>
-      <Text style={{ fontFamily: font(600), fontSize: 20, lineHeight: 24, letterSpacing: -0.6, color: C.ink }}>{pts(card.points)}</Text>
+      <Monogram
+        code={brandInitials(card.brandName)}
+        size={44}
+        radius={14}
+        bg={bg}
+        color={brandFg(bg)}
+        fontSize={14}
+      />
+      <Text
+        numberOfLines={1}
+        style={{ flex: 1, fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}
+      >
+        {card.brandName}
+      </Text>
+      <Text style={{ fontFamily: font(600), fontSize: 20, lineHeight: 24, letterSpacing: -0.6, color: C.ink }}>
+        {pts(Number(card.available))}
+      </Text>
     </View>
   );
 }
 
-/** 05 · Account found. */
 export default function AccountFound() {
   const router = useRouter();
+  const { data: cards, loading, error, signedOut, refresh } = useAsync(getCards, []);
+
+  useEffect(() => {
+    if (signedOut) router.replace('/onboarding/phone');
+    else if (cards && cards.length === 0) router.replace('/onboarding/biometric');
+  }, [signedOut, cards, router]);
+
+  const ranked = [...(cards ?? [])].sort((a, b) => Number(b.available) - Number(a.available));
+  const lead = ranked.slice(0, SHOWN);
+  const rest = ranked.length - lead.length;
 
   return (
     <Screen scroll={false} background={C.surface} bottomGap={18}>
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <Title>We found your points</Title>
-        <Sub style={{ marginTop: 10 }}>{`${LINKED.length} cards are already linked to your number.`}</Sub>
+      {loading ? (
+        <Loading />
+      ) : error && !cards ? (
+        <ErrorState message={error} onRetry={refresh} />
+      ) : (
+        <>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Title>We found your points</Title>
+            <Sub style={{ marginTop: 10 }}>
+              {ranked.length === 1
+                ? 'One card is already linked to your number.'
+                : `${ranked.length} cards are already linked to your number.`}
+            </Sub>
 
-        <View style={{ marginTop: 32, gap: 12 }}>
-          {LINKED.map((card) => <LinkedRow key={card.code} card={card} />)}
-        </View>
-      </View>
+            <View style={{ marginTop: 32, gap: 12 }}>
+              {lead.map((card) => (
+                <LinkedRow key={card.membershipId} card={card} />
+              ))}
+              {rest > 0 ? (
+                <Sub style={{ marginTop: 4 }}>{rest === 1 ? 'And one more.' : `And ${rest} more.`}</Sub>
+              ) : null}
+            </View>
+          </View>
 
-      <Footer>
-        <Button label="Open my cards" onPress={() => router.push('/onboarding/biometric')} />
-      </Footer>
+          <Footer>
+            <Button label="Open my cards" onPress={() => router.push('/onboarding/biometric')} />
+          </Footer>
+        </>
+      )}
     </Screen>
   );
 }

@@ -1,11 +1,25 @@
 import { ReactNode } from 'react';
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView,
+  StyleSheet, Text, TextStyle, View, ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, R, S, SP, T, font, shadow } from '@/lib/tokens';
 
-/** Screen container: canvas background, safe areas, tab-bar clearance. */
+/**
+ * Screen container: canvas background, safe areas, tab-bar clearance — and the
+ * keyboard.
+ *
+ * Every screen with a field and a button at the bottom had the same bug: the
+ * keyboard came up over the button, so the thing you'd just finished typing
+ * couldn't be submitted. Handling it here rather than per screen is what makes
+ * that true everywhere instead of on the two screens someone remembered.
+ *
+ * `bottomGap: 0` means the caller owns the bottom edge — a sheet anchored to it
+ * needs to reach the physical bottom of the display, and adding the home
+ * indicator's inset on top of it lifted the sheet clear of the screen and left
+ * a band of backdrop showing underneath.
+ */
 export function Screen({
   children, scroll = true, pad = true, background = C.canvas, bottomGap = 108, refreshing, onRefresh,
 }: {
@@ -21,24 +35,41 @@ export function Screen({
   };
   const inner: ViewStyle = {
     paddingHorizontal: pad ? SP.gutter : 0,
-    paddingBottom: bottomGap + insets.bottom,
+    paddingBottom: bottomGap === 0 ? 0 : bottomGap + insets.bottom,
   };
-  if (!scroll) {
-    return <View style={style}><View style={[{ flex: 1 }, inner]}>{children}</View></View>;
-  }
+
+  const body = !scroll ? (
+    <View style={[{ flex: 1 }, inner]}>{children}</View>
+  ) : (
+    <ScrollView
+      contentContainerStyle={inner}
+      showsVerticalScrollIndicator={false}
+      // Tapping a button while the keyboard is up should press the button, not
+      // just dismiss the keyboard and make you tap twice.
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      refreshControl={
+        onRefresh
+          ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={C.soft} />
+          : undefined
+      }
+    >
+      {children}
+    </ScrollView>
+  );
+
   return (
     <View style={style}>
-      <ScrollView
-        contentContainerStyle={inner}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          onRefresh
-            ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={C.soft} />
-            : undefined
-        }
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        // iOS insets the whole view; Android resizes the window already, so
+        // adding padding there double-counts and leaves a gap above the keyboard.
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // The safe-area top is already applied by the wrapper above.
+        keyboardVerticalOffset={0}
       >
-        {children}
-      </ScrollView>
+        {body}
+      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -1,6 +1,7 @@
 package ae.rfmloyaltyco.terminal.ui
 
 import ae.rfmloyaltyco.terminal.CustomerScreen_Mode_BALANCE
+import ae.rfmloyaltyco.terminal.api.MemberChallenge
 import ae.rfmloyaltyco.terminal.checkout.CheckoutViewModel
 import ae.rfmloyaltyco.terminal.theme.Chip
 import ae.rfmloyaltyco.terminal.theme.Keypad
@@ -9,7 +10,11 @@ import ae.rfmloyaltyco.terminal.theme.RfmCard
 import ae.rfmloyaltyco.terminal.theme.RfmColor
 import ae.rfmloyaltyco.terminal.theme.SecondaryAction
 import ae.rfmloyaltyco.terminal.theme.TerminalScaffold
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -96,6 +102,7 @@ fun CustomerScreen(
                 worthMinor = member.context?.availablePoints?.let { state.rate.valueMinor(it) },
                 currency = vm.config.currency,
                 earnPreview = if (balanceMode) null else state.quote?.earnPoints,
+                challenges = member.context?.challenges ?: emptyList(),
             )
             Spacer(Modifier.height(12.dp))
             SecondaryAction("Different customer") { vm.clearMember(); phone = "" }
@@ -150,6 +157,73 @@ fun CustomerScreen(
     }
 }
 
+/**
+ * One line the cashier can say out loud.
+ *
+ * "Two more visits and your next coffee is free" is the whole point of a stamp
+ * card, and the till is the only place anyone is standing close enough to hear
+ * it. Visits count in visits; anything else counts in whatever it counts in,
+ * which is why the unit comes from the server rather than being assumed here.
+ */
+private fun challengeLine(c: MemberChallenge): String {
+    val unit = if (c.unit == "visits") "visits" else null
+    val progress = if (unit != null) {
+        "${c.progress} of ${c.target} $unit"
+    } else {
+        "${c.progress} of ${c.target}"
+    }
+    if (c.complete) {
+        val prize = c.rewardName ?: if (c.rewardPoints > 0) "${formatPoints(c.rewardPoints)} points" else null
+        return if (prize != null) "$progress — $prize is ready" else "$progress — complete"
+    }
+    val left = c.remaining
+    val more = when {
+        unit != null && left == 1L -> "1 more visit"
+        unit != null -> "$left more visits"
+        left == 1L -> "1 more"
+        else -> "$left more"
+    }
+    val prize = c.rewardName ?: if (c.rewardPoints > 0) "${formatPoints(c.rewardPoints)} points" else null
+    return if (prize != null) "$progress · $more for $prize" else "$progress · $more to go"
+}
+
+@Composable
+private fun ChallengeProgress(challenges: List<MemberChallenge>) {
+    if (challenges.isEmpty()) return
+    Spacer(Modifier.height(16.dp))
+    challenges.forEach { c ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text(c.name, style = MaterialTheme.typography.labelMedium, color = RfmColor.MutedFg)
+                Text(
+                    challengeLine(c),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (c.complete) RfmColor.Lime600 else RfmColor.Ink,
+                )
+            }
+            if (c.complete) {
+                Chip("Ready", bg = RfmColor.Lime200, fg = RfmColor.Lime900)
+            }
+        }
+        // Stamps read as stamps: a row of dots the customer can count from
+        // across the counter, filled for what they've collected.
+        if (c.isStampCard && c.target <= 20L) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                (1..c.target.toInt()).forEach { i ->
+                    Box(
+                        Modifier
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .background(if (i <= c.progress) RfmColor.Ink else RfmColor.Muted),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
 @Composable
 fun MemberCard(
     name: String,
@@ -159,6 +233,7 @@ fun MemberCard(
     earnPreview: Long?,
     worthMinor: Long? = null,
     currency: String = "AED",
+    challenges: List<MemberChallenge> = emptyList(),
 ) {
     RfmCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -200,6 +275,7 @@ fun MemberCard(
                 }
             }
         }
+        ChallengeProgress(challenges)
     }
 }
 

@@ -11,6 +11,8 @@ import { TokenService } from '../tokens/token.service';
 export interface WalletPrincipal {
   personId: string;
   platformId: string;
+  /** The refresh-token row behind this token — which device is calling. */
+  sessionId: string | null;
 }
 
 /**
@@ -49,7 +51,7 @@ export class WalletJwtGuard implements CanActivate {
       throw new UnauthorizedException('not a wallet session');
     }
 
-    req.wallet = { personId: claims.sub, platformId: claims.platformId };
+    req.wallet = { personId: claims.sub, platformId: claims.platformId, sessionId: claims.sid ?? null };
     return true;
   }
 }

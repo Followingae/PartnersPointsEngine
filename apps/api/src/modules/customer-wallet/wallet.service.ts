@@ -169,7 +169,7 @@ export class CustomerWalletService {
 
     // Only on a genuinely new card — re-joining shouldn't re-welcome anyone.
     if (!r.alreadyMember) {
-      void this.sendWelcome(personId, brandId, r.loyaltyId!);
+      void this.sendWelcome(personId, brandId, r.loyaltyId!).catch(() => undefined);
     }
 
     return {
@@ -186,8 +186,10 @@ export class CustomerWalletService {
    * must not appear to fail because a mail server was slow.
    */
   private async sendWelcome(personId: string, brandId: string, loyaltyId: string): Promise<void> {
-    if (!this.email.configured) return;
     try {
+      // Inside the try, not before it: this is called without an await, so
+      // anything that throws outside the guard is an unhandled rejection.
+      if (!this.email.configured) return;
       const profile = await this.profile(personId);
       if (!profile.email?.includes('@')) return;
       const brands = (await this.brands(personId)) as Array<{ brandId: string; brandName: string; pointsCode: string }>;
@@ -219,6 +221,33 @@ export class CustomerWalletService {
     return r;
   }
 
+  /**
+   * Devices signed in to this wallet.
+   *
+   * One active refresh token is one device: rotation revokes the old row as it
+   * writes the new, so there is never more than one live token per device. The
+   * user-agent is turned into a device name here rather than in SQL — it is
+   * presentation, and a new phone shouldn't need a migration to read properly.
+   */
+  async sessions(personId: string, currentSessionId: string | null) {
+    const rows = await this.call<WalletSessionRow[]>('wallet_sessions', [personId]);
+    return rows.map((r) => ({
+      id: r.id,
+      device: deviceName(r.userAgent),
+      current: currentSessionId !== null && r.id === currentSessionId,
+      signedInAt: r.firstSeenAt,
+      lastSeenAt: r.lastSeenAt,
+      expiresAt: r.expiresAt,
+    }));
+  }
+
+  /** Revoking a session that isn't yours (or isn't live) is a 404, not a 403. */
+  async revokeSession(personId: string, sessionId: string) {
+    const ok = await this.call<boolean>('wallet_revoke_session', [personId, sessionId]);
+    if (!ok) throw new NotFoundException('session not found');
+    return { ok: true as const };
+  }
+
   /** Contact details are stored encrypted; decrypt for the owner only. */
   private reveal(b64: string | null): string | null {
     if (!b64) return null;
@@ -228,6 +257,39 @@ export class CustomerWalletService {
       return null;
     }
   }
+}
+
+interface WalletSessionRow {
+  id: string;
+  userAgent: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+}
+
+/**
+ * A user-agent turned into something someone would recognise as their phone.
+ *
+ * Expo sends the OS and version, which is the useful half; a browser sends a
+ * long string whose only reliable part is the platform. Anything unparseable
+ * says so plainly rather than being labelled with a guess — "Unknown device"
+ * is a worse answer to read but a better one to act on.
+ */
+function deviceName(ua: string | null): string {
+  if (!ua) return 'Unknown device';
+  const ios = /iPhone(?: OS (\d+))?|CPU iPhone OS (\d+)/.exec(ua);
+  if (ios) {
+    const v = ios[1] ?? ios[2];
+    return v ? `iPhone · iOS ${v}` : 'iPhone';
+  }
+  if (/iPad/.test(ua)) return 'iPad';
+  const android = /Android[ /](\d+)/.exec(ua);
+  if (android) return `Android ${android[1]}`;
+  if (/Android/.test(ua)) return 'Android';
+  if (/Macintosh|Mac OS X/.test(ua)) return 'Mac';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/okhttp|Dart|Expo/i.test(ua)) return 'Partners Points app';
+  return 'Unknown device';
 }
 
 interface WalletCard {

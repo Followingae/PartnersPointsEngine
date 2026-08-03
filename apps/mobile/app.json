@@ -20,7 +20,19 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Partners Points uses the camera to scan the code at a till so you can join a brand and collect points."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Partners Points uses Face ID to unlock your wallet."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

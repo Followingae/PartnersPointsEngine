@@ -228,4 +228,72 @@ describe('Customer wallet (person-scoped, spans brands)', () => {
     expect(alpha?.joined).toBe(true);
     expect(brands.length).toBeGreaterThanOrEqual(2);
   });
+
+  /**
+   * Security lists these, so what matters is the boundary: a person sees their
+   * own devices and nobody else's, and cannot revoke a session that isn't
+   * theirs — a definer function that got either wrong would hand one customer
+   * the ability to sign another out.
+   */
+  describe('sessions', () => {
+    const live = (personId: string, ua: string | null) =>
+      prisma.refreshToken.create({
+        data: {
+          personId,
+          platformId,
+          tokenHash: randomUUID(),
+          expiresAt: new Date(Date.now() + 86_400_000),
+          ...(ua ? { userAgent: ua } : {}),
+        },
+        select: { id: true },
+      });
+
+    it('lists only this person’s live devices, named from the user agent', async () => {
+      const mine = await live(personId, 'Expo/2.33 CFNetwork/1498 Darwin/23.6.0 iPhone OS 18_1');
+      await live(strangerId, 'Mozilla/5.0 (Linux; Android 14; Pixel 8)');
+
+      const rows = await wallet.sessions(personId, mine.id);
+      expect(rows.map((r) => r.id)).toContain(mine.id);
+      expect(rows.every((r) => r.id !== undefined)).toBe(true);
+      const own = rows.find((r) => r.id === mine.id)!;
+      expect(own.current).toBe(true);
+      expect(own.device).toContain('iPhone');
+
+      // The stranger's device must not be in here at all.
+      const strangers = await wallet.sessions(strangerId, null);
+      expect(strangers.some((r) => r.id === mine.id)).toBe(false);
+    });
+
+    it('hides revoked and expired sessions', async () => {
+      const gone = await prisma.refreshToken.create({
+        data: {
+          personId, platformId, tokenHash: randomUUID(),
+          expiresAt: new Date(Date.now() + 86_400_000), revokedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      const stale = await prisma.refreshToken.create({
+        data: {
+          personId, platformId, tokenHash: randomUUID(),
+          expiresAt: new Date(Date.now() - 1_000),
+        },
+        select: { id: true },
+      });
+      const ids = (await wallet.sessions(personId, null)).map((r) => r.id);
+      expect(ids).not.toContain(gone.id);
+      expect(ids).not.toContain(stale.id);
+    });
+
+    it('revokes one of your own, and refuses somebody else’s', async () => {
+      const mine = await live(personId, null);
+      const theirs = await live(strangerId, null);
+
+      await expect(wallet.revokeSession(personId, mine.id)).resolves.toEqual({ ok: true });
+      expect((await wallet.sessions(personId, null)).map((r) => r.id)).not.toContain(mine.id);
+
+      // Not found, not forbidden — and crucially still live afterwards.
+      await expect(wallet.revokeSession(personId, theirs.id)).rejects.toThrow();
+      expect((await wallet.sessions(strangerId, null)).map((r) => r.id)).toContain(theirs.id);
+    });
+  });
 });

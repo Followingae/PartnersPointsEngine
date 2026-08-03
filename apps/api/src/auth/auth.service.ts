@@ -3,6 +3,7 @@ import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@n
 import { ConfigService } from '@nestjs/config';
 import type { ApiSurface, ScopeLevel } from '@rfm-loyalty/shared';
 import { AuthPrismaService } from './auth-prisma.service';
+import type { DeviceInfo } from './device';
 import { EnvelopeCryptoService } from './crypto/envelope-crypto.service';
 import { PasswordService } from './crypto/password.service';
 import { OtpStoreService } from './otp/otp-store.service';
@@ -135,12 +136,21 @@ export class AuthService {
    * The person is read through a definer function because sign-in happens
    * before any tenant context exists.
    */
-  async verifyOtpForWallet(phone: string, code: string): Promise<TokenPair & { personId: string }> {
+  async verifyOtpForWallet(
+    phone: string,
+    code: string,
+    device?: DeviceInfo,
+  ): Promise<TokenPair & { personId: string }> {
     if (!(await this.otp.verify(phone, code))) throw new UnauthorizedException('invalid or expired code');
     const rows = await this.db.$queryRaw<{ person: WalletPerson | null }[]>`
       SELECT wallet_person_by_phone(${sha256(phone)}) AS person`;
     const person = rows[0]?.person ?? null;
     if (!person) throw new UnauthorizedException('not a member');
+
+    // The refresh row is written first so the access token can name it: the
+    // Security screen needs to know which listed session is the caller's own.
+    const refreshToken = await this.tokens.issueRefresh({ sub: person.id, surface: 'customer' });
+    const session = await this.storeRefresh(refreshToken, person.id, person.platformId, 'person', device);
 
     const claims: AccessClaims = {
       sub: person.id,
@@ -154,10 +164,9 @@ export class AuthService {
       branchId: null,
       actorType: 'customer',
       wallet: true,
+      sid: session.id,
     };
     const accessToken = await this.tokens.issueAccess(claims);
-    const refreshToken = await this.tokens.issueRefresh({ sub: person.id, surface: 'customer' });
-    await this.storeRefresh(refreshToken, person.id, person.platformId, 'person');
     return { accessToken, refreshToken, expiresIn: this.accessTtl(), personId: person.id };
   }
 
@@ -169,7 +178,7 @@ export class AuthService {
    * as the new one is issued, so a stolen refresh token stops working the
    * moment the real device next renews.
    */
-  async refreshWallet(refreshToken: string): Promise<TokenPair> {
+  async refreshWallet(refreshToken: string, device?: DeviceInfo): Promise<TokenPair> {
     let payload: { sub: string; surface: ApiSurface };
     try {
       payload = await this.tokens.verifyRefresh(refreshToken);
@@ -183,7 +192,22 @@ export class AuthService {
     if (!stored || stored.revokedAt || stored.expiresAt < new Date() || stored.personId !== payload.sub) {
       throw new UnauthorizedException('refresh token not active');
     }
-    await this.db.refreshToken.update({ where: { tokenHash }, data: { revokedAt: new Date() } });
+    const nextRefresh = await this.tokens.issueRefresh({ sub: payload.sub, surface: 'customer' });
+    // The rotation is one session continuing, not a new device signing in, so
+    // the start date rides along — otherwise every renewal would reset it and
+    // Security would show every phone as having signed in minutes ago.
+    const session = await this.storeRefresh(
+      nextRefresh,
+      payload.sub,
+      stored.platformId,
+      'person',
+      device,
+      stored.firstSeenAt,
+    );
+    await this.db.refreshToken.update({
+      where: { tokenHash },
+      data: { revokedAt: new Date(), replacedBy: session.tokenHash },
+    });
 
     const claims: AccessClaims = {
       sub: payload.sub,
@@ -195,10 +219,9 @@ export class AuthService {
       branchId: null,
       actorType: 'customer',
       wallet: true,
+      sid: session.id,
     };
     const accessToken = await this.tokens.issueAccess(claims);
-    const nextRefresh = await this.tokens.issueRefresh({ sub: payload.sub, surface: 'customer' });
-    await this.storeRefresh(nextRefresh, payload.sub, stored.platformId, 'person');
     return { accessToken, refreshToken: nextRefresh, expiresIn: this.accessTtl() };
   }
 
@@ -295,10 +318,10 @@ export class AuthService {
 
     const accessToken = await this.tokens.issueAccess(claims);
     const refreshToken = await this.tokens.issueRefresh({ sub: userId, surface });
-    const newHash = await this.storeRefresh(refreshToken, userId, primary.platformId);
+    const next = await this.storeRefresh(refreshToken, userId, primary.platformId);
     if (replacesHash) {
       await this.db.refreshToken
-        .update({ where: { tokenHash: replacesHash }, data: { replacedBy: newHash } })
+        .update({ where: { tokenHash: replacesHash }, data: { replacedBy: next.tokenHash } })
         .catch(() => undefined);
     }
     await this.db.userAccount.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
@@ -315,17 +338,23 @@ export class AuthService {
     subjectId: string,
     platformId: string,
     subject: 'user' | 'person' = 'user',
-  ): Promise<string> {
+    device?: DeviceInfo,
+    firstSeenAt?: Date,
+  ): Promise<{ id: string; tokenHash: string }> {
     const tokenHash = sha256(refreshToken);
     const ttl = this.config.get<number>('JWT_REFRESH_TTL_SECONDS') ?? 2_592_000;
-    await this.db.refreshToken.create({
+    const row = await this.db.refreshToken.create({
       data: {
         ...(subject === 'user' ? { userId: subjectId } : { personId: subjectId }),
         platformId,
         tokenHash,
         expiresAt: new Date(Date.now() + ttl * 1000),
+        ...(device?.userAgent ? { userAgent: device.userAgent } : {}),
+        ...(device?.ip ? { ip: device.ip } : {}),
+        ...(firstSeenAt ? { firstSeenAt } : {}),
       },
+      select: { id: true },
     });
-    return tokenHash;
+    return { id: row.id, tokenHash };
   }
 }

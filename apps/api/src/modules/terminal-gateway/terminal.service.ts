@@ -8,6 +8,7 @@ import { EmailService } from '../../platform-core/email/email.service';
 import { OutboxService } from '../workers/outbox.service';
 import type { ReceiptEmailData } from '../../platform-core/email/email.templates';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
+import { GamificationService } from '../loyalty-rules/gamification.service';
 import { LoyaltyService, redemptionValueMinor, scheduleContext } from '../loyalty-rules/loyalty.service';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -54,6 +55,8 @@ export class TerminalService {
     private readonly email?: EmailService,
     /** Optional for the same reason; without it no transaction alerts are emitted. */
     private readonly outbox?: OutboxService,
+    /** Optional likewise; without it the till simply shows no challenge progress. */
+    private readonly gamification?: GamificationService,
   ) {}
 
   /**
@@ -452,7 +455,14 @@ export class TerminalService {
   /** Member snapshot for the cashier-facing recognition screen. */
   async memberContext(ctx: TenantContext, memberToken: string) {
     const claims = await this.member(memberToken, ctx);
-    const bal = await this.loyalty.balance(ctx, claims.membershipId);
+    const [bal, challenges] = await Promise.all([
+      this.loyalty.balance(ctx, claims.membershipId),
+      // The cashier is the one person who can say "one more and it's free" out
+      // loud, and this is the only moment they have the customer in front of
+      // them. A brand running no challenges gets an empty list and the till
+      // shows nothing — never a placeholder.
+      this.gamification?.memberChallenges(ctx, claims.membershipId).catch(() => []) ?? [],
+    ]);
     return this.tenants.run(ctx, async (tx) => {
       const m = await tx.customerMembership.findFirst({
         where: { id: claims.membershipId, brandId: ctx.brandId! },
@@ -465,6 +475,17 @@ export class TerminalService {
         tier: bal.tier?.name ?? null,
         balance: { active: bal.available, available: bal.available, pending: bal.pending, lifetime: bal.lifetime },
         joinedAt: m.joinedAt,
+        challenges: challenges.map((c) => ({
+          id: c.id,
+          name: c.name,
+          /** Visits-based, so the till can say "8 of 10 visits" rather than "8 of 10". */
+          unit: c.kind === 'visits' ? ('visits' as const) : ('progress' as const),
+          isStampCard: c.isStampCard,
+          progress: Number(c.progress),
+          target: Number(c.target),
+          rewardName: c.rewardName,
+          rewardPoints: Number(c.rewardPoints),
+        })),
       };
     });
   }

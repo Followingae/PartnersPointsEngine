@@ -25,6 +25,15 @@ export interface AccessClaims {
    * token with no brand must never reach an endpoint that expects one.
    */
   wallet?: boolean;
+  /**
+   * The refresh-token row this access token was issued alongside — the session.
+   *
+   * Rotation issues both together, so this always names the row that is
+   * currently active for the device holding the token. Security lists sessions
+   * with it, to mark which one is "this device" and to keep someone from
+   * signing themselves out of the screen they are standing on.
+   */
+  sid?: string;
 }
 
 @Injectable()
