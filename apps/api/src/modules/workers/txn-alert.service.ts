@@ -129,13 +129,17 @@ export class TxnAlertService {
     return delivered;
   }
 
+  /**
+   * Reads the phone from the definer function's base64 blob.
+   *
+   * Tolerant of rows still stored in the clear: those used to throw inside a
+   * catch that returned null, so the customer looked unreachable and the message
+   * vanished. PiiBackfillService repairs them; this makes sure they are still
+   * messaged in the meantime.
+   */
   private reveal(b64: string | null): string | null {
     if (!b64) return null;
-    try {
-      return this.crypto.decrypt(Buffer.from(b64, 'base64'));
-    } catch {
-      return null;
-    }
+    return this.crypto.readMaybeEncrypted(Buffer.from(b64, 'base64')).value;
   }
 }
 
