@@ -4,6 +4,8 @@ import { ledger, type Prisma } from '@rfm-loyalty/db';
 import { EarnRule, evaluateEarn, type CustomerIdentifierType, type TenantContext } from '@rfm-loyalty/shared';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { TokenService, type MemberTokenClaims } from '../../auth/tokens/token.service';
+import { EmailService } from '../../platform-core/email/email.service';
+import type { ReceiptEmailData } from '../../platform-core/email/email.templates';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { LoyaltyService, redemptionValueMinor, scheduleContext } from '../loyalty-rules/loyalty.service';
 
@@ -47,6 +49,8 @@ export class TerminalService {
     private readonly tokens: TokenService,
     private readonly loyalty: LoyaltyService,
     private readonly crypto: EnvelopeCryptoService,
+    /** Optional so the ledger tests can build this service without a mailer. */
+    private readonly email?: EmailService,
   ) {}
 
   /**
@@ -284,8 +288,59 @@ export class TerminalService {
         },
         select: { id: true },
       });
+
+      // Email the receipt if we hold an address. Deliberately not awaited into
+      // the result: the sale is already done and a mail failure must not make
+      // the till think the receipt wasn't stored.
+      void this.emailReceipt(tx, claims?.membershipId, {
+        brandName: brand?.name ?? 'Partners Points',
+        orderNo: dto.orderNo,
+        currency: dto.currency ?? 'AED',
+        grossMinor: dto.grossMinor ?? 0,
+        discountMinor: dto.discountMinor ?? 0,
+        netMinor: dto.netMinor ?? 0,
+        earnedPoints: dto.earnedPoints ?? 0,
+        balanceAfter: dto.balanceAfter ?? null,
+        pointsCode: dto.pointsCode ?? 'PTS',
+        memberName: dto.memberName ?? null,
+        vouchers,
+        receiptUrl: `${this.publicBaseUrl()}/r/${dto.token}`,
+      });
+
       return { id: r.id, token: dto.token };
     });
+  }
+
+  /** Where the customer-facing receipt page lives. */
+  private publicBaseUrl(): string {
+    return process.env.PUBLIC_API_URL ?? 'https://api.partnerspoints.ae/v1';
+  }
+
+  /**
+   * Sends the receipt to the member's address, when there is one.
+   *
+   * Swallows everything: an email accompanies a sale that has already happened,
+   * so no failure here should ever surface at the till.
+   */
+  private async emailReceipt(
+    tx: Prisma.TransactionClient,
+    membershipId: string | undefined,
+    data: Omit<ReceiptEmailData, 'memberName'> & { memberName: string | null },
+  ): Promise<void> {
+    if (!membershipId || !this.email?.configured) return;
+    try {
+      const m = await tx.customerMembership.findUnique({
+        where: { id: membershipId },
+        select: { person: { select: { emailEnc: true } } },
+      });
+      const enc = m?.person?.emailEnc;
+      if (!enc) return;
+      const address = this.crypto.decrypt(Buffer.from(enc));
+      if (!address.includes('@')) return;
+      await this.email.sendReceipt(address, { ...data, memberName: data.memberName ?? undefined });
+    } catch {
+      // Intentionally silent — see the doc comment.
+    }
   }
 
   /**

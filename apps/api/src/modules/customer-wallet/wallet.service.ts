@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
+import { EmailService } from '../../platform-core/email/email.service';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 import { buildCustomerActivity } from '../loyalty-rules/customer-activity';
 
@@ -16,6 +17,7 @@ export class CustomerWalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: EnvelopeCryptoService,
+    private readonly email: EmailService,
   ) {}
 
   /**
@@ -140,11 +142,42 @@ export class CustomerWalletService {
       ok: boolean; reason?: string; membershipId?: string; loyaltyId?: string; alreadyMember?: boolean;
     }>('wallet_join_brand', [personId, brandId]);
     if (!r?.ok) throw new BadRequestException(r?.reason ?? 'could not join this brand');
+
+    // Only on a genuinely new card — re-joining shouldn't re-welcome anyone.
+    if (!r.alreadyMember) {
+      void this.sendWelcome(personId, brandId, r.loyaltyId!);
+    }
+
     return {
       membershipId: r.membershipId!,
       loyaltyId: r.loyaltyId!,
       alreadyMember: Boolean(r.alreadyMember),
     };
+  }
+
+  /**
+   * Welcomes a new cardholder by email, when we hold an address.
+   *
+   * Never awaited and never throws: the card exists either way, and joining
+   * must not appear to fail because a mail server was slow.
+   */
+  private async sendWelcome(personId: string, brandId: string, loyaltyId: string): Promise<void> {
+    if (!this.email.configured) return;
+    try {
+      const profile = await this.profile(personId);
+      if (!profile.email?.includes('@')) return;
+      const brands = (await this.brands(personId)) as Array<{ brandId: string; brandName: string; pointsCode: string }>;
+      const brand = brands.find((b) => b.brandId === brandId);
+      if (!brand) return;
+      await this.email.sendWelcome(profile.email, {
+        brandName: brand.brandName,
+        pointsCode: brand.pointsCode,
+        appUrl: process.env.APP_URL ?? 'https://partnerspoints.ae',
+        loyaltyId,
+      });
+    } catch {
+      // Intentionally silent — see the doc comment.
+    }
   }
 
   /**

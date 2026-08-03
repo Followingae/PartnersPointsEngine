@@ -77,7 +77,10 @@ export class EmailService {
     return this.send(to, receiptEmail(data));
   }
 
-  sendWelcome(to: string, data: { brandName: string; pointsCode: string; appUrl: string }) {
+  sendWelcome(
+    to: string,
+    data: { brandName: string; pointsCode: string; appUrl: string; loyaltyId?: string },
+  ) {
     return this.send(to, welcomeEmail(data));
   }
 }
