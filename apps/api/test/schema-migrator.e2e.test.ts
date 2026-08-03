@@ -61,4 +61,21 @@ describe('boot migrator', () => {
     await expect(applyPendingMigrations(quiet)).rejects.toThrow();
     process.env.DIRECT_URL = inject('DATABASE_URL');
   });
+
+  /**
+   * The API runs two instances, so two containers migrate at once on every
+   * deploy. Serialised by an advisory lock — without it two sessions running
+   * the same DROP/CREATE FUNCTION collide.
+   */
+  it('two instances booting together do not collide', async () => {
+    await prisma.$executeRaw`DELETE FROM schema_migration`;
+    const [a, b] = await Promise.all([
+      applyPendingMigrations(quiet),
+      applyPendingMigrations(quiet),
+    ]);
+    // One did the work, the other found it already done. Which is which is a
+    // race, so assert the invariant rather than the winner.
+    expect(a.applied.length + b.applied.length).toBeGreaterThan(0);
+    expect(Math.min(a.applied.length, b.applied.length)).toBe(0);
+  });
 });

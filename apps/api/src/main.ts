@@ -20,7 +20,14 @@ async function bootstrap(): Promise<void> {
   // doesn't match. A failure here is deliberately fatal: an API answering
   // queries for columns that don't exist corrupts data quietly, where a
   // container that won't start is loud and obvious.
-  if (process.env.SKIP_DB !== '1' && process.env.SKIP_MIGRATIONS !== '1') {
+  //
+  // The worker runs this same entrypoint and must NOT migrate. It has no
+  // DIRECT_URL, so it would attempt DDL through the transaction pooler — and
+  // because a failure here stops the boot, that would take down settlement,
+  // point expiry and the WhatsApp relay along with it. One migrator, on the
+  // service that owns the direct connection.
+  const isWorker = process.env.ROLE === 'worker';
+  if (!isWorker && process.env.SKIP_DB !== '1' && process.env.SKIP_MIGRATIONS !== '1') {
     const r = await applyPendingMigrations({
       info: (m) => console.log(m),
       error: (m) => console.error(m),

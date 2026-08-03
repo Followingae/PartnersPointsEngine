@@ -31,6 +31,13 @@ import { join } from 'node:path';
  */
 const AUTO_APPLY = INCREMENTAL_MIGRATIONS;
 
+/**
+ * Arbitrary but fixed — every instance must pick the same number for the lock
+ * to mean anything. Advisory locks share one namespace per database, so this
+ * is deliberately not a round number that something else might also choose.
+ */
+const MIGRATION_LOCK = 4_820_117;
+
 const LEDGER = `
   CREATE TABLE IF NOT EXISTS schema_migration (
     name        TEXT PRIMARY KEY,
@@ -90,6 +97,13 @@ export async function applyPendingMigrations(log: {
   let skipped = 0;
 
   try {
+    // The API runs two instances, so two containers boot at once and would
+    // otherwise migrate concurrently. The SQL is idempotent and each file is
+    // its own transaction, so the damage would be limited — but two sessions
+    // running the same `DROP FUNCTION … CREATE FUNCTION` do genuinely collide.
+    // This makes them take turns; the second finds the ledger already filled
+    // and applies nothing.
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK]);
     await client.query(LEDGER);
     const done = new Set(
       (await client.query<{ name: string }>('SELECT name FROM schema_migration')).rows.map(
@@ -121,6 +135,9 @@ export async function applyPendingMigrations(log: {
       }
     }
   } finally {
+    // Releasing explicitly is tidiness; ending the connection would drop it
+    // anyway, including when the process dies mid-migration.
+    await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK]).catch(() => undefined);
     await client.end();
   }
 
