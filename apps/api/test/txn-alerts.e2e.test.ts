@@ -150,6 +150,41 @@ describe('Transaction alerts', () => {
     expect((await alertEvents()).length).toBe(before);
   });
 
+  it('two relays running at once never claim the same event', async () => {
+    const { PrismaService } = await import('../src/platform-core/prisma/prisma.service');
+    const { TxnAlertService } = await import('../src/modules/workers/txn-alert.service');
+    const { EnvelopeCryptoService } = await import('../src/auth/crypto/envelope-crypto.service');
+
+    // Count what each relay claims rather than what it sends — no provider is
+    // configured here, so nothing actually leaves the process.
+    const claimed: string[] = [];
+    const build = () => {
+      const svc = new TxnAlertService(
+        prisma as never,
+        { sendTemplate: async () => ({ delivered: false }) } as never,
+        new EnvelopeCryptoService(fakeConfig),
+        { get: () => undefined } as never,
+      );
+      const original = (svc as never as { handle: (t: string, p: Record<string, unknown>) => Promise<boolean> }).handle;
+      (svc as never as Record<string, unknown>).handle = async (t: string, p: Record<string, unknown>) => {
+        claimed.push(String(p.transactionId ?? ''));
+        return original.call(svc, t, p);
+      };
+      return svc;
+    };
+    void PrismaService;
+
+    const pending = await prisma.outbox.count({ where: { publishedAt: null, aggregate: 'points', brandId } });
+    expect(pending).toBeGreaterThan(0);
+
+    // The API runs two instances, so this is the real race, not a hypothetical.
+    await Promise.all([build().relay(), build().relay()]);
+
+    const unique = new Set(claimed);
+    expect(claimed.length).toBe(unique.size);
+    expect(await prisma.outbox.count({ where: { publishedAt: null, aggregate: 'points', brandId } })).toBe(0);
+  });
+
   it('the recipient lookup carries what the message needs', async () => {
     const rows = await prisma.$queryRaw<{ r: { firstName: string; brandName: string; priorEarns: number } | null }[]>`
       SELECT txn_alert_recipient(${membershipId}) AS r`;

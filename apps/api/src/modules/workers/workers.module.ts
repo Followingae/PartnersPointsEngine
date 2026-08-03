@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { ExpirySweepService } from './expiry-sweep.service';
 import { OutboxService } from './outbox.service';
+import { RelayRunner } from './relay-runner.service';
 import { SettlementService } from './settlement.service';
 import { TxnAlertService } from './txn-alert.service';
 import { WebhookService } from './webhook.service';
@@ -15,7 +16,7 @@ import { WorkerScheduler } from './worker-scheduler';
  */
 @Module({
   imports: [AuthModule], // EnvelopeCryptoService for webhook secrets
-  providers: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService, WorkerScheduler],
+  providers: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService, RelayRunner, WorkerScheduler],
   exports: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService],
 })
 export class WorkersModule {}

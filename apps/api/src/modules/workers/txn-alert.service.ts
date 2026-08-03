@@ -42,27 +42,35 @@ export class TxnAlertService {
    * late is worse than one that never arrives.
    */
   async relay(limit = 50): Promise<{ sent: number; skipped: number }> {
-    const rows = await this.prisma.outbox.findMany({
-      where: { publishedAt: null, aggregate: 'points' },
-      orderBy: { createdAt: 'asc' },
-      take: limit,
-    });
+    // Claim rows atomically before sending. The API runs more than one
+    // instance, so two relays can poll at the same moment; SKIP LOCKED means
+    // each row is taken by exactly one of them and nobody is messaged twice.
+    // Marking published up front also means a crash mid-send loses a message
+    // rather than repeating it — the safer direction for something that reaches
+    // a customer's phone.
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; event_type: string; payload: unknown }>>`
+      UPDATE outbox SET published_at = now(), attempts = attempts + 1
+       WHERE id IN (
+         SELECT id FROM outbox
+          WHERE published_at IS NULL AND aggregate = 'points'
+          ORDER BY created_at
+          LIMIT ${limit}
+          FOR UPDATE SKIP LOCKED
+       )
+      RETURNING id, event_type, payload`;
 
     let sent = 0;
     let skipped = 0;
     for (const row of rows) {
       try {
-        const ok = await this.handle(row.eventType, row.payload as Record<string, unknown>);
+        const ok = await this.handle(row.event_type, row.payload as Record<string, unknown>);
         ok ? sent++ : skipped++;
       } catch (e) {
         skipped++;
         this.logger.error(`alert for outbox ${row.id} failed: ${(e as Error).message}`);
       }
-      await this.prisma.outbox.update({
-        where: { id: row.id },
-        data: { publishedAt: new Date(), attempts: { increment: 1 } },
-      });
     }
+    if (sent) this.logger.log(`sent ${sent} transaction alert(s)`);
     return { sent, skipped };
   }
 
