@@ -177,6 +177,15 @@ describe('Transaction alerts', () => {
     const pending = await prisma.outbox.count({ where: { publishedAt: null, aggregate: 'points', brandId } });
     expect(pending).toBeGreaterThan(0);
 
+    // Age them past the settle window. `claim_txn_alerts` deliberately ignores
+    // anything newer than that, so without this the test only passes when the
+    // tests above it happened to take more than twenty seconds — which is why
+    // it passed locally and failed in CI. What is under test here is that two
+    // relays never claim the same row, not how long the suite took to get here.
+    await prisma.$executeRaw`
+      UPDATE outbox SET created_at = now() - interval '1 hour'
+       WHERE published_at IS NULL AND aggregate = 'points' AND brand_id = ${brandId}`;
+
     // The API runs two instances, so this is the real race, not a hypothetical.
     await Promise.all([build().relay(), build().relay()]);
 
