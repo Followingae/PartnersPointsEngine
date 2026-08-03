@@ -57,7 +57,8 @@ export class TxnAlertService {
     for (const sale of groupBySale(rows)) {
       try {
         const ok = await this.handleSale(sale);
-        ok ? sent++ : skipped++;
+        if (ok) sent++;
+        else skipped++;
       } catch (e) {
         skipped++;
         this.logger.error(`alert for ${sale.transactionIds.join(', ')} failed: ${(e as Error).message}`);
@@ -196,7 +197,8 @@ export function groupBySale(events: AlertEvent[]): Sale[] {
     const member = String(e.payload.membershipId ?? '');
     if (!member) continue;
     const list = byMember.get(member);
-    list ? list.push(e) : byMember.set(member, [e]);
+    if (list) list.push(e);
+    else byMember.set(member, [e]);
   }
 
   const sales: Sale[] = [];

@@ -4,7 +4,6 @@
  * against embedded Postgres (owner connection; RLS proven separately).
  */
 import { randomUUID } from 'node:crypto';
-import { JwtService } from '@nestjs/jwt';
 import { ledger, PrismaClient } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { inject } from 'vitest';

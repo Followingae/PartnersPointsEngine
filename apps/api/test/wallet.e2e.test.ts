@@ -8,7 +8,6 @@
  */
 import { randomUUID } from 'node:crypto';
 import { ledger, PrismaClient } from '@rfm-loyalty/db';
-import type { TenantContext } from '@rfm-loyalty/shared';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EnvelopeCryptoService } from '../src/auth/crypto/envelope-crypto.service';

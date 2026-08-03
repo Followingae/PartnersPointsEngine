@@ -6,7 +6,6 @@
  * issued and verified through the database, and that the endpoint can't be used
  * to text a number repeatedly or to brute-force a code.
  */
-import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@rfm-loyalty/db';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

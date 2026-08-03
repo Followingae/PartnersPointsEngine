@@ -6,7 +6,7 @@
  * genuinely *once* — a customer messaged twice for one coffee will opt out, and
  * a till that retries must not cost them that.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaClient } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
@@ -22,7 +22,7 @@ import { OutboxService } from '../src/modules/workers/outbox.service';
 import { AuditService } from '../src/platform-core/audit/audit.service';
 import { TenantService } from '../src/platform-core/tenancy/tenant.service';
 
-const sha256 = (v: string) => require('node:crypto').createHash('sha256').update(v).digest('hex');
+const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
 const fakeConfig = {
   get: (k: string) => ({ JWT_ACCESS_TTL_SECONDS: 900 })[k as 'JWT_ACCESS_TTL_SECONDS'],

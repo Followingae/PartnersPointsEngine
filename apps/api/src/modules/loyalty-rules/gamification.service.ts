@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ledger, type Prisma } from '@rfm-loyalty/db';
-import { pointsAsset, type TenantContext } from '@rfm-loyalty/shared';
+import { type TenantContext } from '@rfm-loyalty/shared';
 import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { sortClause, type ListQuery, type ListResult } from './list';
