@@ -45,19 +45,40 @@ const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/js
 const rewardsList = await fetch(`${BASE}/v1/manage/rewards?limit=5`, { headers: auth }).then(json);
 check('GET /v1/manage/rewards → { rows, total }', Array.isArray(rewardsList?.rows) && typeof rewardsList?.total === 'number');
 
-// Full CRUD round-trip: create → PATCH → clone → DELETE(archive).
-// Unique per run. Reward names are unique within a brand, so a fixed name made
-// this whole block fail with a 409 the moment the database wasn't empty —
-// against a seeded CI database, or twice in a row locally.
+/**
+ * Full CRUD round-trip: create → PATCH → clone → DELETE(archive).
+ *
+ * Unless the brand is governed. A brand set to `approval_required` answers a
+ * write with 409 and a queued change request — that is the feature working, not
+ * a failure, and asserting a direct create made this block fail on a seeded
+ * database where the brand admin's brand is exactly that. So both outcomes are
+ * checked, and the id-dependent steps only run when there is an id.
+ *
+ * The name is unique per run because reward names are unique within a brand,
+ * and a fixed one collides the second time this is ever run.
+ */
 const rewardName = `SMOKE reward ${randomUUID().slice(0, 8)}`;
-const created = await fetch(`${BASE}/v1/manage/rewards`, { method: 'POST', headers: auth, body: JSON.stringify({ name: rewardName, pointsCost: 123, kind: 'voucher' }) }).then(json);
-check('POST reward → id', typeof created?.id === 'string');
-const patched = await fetch(`${BASE}/v1/manage/rewards/${created?.id}`, { method: 'PATCH', headers: auth, body: JSON.stringify({ pointsCost: 321 }) }).then(json);
-check('PATCH reward → updated cost', patched?.pointsCost === '321');
-const cloneRes = await fetch(`${BASE}/v1/manage/rewards/${created?.id}/clone`, { method: 'POST', headers: auth });
-check('POST reward/:id/clone → 201', cloneRes.status === 201 || cloneRes.status === 200);
-const delRes = await fetch(`${BASE}/v1/manage/rewards/${created?.id}`, { method: 'DELETE', headers: auth });
-check('DELETE reward → 200', delRes.status === 200);
+const createRes = await fetch(`${BASE}/v1/manage/rewards`, {
+  method: 'POST',
+  headers: auth,
+  body: JSON.stringify({ name: rewardName, pointsCost: 123, kind: 'voucher' }),
+});
+const created = await createRes.json().catch(() => null);
+const governed =
+  createRes.status === 409 &&
+  (created?.error?.details?.kind ?? created?.details?.kind) === 'change_request_pending';
+
+if (governed) {
+  check('POST reward → queued for approval (governed brand)', true);
+} else {
+  check('POST reward → id', typeof created?.id === 'string');
+  const patched = await fetch(`${BASE}/v1/manage/rewards/${created?.id}`, { method: 'PATCH', headers: auth, body: JSON.stringify({ pointsCost: 321 }) }).then(json);
+  check('PATCH reward → updated cost', patched?.pointsCost === '321');
+  const cloneRes = await fetch(`${BASE}/v1/manage/rewards/${created?.id}/clone`, { method: 'POST', headers: auth });
+  check('POST reward/:id/clone → 201', cloneRes.status === 201 || cloneRes.status === 200);
+  const delRes = await fetch(`${BASE}/v1/manage/rewards/${created?.id}`, { method: 'DELETE', headers: auth });
+  check('DELETE reward → 200', delRes.status === 200);
+}
 
 // Audit trail is populated by mutations.
 const audit = await fetch(`${BASE}/v1/manage/audit-logs?limit=5`, { headers: auth }).then(json);
