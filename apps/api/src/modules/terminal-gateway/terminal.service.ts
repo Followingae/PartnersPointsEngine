@@ -5,6 +5,7 @@ import { EarnRule, evaluateEarn, type CustomerIdentifierType, type TenantContext
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { TokenService, type MemberTokenClaims } from '../../auth/tokens/token.service';
 import { EmailService } from '../../platform-core/email/email.service';
+import { OutboxService } from '../workers/outbox.service';
 import type { ReceiptEmailData } from '../../platform-core/email/email.templates';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { LoyaltyService, redemptionValueMinor, scheduleContext } from '../loyalty-rules/loyalty.service';
@@ -51,6 +52,8 @@ export class TerminalService {
     private readonly crypto: EnvelopeCryptoService,
     /** Optional so the ledger tests can build this service without a mailer. */
     private readonly email?: EmailService,
+    /** Optional for the same reason; without it no transaction alerts are emitted. */
+    private readonly outbox?: OutboxService,
   ) {}
 
   /**
@@ -533,6 +536,17 @@ export class TerminalService {
             sourceEvent: dto.sourceEvent ?? null,
           },
         });
+        // Emitted inside the same transaction, after the idempotency guard
+        // above has already returned for a replay — so this fires exactly once
+        // per real sale, and never for a retry.
+        await this.outbox?.emit(tx, ctx, 'points', 'points.earned', {
+          membershipId: claims.membershipId,
+          transactionId: created.id,
+          points: r.decision.points.toString(),
+          amountMinor: dto.amountMinor ?? null,
+          journalId: r.journalId,
+        });
+
         // Hand the till everything worth celebrating + printing on the slip.
         return {
           ...mapTxn(created),
@@ -589,6 +603,16 @@ export class TerminalService {
       });
       // The sale is real, so any rewards held for it are now genuinely spent.
       await this.confirmVoucherHolds(tx, ctx.brandId!, t.membershipId);
+
+      // Capture only moves a transaction out of 'authorized' once, so this
+      // emits once even if the till retries the call.
+      await this.outbox?.emit(tx, ctx, 'points', 'points.redeemed', {
+        membershipId: t.membershipId,
+        transactionId: t.id,
+        points: t.points.toString(),
+        journalId: cap.journalId,
+      });
+
       // NOTE: group-wallet drawdown settlement is performed by a group-scoped
       // settlement worker (Phase 5) — the terminal context is brand-scoped.
       return mapTxn(updated);

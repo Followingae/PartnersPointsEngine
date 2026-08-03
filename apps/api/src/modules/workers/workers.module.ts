@@ -3,6 +3,7 @@ import { AuthModule } from '../../auth/auth.module';
 import { ExpirySweepService } from './expiry-sweep.service';
 import { OutboxService } from './outbox.service';
 import { SettlementService } from './settlement.service';
+import { TxnAlertService } from './txn-alert.service';
 import { WebhookService } from './webhook.service';
 import { WorkerScheduler } from './worker-scheduler';
 
@@ -14,7 +15,7 @@ import { WorkerScheduler } from './worker-scheduler';
  */
 @Module({
   imports: [AuthModule], // EnvelopeCryptoService for webhook secrets
-  providers: [SettlementService, OutboxService, WebhookService, ExpirySweepService, WorkerScheduler],
-  exports: [SettlementService, OutboxService, WebhookService, ExpirySweepService],
+  providers: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService, WorkerScheduler],
+  exports: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService],
 })
 export class WorkersModule {}

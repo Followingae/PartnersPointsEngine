@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import { Controller, Get, Headers, NotFoundException, Param, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import PDFDocument from 'pdfkit';
@@ -16,7 +16,11 @@ export class ReceiptPublicController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get(':token')
-  async view(@Param('token') token: string, @Res() res: Response) {
+  async view(
+    @Param('token') token: string,
+    @Res() res: Response,
+    @Headers('user-agent') userAgent?: string,
+  ) {
     res.setHeader('Content-Security-Policy', RECEIPT_CSP);
     const r = await this.prisma.receipt.findUnique({ where: { token } });
     if (!r) {
@@ -36,7 +40,7 @@ export class ReceiptPublicController {
       SELECT ereceipt_brand(${r.brandId}) AS branding`;
     const brand = (brandRows[0]?.branding ?? {}) as BrandProfile;
     res.status(200).type('html').send(
-      shell(`${esc(r.brandName)} — Receipt`, receiptBody(r, ad?.enabled ? ad : null, brand)),
+      shell(`${esc(r.brandName)} — Receipt`, receiptBody(r, ad?.enabled ? ad : null, brand, storeFor(userAgent))),
     );
   }
 
@@ -131,6 +135,28 @@ const pts = (v: bigint) => Number(v).toLocaleString('en-US');
 
 interface ReceiptVoucher { code: string; rewardName: string; discountMinor: number }
 
+interface StoreLink { label: string; url: string }
+
+/**
+ * Which app store to point a reader at.
+ *
+ * Decided from the User-Agent server-side because this page deliberately carries
+ * no JavaScript — its CSP has no `script-src` at all, so feature detection in the
+ * browser isn't available. A desktop reader gets nothing rather than a guess;
+ * they're not going to install a phone app from a laptop.
+ */
+function storeFor(userAgent?: string): StoreLink | null {
+  const ua = userAgent ?? '';
+  const site = process.env.APP_SITE_URL ?? 'https://partnerspoints.ae';
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return { label: 'Get the app', url: process.env.APP_STORE_URL ?? site };
+  }
+  if (/Android/i.test(ua)) {
+    return { label: 'Get the app', url: process.env.PLAY_STORE_URL ?? site };
+  }
+  return null;
+}
+
 /** Receipt.vouchers is free-form JSON; only trust rows that actually look right. */
 function receiptVouchers(raw: unknown): ReceiptVoucher[] {
   if (!Array.isArray(raw)) return [];
@@ -198,6 +224,22 @@ function shell(title: string, body: string): string {
   .social a{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}
   .social a svg{flex:0 0 auto;opacity:.75}
   .btn svg{flex:0 0 auto}
+  /* get-the-app pill — bottom right, lifted clear of the sponsored bar.
+     A pill rather than the official store artwork: Apple's and Google's badges
+     have usage rules and we shouldn't approximate them. Drop the real assets in
+     here when they're licensed. */
+  .getapp{
+    position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;
+    display:inline-flex;align-items:center;gap:7px;
+    padding:10px 14px;border-radius:999px;
+    background:var(--ink);color:#fff;text-decoration:none;
+    font-size:12.5px;font-weight:600;line-height:1;
+    box-shadow:0 8px 24px -8px rgba(21,21,15,.45);
+  }
+  .getapp svg{opacity:.85}
+  .getapp--raised{bottom:calc(clamp(104px,21vh,150px) + 76px + env(safe-area-inset-bottom))}
+  @media (max-width:360px){ .getapp span{display:none} .getapp{padding:11px} }
+
   /* sponsored bar — docked, compact, content scrolls behind it */
   .adbar{
     position:fixed;left:0;right:0;bottom:0;z-index:5;
@@ -246,7 +288,7 @@ function shell(title: string, body: string): string {
     :root{--canvas:#fff;--card:#fff;--ink:#000;--line:#ddd}
     body{background:#fff}
     .wrap{max-width:100%;padding:0}
-    .no-print,.adbar{display:none!important}
+    .no-print,.adbar,.getapp{display:none!important}
     .card{border:1px solid #ddd;break-inside:avoid}
     @page{margin:14mm}
   }
@@ -315,6 +357,7 @@ function receiptBody(
   },
   ad: { headline?: string; body?: string; ctaLabel?: string; ctaUrl?: string; imageUrl?: string } | null,
   brand: BrandProfile,
+  store: StoreLink | null,
 ): string {
   const color = /^#[0-9a-fA-F]{6}$/.test(brand.primaryColor ?? '')
     ? brand.primaryColor!
@@ -387,6 +430,16 @@ function receiptBody(
          <div class="adoverlay">${adCopy}</div>
        </div>`
     : `<div class="adplain">${adCopy}</div>`;
+  // Sits above the ad when there is one, so the two never overlap.
+  const appBlock = store
+    ? `<a class="getapp no-print${ad?.headline || hasAdImage ? ' getapp--raised' : ''}" href="${esc(store.url)}">
+         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+           <rect x="6" y="2.5" width="12" height="19" rx="2.6"></rect><path d="M11 18.6h2"></path>
+         </svg>
+         <span>${esc(store.label)}</span>
+       </a>`
+    : '';
+
   const adBlock = ad?.headline || hasAdImage
     ? `<div class="adspacer no-print"></div><div class="adbar no-print">${
         hasAdLink
@@ -455,5 +508,6 @@ function receiptBody(
   <div style="text-align:center;margin-top:18px" class="tiny faint">
     Digital receipt · Powered by <b style="color:var(--muted)">Partners Points</b>
   </div>
+  ${appBlock}
   ${adBlock}`;
 }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { LoyaltyRulesModule } from '../loyalty-rules/loyalty-rules.module';
+import { WorkersModule } from '../workers/workers.module';
 import { ReceiptPublicController } from './receipt-public.controller';
 import { TerminalController } from './terminal.controller';
 import { TerminalService } from './terminal.service';
@@ -11,7 +12,7 @@ import { TerminalService } from './terminal.service';
  * and the authorize→capture/void transaction state machine (Phase 4).
  */
 @Module({
-  imports: [AuthModule, LoyaltyRulesModule],
+  imports: [AuthModule, LoyaltyRulesModule, WorkersModule],
   controllers: [TerminalController, ReceiptPublicController],
   providers: [TerminalService],
   exports: [TerminalService],

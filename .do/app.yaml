@@ -42,6 +42,11 @@ services:
       # WhatsApp reaches UAE numbers an overseas SMS long code often cannot.
       - { key: TWILIO_CHANNEL, value: whatsapp }
       - { key: TWILIO_CONTENT_SID, scope: RUN_TIME, type: SECRET }
+      # Per-transaction alert templates (Meta-approved, one per event).
+      - { key: TWILIO_TPL_WELCOME, scope: RUN_TIME, type: SECRET }
+      - { key: TWILIO_TPL_EARNED, scope: RUN_TIME, type: SECRET }
+      - { key: TWILIO_TPL_REDEEMED, scope: RUN_TIME, type: SECRET }
+      - { key: TWILIO_TPL_ADJUSTED, scope: RUN_TIME, type: SECRET }
       # Transactional email (Resend).
       - { key: RESEND_API_KEY, scope: RUN_TIME, type: SECRET }
       - { key: EMAIL_FROM, value: "Partners Points <hello@mail.partnerspoints.ae>" }

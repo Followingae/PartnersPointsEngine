@@ -109,18 +109,42 @@ export class CustomerWalletService {
       email: this.reveal(p.emailEnc),
       gender: p.gender,
       birthdate: p.birthdate,
+      nationality: p.nationality,
+      txnAlertsOptOut: Boolean(p.txnAlertsOptOut),
       joinedAt: p.joinedAt,
     };
   }
 
+  /**
+   * Edit the signed-in person's own details.
+   *
+   * Each field carries an explicit "was it supplied" flag, so omitting a field
+   * leaves it alone while sending `null` genuinely clears it. The previous
+   * version used COALESCE for both, which meant a customer clearing their
+   * birthday silently kept it — the DTO documented the opposite.
+   */
   async updateProfile(
     personId: string,
-    dto: { fullName?: string; gender?: string; birthdate?: string | null },
+    dto: {
+      fullName?: string;
+      gender?: string | null;
+      birthdate?: string | null;
+      nationality?: string | null;
+      txnAlertsOptOut?: boolean;
+    },
   ) {
+    const has = (k: keyof typeof dto) => Object.prototype.hasOwnProperty.call(dto, k);
     await this.call(
       'wallet_update_profile',
-      [personId, dto.fullName?.trim() || null, dto.gender || null, dto.birthdate ?? null],
-      [null, null, null, 'date'],
+      [
+        personId,
+        has('fullName'), dto.fullName?.trim() || null,
+        has('gender'), dto.gender || null,
+        has('birthdate'), dto.birthdate ?? null,
+        has('nationality'), dto.nationality ? dto.nationality.toUpperCase() : null,
+        has('txnAlertsOptOut'), dto.txnAlertsOptOut ?? false,
+      ],
+      [null, null, null, null, null, null, 'date', null, null, null, null],
     );
     return this.profile(personId);
   }
@@ -244,6 +268,8 @@ interface WalletProfile {
   fullName: string | null;
   gender: string | null;
   birthdate: string | null;
+  nationality: string | null;
+  txnAlertsOptOut: boolean;
   joinedAt: string;
   phoneEnc: string | null;
   emailEnc: string | null;

@@ -168,6 +168,32 @@ describe('Customer wallet (person-scoped, spans brands)', () => {
     expect(partial.fullName).toBe('Zain Ahmed');
   });
 
+  it('distinguishes "leave alone" from "clear it"', async () => {
+    await wallet.updateProfile(personId, { birthdate: '1994-03-17', nationality: 'ae' });
+    const set = await wallet.profile(personId);
+    expect(set.birthdate).not.toBeNull();
+    // Stored as the canonical uppercase code regardless of what was sent.
+    expect(set.nationality).toBe('AE');
+
+    // Omitting the key leaves it be...
+    const untouched = await wallet.updateProfile(personId, { fullName: 'Zain A' });
+    expect(untouched.birthdate).not.toBeNull();
+    expect(untouched.nationality).toBe('AE');
+
+    // ...while explicitly sending null clears it. The old COALESCE version
+    // treated both the same, so a customer could never remove their birthday.
+    const cleared = await wallet.updateProfile(personId, { birthdate: null, nationality: null });
+    expect(cleared.birthdate).toBeNull();
+    expect(cleared.nationality).toBeNull();
+  });
+
+  it('records an opt-out from per-transaction messages', async () => {
+    const off = await wallet.updateProfile(personId, { txnAlertsOptOut: true });
+    expect(off.txnAlertsOptOut).toBe(true);
+    const on = await wallet.updateProfile(personId, { txnAlertsOptOut: false });
+    expect(on.txnAlertsOptOut).toBe(false);
+  });
+
   it('joins a brand from the app, and the till can then recognise the customer', async () => {
     const outsider = await prisma.person.create({ data: { platformId, fullName: 'New Joiner' } });
     expect(await wallet.cards(outsider.id)).toHaveLength(0);

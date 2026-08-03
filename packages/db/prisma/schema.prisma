@@ -539,6 +539,15 @@ model Person {
   fullName   String?  @map("full_name")
   gender     String?
   birthdate  DateTime? @db.Date
+  /** ISO 3166-1 alpha-2. Stored as a code, rendered as a name. */
+  nationality String? @db.VarChar(2)
+  /**
+   * Customer asked to stop receiving a message after each transaction.
+   * These are transactional by nature, but a message after every purchase sits
+   * close enough to marketing that an opt-out is required rather than optional.
+   * Sign-in codes ignore this — you cannot opt out of being able to sign in.
+   */
+  txnAlertsOptOut Boolean @default(false) @map("txn_alerts_opt_out")
   status     EntityStatus @default(active)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

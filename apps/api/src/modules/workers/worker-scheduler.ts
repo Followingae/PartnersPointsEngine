@@ -24,6 +24,9 @@ export class WorkerScheduler implements OnModuleInit {
       const queue = new Queue('rfm-maintenance', { connection: { url: redisUrl } as never });
       await queue.add('settlement', {}, { repeat: { every: 60_000 }, removeOnComplete: true });
       await queue.add('webhooks', {}, { repeat: { every: 30_000 }, removeOnComplete: true });
+      // A transaction alert is stale within minutes, so this runs tighter than
+      // the other relays.
+      await queue.add('txn-alerts', {}, { repeat: { every: 15_000 }, removeOnComplete: true });
       await queue.add('point-expiry', {}, { repeat: { pattern: '0 2 * * *' }, removeOnComplete: true });
       this.logger.log('Background scheduler enabled (BullMQ): settlement, webhooks, point-expiry.');
       // NOTE: the Worker processors (which iterate tenants and call the services)

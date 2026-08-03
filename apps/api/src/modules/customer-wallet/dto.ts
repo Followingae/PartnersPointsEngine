@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsISO8601, IsOptional, IsString, Length, MaxLength } from 'class-validator';
 
 export class UpdateWalletProfileDto {
   @ApiPropertyOptional({ example: 'Zain Ahmed' })
@@ -18,4 +18,20 @@ export class UpdateWalletProfileDto {
   @IsOptional()
   @IsISO8601()
   birthdate?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'AE',
+    description: 'ISO 3166-1 alpha-2 country code; null clears it.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  nationality?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Stop the WhatsApp message sent after each transaction. Sign-in codes are unaffected.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  txnAlertsOptOut?: boolean;
 }

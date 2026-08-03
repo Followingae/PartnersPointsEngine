@@ -77,31 +77,63 @@ export class SmsSenderService {
     }
   }
 
+  /**
+   * Sends an approved WhatsApp template with positional variables.
+   *
+   * Separate from `sendCode` because these are business-initiated messages about
+   * something that just happened, not an authentication code — different
+   * templates, different variables, and they must respect the customer's opt-out
+   * where a sign-in code must not.
+   */
+  async sendTemplate(
+    phone: string,
+    contentSid: string,
+    vars: string[],
+  ): Promise<{ delivered: boolean }> {
+    if (this.provider !== 'twilio') {
+      this.logger.warn(`[TEMPLATE NOT SENT — no Twilio provider] ${contentSid} -> ${phone}`);
+      return { delivered: false };
+    }
+    const contentVariables = Object.fromEntries(vars.map((v, i) => [String(i + 1), v]));
+    return this.twilioPost(phone, { ContentSid: contentSid, ContentVariables: JSON.stringify(contentVariables) });
+  }
+
   private async sendViaTwilio(
     phone: string,
     text: string,
     code?: string,
+  ): Promise<{ delivered: boolean }> {
+    const whatsapp = this.config.get<string>('TWILIO_CHANNEL') === 'whatsapp';
+    const contentSid = this.config.get<string>('TWILIO_CONTENT_SID');
+
+    // WhatsApp only allows business-initiated messages through an approved
+    // template, so the code travels as a template variable, not as free text.
+    return whatsapp && contentSid
+      ? this.twilioPost(phone, {
+          ContentSid: contentSid,
+          ContentVariables: JSON.stringify({ '1': code ?? text }),
+        })
+      : this.twilioPost(phone, { Body: text });
+  }
+
+  /**
+   * The one place a Twilio message is actually posted. Shared so the sender,
+   * channel prefixing and error handling can't drift between the sign-in code
+   * path and the transaction-alert path.
+   */
+  private async twilioPost(
+    phone: string,
+    fields: Record<string, string>,
   ): Promise<{ delivered: boolean }> {
     const accountSid = this.config.getOrThrow<string>('TWILIO_ACCOUNT_SID');
     const keySid = this.config.getOrThrow<string>('TWILIO_API_KEY_SID');
     const keySecret = this.config.getOrThrow<string>('TWILIO_API_KEY_SECRET');
     const from = this.config.get<string>('TWILIO_FROM');
     const messagingServiceSid = this.config.get<string>('TWILIO_MESSAGING_SERVICE_SID');
-    // WhatsApp reaches UAE numbers that an overseas SMS long code often can't.
     const whatsapp = this.config.get<string>('TWILIO_CHANNEL') === 'whatsapp';
-    const contentSid = this.config.get<string>('TWILIO_CONTENT_SID');
 
     const addr = (n: string) => (whatsapp && !n.startsWith('whatsapp:') ? `whatsapp:${n}` : n);
-    const body = new URLSearchParams({ To: addr(phone) });
-
-    if (whatsapp && contentSid) {
-      // WhatsApp only allows business-initiated messages through an approved
-      // template, so the code travels as a template variable, not as free text.
-      body.set('ContentSid', contentSid);
-      body.set('ContentVariables', JSON.stringify({ '1': code ?? text }));
-    } else {
-      body.set('Body', text);
-    }
+    const body = new URLSearchParams({ To: addr(phone), ...fields });
 
     // A messaging service handles sender selection and compliance; a bare From
     // is the simpler setup. Twilio rejects both together.
@@ -124,7 +156,7 @@ export class SmsSenderService {
       );
 
       if (!res.ok) {
-        // Twilio explains itself well; carry the reason but never the code.
+        // Twilio explains itself well; carry the reason but never the payload.
         const detail = await res.text().catch(() => '');
         const reason = (() => {
           try {
