@@ -37,9 +37,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version:` here on purpose. package.json already pins
+      # `packageManager: pnpm@10.29.3`, and specifying both makes the action
+      # refuse to start — which is why CI has been red on every run rather than
+      # for anything to do with the code.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
