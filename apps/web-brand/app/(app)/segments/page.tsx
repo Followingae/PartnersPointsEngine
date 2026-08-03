@@ -5,27 +5,38 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, ConfirmDialog, Field, Modal, PageHeader, Select } from '@/components/form';
 import { ActionMenu, Badge, Card, EmptyState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { createSegment, deleteSegment, getSegments, previewSegment, updateSegment, type SegmentDefinition, type SegmentPreview, type SegmentRow, type SegmentRule } from '@/lib/api';
+import { createSegment, deleteSegment, getSegmentFields, getSegments, previewSegment, updateSegment, type SegmentDefinition, type SegmentField, type SegmentPreview, type SegmentRow, type SegmentRule } from '@/lib/api';
 
-const FIELDS = [
-  { value: 'lifetime', label: 'Lifetime points' },
-  { value: 'recencyDays', label: 'Days since last visit' },
-  { value: 'frequency', label: 'Visit count' },
-  { value: 'tier', label: 'Tier' },
-  { value: 'status', label: 'Status' },
+/**
+ * Operator labels. The set of operators *available* comes from the engine per
+ * field; this only decides how each one reads.
+ */
+const OP_LABEL: Record<string, string> = {
+  gte: '≥', lte: '≤', gt: '>', lt: '<', eq: '=', neq: '≠',
+  in: 'is one of', not_in: 'is not one of', is_set: 'is given', is_not_set: 'is not given',
+};
+
+/** Shown until the engine's field list arrives, so the first paint isn't empty. */
+const FALLBACK_FIELDS: SegmentField[] = [
+  { key: 'lifetime', label: 'Lifetime points', type: 'number', ops: ['gte', 'lte', 'gt', 'lt', 'eq', 'neq'] },
 ];
-const OPS = [
-  { value: 'gte', label: '≥' },
-  { value: 'lte', label: '≤' },
-  { value: 'gt', label: '>' },
-  { value: 'lt', label: '<' },
-  { value: 'eq', label: '=' },
-  { value: 'neq', label: '≠' },
-];
-const fieldLabel = (f: string) => FIELDS.find((x) => x.value === f)?.label ?? f;
-const opLabel = (o: string) => OPS.find((x) => x.value === o)?.label ?? o;
-const ruleSummary = (def: SegmentDefinition) =>
-  (def.rules ?? []).length === 0 ? 'All members' : (def.rules ?? []).map((r) => `${fieldLabel(r.field)} ${opLabel(r.op)} ${r.value}`).join(def.match === 'any' ? '  OR  ' : '  AND  ');
+
+const opLabel = (o: string) => OP_LABEL[o] ?? o;
+const ruleSummary = (def: SegmentDefinition, fields: SegmentField[] = []) => {
+  const label = (k: string) => fields.find((f) => f.key === k)?.label ?? k;
+  const rules = def.rules ?? [];
+  if (rules.length === 0) return 'All members';
+  return rules
+    .map((r) => {
+      const value = Array.isArray(r.value) ? r.value.join(', ') : r.value;
+      // A nullary operator reads as a sentence on its own — "Nationality is not
+      // given" rather than "Nationality is not given ''".
+      return ['is_set', 'is_not_set'].includes(r.op)
+        ? `${label(r.field)} ${opLabel(r.op)}`
+        : `${label(r.field)} ${opLabel(r.op)} ${value}`;
+    })
+    .join(def.match === 'any' ? '  OR  ' : '  AND  ');
+};
 
 export default function SegmentsPage() {
   const toast = useToast();
@@ -34,6 +45,13 @@ export default function SegmentsPage() {
   const [editing, setEditing] = useState<SegmentRow | 'new' | null>(null);
   const [toDelete, setToDelete] = useState<SegmentRow | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Field metadata is only needed to label rules in the summary line; a slow or
+  // failed fetch shouldn't stop the segments themselves rendering.
+  const [fields, setFields] = useState<SegmentField[]>(FALLBACK_FIELDS);
+  useEffect(() => {
+    getSegmentFields().then(setFields).catch(() => undefined);
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -82,7 +100,7 @@ export default function SegmentsPage() {
                 ]} />
               </div>
               <div className="mt-4 rounded-2xl bg-muted/50 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">Audience: </span><span className="font-medium">{ruleSummary(s.definition)}</span>
+                <span className="text-muted-foreground">Audience: </span><span className="font-medium">{ruleSummary(s.definition, fields)}</span>
               </div>
             </Card>
           ))}
@@ -105,7 +123,15 @@ function SegmentBuilder({ segment, onClose, onSaved }: { segment: SegmentRow | n
   const [previewing, setPreviewing] = useState(false);
   const [errors, setErrors] = useState<{ name?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [fields, setFields] = useState<SegmentField[]>(FALLBACK_FIELDS);
 
+  // Served by the engine, so a new attribute appears here the moment the
+  // engine understands it.
+  useEffect(() => {
+    getSegmentFields().then(setFields).catch(() => undefined);
+  }, []);
+
+  const fieldOf = (key: string) => fields.find((f) => f.key === key) ?? fields[0];
   const def: SegmentDefinition = { match, rules };
 
   // live preview (debounced) as rules change
@@ -153,13 +179,23 @@ function SegmentBuilder({ segment, onClose, onSaved }: { segment: SegmentRow | n
           <div className="space-y-2">
             {rules.map((r, i) => (
               <div key={i} className="flex items-center gap-2">
-                <select value={r.field} onChange={(e) => setRule(i, { field: e.target.value })} className="flex-1 rounded-xl border border-input bg-white px-3 py-2 text-sm outline-none focus:border-ink">
-                  {FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                <select
+                  value={r.field}
+                  onChange={(e) => {
+                    // Operators are per field, so changing the field may leave
+                    // an operator the new one doesn't support.
+                    const next = fieldOf(e.target.value);
+                    const op = next?.ops.includes(r.op) ? r.op : (next?.ops[0] ?? 'eq');
+                    setRule(i, { field: e.target.value, op, value: next?.options?.[0]?.value ?? '' });
+                  }}
+                  className="flex-1 rounded-xl border border-input bg-white px-3 py-2 text-sm outline-none focus:border-ink"
+                >
+                  {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
                 </select>
-                <select value={r.op} onChange={(e) => setRule(i, { op: e.target.value })} className="w-16 rounded-xl border border-input bg-white px-2 py-2 text-center text-sm outline-none focus:border-ink">
-                  {OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <select value={r.op} onChange={(e) => setRule(i, { op: e.target.value })} className="w-32 rounded-xl border border-input bg-white px-2 py-2 text-center text-sm outline-none focus:border-ink">
+                  {(fieldOf(r.field)?.ops ?? []).map((o) => <option key={o} value={o}>{opLabel(o)}</option>)}
                 </select>
-                <input value={String(r.value)} onChange={(e) => setRule(i, { value: e.target.value })} className="w-28 rounded-xl border border-input bg-white px-3 py-2 text-sm outline-none focus:border-ink" />
+                <RuleValue field={fieldOf(r.field)} rule={r} onChange={(value) => setRule(i, { value })} />
                 <button onClick={() => removeRule(i)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X size={15} /></button>
               </div>
             ))}
@@ -184,5 +220,65 @@ function SegmentBuilder({ segment, onClose, onSaved }: { segment: SegmentRow | n
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * The value control for one rule.
+ *
+ * A single free-text box was fine when every field was a number, but it made
+ * nationality unusable — a brand had to know that "United Arab Emirates" is
+ * typed as `AE`. Enum fields get a picker, and set operators get a multi-select
+ * so "is one of" can actually take several.
+ */
+function RuleValue({
+  field,
+  rule,
+  onChange,
+}: {
+  field?: SegmentField;
+  rule: SegmentRule;
+  onChange: (value: string | number | Array<string | number>) => void;
+}) {
+  // Nothing to enter for "is given" / "is not given".
+  if (['is_set', 'is_not_set'].includes(rule.op)) {
+    return <div className="w-40 shrink-0 text-center text-sm text-muted-foreground">—</div>;
+  }
+
+  const multiple = ['in', 'not_in'].includes(rule.op);
+
+  if (field?.type === 'enum' && field.options) {
+    const selected = Array.isArray(rule.value)
+      ? rule.value.map(String)
+      : String(rule.value ?? '').split(',').map((v) => v.trim()).filter(Boolean);
+    return (
+      <select
+        multiple={multiple}
+        value={multiple ? selected : selected[0] ?? ''}
+        onChange={(e) =>
+          onChange(
+            multiple
+              ? Array.from(e.target.selectedOptions, (o) => o.value)
+              : e.target.value,
+          )
+        }
+        className="w-40 shrink-0 rounded-xl border border-input bg-white px-2 py-2 text-sm outline-none focus:border-ink"
+        size={multiple ? 4 : undefined}
+      >
+        {!multiple && <option value="">Choose…</option>}
+        {field.options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <input
+      type={field?.type === 'number' ? 'number' : 'text'}
+      value={Array.isArray(rule.value) ? rule.value.join(',') : String(rule.value ?? '')}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-40 shrink-0 rounded-xl border border-input bg-white px-3 py-2 text-sm outline-none focus:border-ink"
+    />
   );
 }

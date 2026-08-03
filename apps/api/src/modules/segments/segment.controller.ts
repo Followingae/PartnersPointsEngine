@@ -23,6 +23,17 @@ export class SegmentController {
     return this.segments.preview(ctx, dto.definition as SegmentDefinition);
   }
 
+  /**
+   * The attributes a rule can use, with their operators and any value list.
+   *
+   * Declared before `:id` so "fields" isn't parsed as a segment id.
+   */
+  @Get('fields')
+  @ApiOperation({ summary: 'Attributes a segment can filter on, for the rule builder.' })
+  fields() {
+    return this.segments.fields();
+  }
+
   @Get()
   @RequirePermissions('brand.report.read')
   list(@CurrentTenant() ctx: TenantContext) {

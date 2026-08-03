@@ -333,7 +333,23 @@ export const updateCoupon = (id: string, body: Partial<{ status: string; maxRede
   api(`/manage/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
 
 // ── segments (W4) ─────────────────────────────────────────────────────────────
-export interface SegmentRule { field: string; op: string; value: string | number }
+export interface SegmentRule { field: string; op: string; value: string | number | Array<string | number> }
+
+/**
+ * The attributes a rule can use, served by the engine.
+ *
+ * This list used to be hardcoded here and kept in step with the server by hand,
+ * so a new attribute meant editing both sides and a mismatch failed at preview
+ * time with an unhelpful error.
+ */
+export interface SegmentField {
+  key: string;
+  label: string;
+  type: 'number' | 'text' | 'enum';
+  ops: string[];
+  options?: Array<{ value: string; label: string }>;
+}
+export const getSegmentFields = () => api<SegmentField[]>('/manage/segments/fields');
 export interface SegmentDefinition { match?: 'all' | 'any'; rules?: SegmentRule[] }
 export interface SegmentRow { id: string; name: string; description: string | null; definition: SegmentDefinition; status: string }
 export interface SegmentPreview {
