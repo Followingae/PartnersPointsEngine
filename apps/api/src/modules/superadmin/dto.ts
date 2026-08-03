@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateGroupDto {
   @ApiProperty({ example: 'Roastery Holdings' })
@@ -248,4 +248,48 @@ export class CostRuleDto {
   @IsOptional()
   @IsEnum(['merchant', 'platform', 'split'])
   breakageOwner?: 'merchant' | 'platform' | 'split';
+}
+
+/**
+ * A terminal build to make available to the fleet.
+ *
+ * The APK is not uploaded through here — it is published wherever it is hosted
+ * and this points at it, with the digest the device verifies before installing.
+ * A terminal that fetched a swapped binary and installed it would be the worst
+ * outcome this system has, so the digest is not optional and the URL must be
+ * https.
+ */
+export class CreateTerminalReleaseDto {
+  @ApiProperty({ description: 'Monotonic; the device compares it against its own build.' })
+  @IsInt()
+  @Min(1)
+  versionCode!: number;
+
+  @ApiProperty({ example: '2.6' })
+  @IsString()
+  versionName!: string;
+
+  @ApiProperty({ description: 'https URL of the APK.' })
+  @IsString()
+  url!: string;
+
+  @ApiProperty({ description: 'Lowercase hex SHA-256 of the APK.' })
+  @IsString()
+  sha256!: string;
+
+  @ApiProperty({ required: false, description: "What changed — shown on the till's update prompt." })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiProperty({ required: false, description: 'Cannot be dismissed at the till.' })
+  @IsOptional()
+  @IsBoolean()
+  mandatory?: boolean;
+}
+
+export class PublishTerminalReleaseDto {
+  @ApiProperty({ description: 'Publishing offers the build to every till in the estate.' })
+  @IsBoolean()
+  published!: boolean;
 }

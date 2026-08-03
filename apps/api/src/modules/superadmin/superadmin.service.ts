@@ -1221,4 +1221,118 @@ export class SuperadminService {
       return { ...r, costPerPointMinor: r.costPerPointMinor.toString() };
     });
   }
+
+  // ── terminal fleet ────────────────────────────────────────────────────────
+
+  /**
+   * Every build, newest first, and what the fleet is actually running.
+   *
+   * The second half is the point. "Did the update land?" was previously only
+   * answerable by walking into shops; each terminal reports its version on every
+   * update check, so a till stuck three builds back is visible from a desk.
+   */
+  async terminalReleases(ctx: TenantContext) {
+    return this.tenants.run(ctx, async (tx) => {
+      const [releases, terminals] = await Promise.all([
+        tx.terminalRelease.findMany({
+          where: { platformId: ctx.platformId },
+          orderBy: { versionCode: 'desc' },
+          take: 50,
+        }),
+        tx.terminal.findMany({
+          where: { platformId: ctx.platformId, status: 'active' },
+          select: {
+            id: true, label: true, appVersionCode: true, appVersionName: true, appSeenAt: true,
+            branch: { select: { name: true, brand: { select: { name: true } } } },
+          },
+          orderBy: { appSeenAt: 'desc' },
+        }),
+      ]);
+      const currentCode = releases.find((r) => r.publishedAt !== null)?.versionCode ?? null;
+      return {
+        releases,
+        fleet: terminals.map((t) => ({
+          id: t.id,
+          label: t.label,
+          brandName: t.branch.brand.name,
+          branchName: t.branch.name,
+          versionCode: t.appVersionCode,
+          versionName: t.appVersionName,
+          lastSeenAt: t.appSeenAt,
+          // Null when the terminal has never checked in — unknown, not up to date.
+          upToDate: t.appVersionCode == null || currentCode == null
+            ? null
+            : t.appVersionCode >= currentCode,
+        })),
+        currentVersionCode: currentCode,
+      };
+    });
+  }
+
+  /**
+   * Register a build. Created as a draft — publishing is a second, deliberate
+   * step, because the moment a release is published every till in the estate
+   * starts downloading it.
+   */
+  async createTerminalRelease(
+    ctx: TenantContext,
+    dto: { versionCode: number; versionName: string; url: string; sha256: string; notes?: string; mandatory?: boolean },
+  ) {
+    const sha = dto.sha256.trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(sha)) {
+      throw new BadRequestException('sha256 must be 64 lowercase hex characters');
+    }
+    // An APK fetched over cleartext is an APK anyone on the shop's wifi can swap.
+    if (!/^https:\/\//.test(dto.url)) throw new BadRequestException('url must be https');
+
+    return this.tenants.run(ctx, async (tx) => {
+      const existing = await tx.terminalRelease.findFirst({
+        where: { platformId: ctx.platformId, versionCode: dto.versionCode },
+        select: { id: true },
+      });
+      if (existing) throw new BadRequestException(`version ${dto.versionCode} already exists`);
+
+      const r = await tx.terminalRelease.create({
+        data: {
+          platformId: ctx.platformId,
+          versionCode: dto.versionCode,
+          versionName: dto.versionName.trim(),
+          url: dto.url.trim(),
+          sha256: sha,
+          notes: dto.notes?.trim() || null,
+          mandatory: dto.mandatory ?? false,
+          createdBy: ctx.actor.id,
+        },
+      });
+      await this.audit.record(tx, ctx, {
+        action: 'terminal_release.create',
+        targetType: 'terminal_release',
+        targetId: r.id,
+        data: { versionCode: r.versionCode, versionName: r.versionName },
+      });
+      return r;
+    });
+  }
+
+  /**
+   * Publish or unpublish. Unpublishing does not uninstall anything — terminals
+   * that already took the build keep it; it only stops it being offered.
+   */
+  async publishTerminalRelease(ctx: TenantContext, id: string, published: boolean) {
+    return this.tenants.run(ctx, async (tx) => {
+      const r = await tx.terminalRelease.findFirst({ where: { id, platformId: ctx.platformId } });
+      if (!r) throw new NotFoundException('release not found');
+      const updated = await tx.terminalRelease.update({
+        where: { id },
+        data: { publishedAt: published ? (r.publishedAt ?? new Date()) : null },
+      });
+      await this.audit.record(tx, ctx, {
+        action: published ? 'terminal_release.publish' : 'terminal_release.unpublish',
+        targetType: 'terminal_release',
+        targetId: id,
+        data: { versionCode: r.versionCode },
+      });
+      return updated;
+    });
+  }
 }

@@ -47,6 +47,29 @@ class TerminalApi(private val settings: SettingsStore) {
         return post("/members/enroll", body).getString("memberToken")
     }
 
+    /**
+     * The build this terminal should be running, or null when it is current.
+     *
+     * Reporting our own version in the same call is what makes a stuck till
+     * visible from the console instead of only from inside the shop.
+     */
+    suspend fun appVersion(versionCode: Int, versionName: String): TerminalRelease? {
+        val res = request("GET", "/app-version?versionCode=$versionCode&versionName=$versionName", null)
+        val r = res.optJSONObject("current") ?: return null
+        val sha = r.optString("sha256")
+        val url = r.optString("url")
+        // A release we can't verify or can't fetch securely is not a release.
+        if (!sha.matches(Regex("^[0-9a-f]{64}$")) || !url.startsWith("https://")) return null
+        return TerminalRelease(
+            versionCode = r.optInt("versionCode"),
+            versionName = r.optString("versionName"),
+            url = url,
+            sha256 = sha,
+            notes = r.optString("notes").ifBlank { null },
+            mandatory = r.optBoolean("mandatory"),
+        )
+    }
+
     /** Persist the eReceipt behind the printed QR (idempotent by token). */
     suspend fun createReceipt(payload: JSONObject) {
         post("/receipts", payload)
@@ -398,6 +421,21 @@ data class EarnBonus(
             else -> "Applied"
         }
 }
+
+/**
+ * A published build of this app.
+ *
+ * `sha256` is not decoration — the device checks the downloaded file against it
+ * before handing anything to the package installer.
+ */
+data class TerminalRelease(
+    val versionCode: Int,
+    val versionName: String,
+    val url: String,
+    val sha256: String,
+    val notes: String?,
+    val mandatory: Boolean,
+)
 
 /** Server-owned points→money valuation. All surfaces share this exact math. */
 data class RedemptionRate(

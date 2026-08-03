@@ -22,6 +22,10 @@ const child = spawn(process.execPath, ['dist/main.js'], {
     // Unroutable on purpose — see above.
     DATABASE_URL: 'postgresql://u:p@127.0.0.1:1/none',
     DIRECT_URL: 'postgresql://u:p@127.0.0.1:1/none',
+    // The boot migrator runs before Nest and is fatal when it can't reach the
+    // database — correct in production, but here it would kill the process
+    // before the thing this script exists to check (the module graph) is built.
+    SKIP_MIGRATIONS: '1',
     JWT_ACCESS_SECRET: 'x'.repeat(32),
     JWT_REFRESH_SECRET: 'y'.repeat(32),
     PII_MASTER_KEY_BASE64: Buffer.alloc(32, 7).toString('base64'),

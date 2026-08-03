@@ -13,12 +13,14 @@ import {
   CreateBrandDto,
   CreateGroupDto,
   CreateTerminalDto,
+  CreateTerminalReleaseDto,
   EntityStatusDto,
   IssueTerminalKeyDto,
   IssueVoucherDto,
   GroupStatusDto,
   InviteTeamDto,
   PlatformSettingsDto,
+  PublishTerminalReleaseDto,
   SetModulesDto,
   TeamRoleDto,
   TopUpDto,
@@ -363,5 +365,32 @@ export class SuperadminController {
   @ApiOperation({ summary: 'Get a brand-scoped token to manage this brand directly (audited).' })
   actAs(@CurrentTenant() ctx: TenantContext, @Param('brandId') brandId: string) {
     return this.superadmin.actAsBrand(ctx, brandId);
+  }
+
+  // ── terminal fleet ────────────────────────────────────────────────────────
+
+  @Get('terminal-releases')
+  @RequirePermissions('platform.report.read')
+  @ApiOperation({ summary: 'Terminal app releases, and what each till reports running.' })
+  terminalReleases(@CurrentTenant() ctx: TenantContext) {
+    return this.superadmin.terminalReleases(ctx);
+  }
+
+  @Post('terminal-releases')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Register a terminal build. Created as a draft — publish separately.' })
+  createTerminalRelease(@CurrentTenant() ctx: TenantContext, @Body() dto: CreateTerminalReleaseDto) {
+    return this.superadmin.createTerminalRelease(ctx, dto);
+  }
+
+  @Post('terminal-releases/:id/publish')
+  @RequirePermissions('platform.manage')
+  @ApiOperation({ summary: 'Publish or unpublish a build. Publishing offers it to every till.' })
+  publishTerminalRelease(
+    @CurrentTenant() ctx: TenantContext,
+    @Param('id') id: string,
+    @Body() dto: PublishTerminalReleaseDto,
+  ) {
+    return this.superadmin.publishTerminalRelease(ctx, id, dto.published);
   }
 }

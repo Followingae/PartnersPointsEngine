@@ -1,6 +1,9 @@
 package ae.rfmloyaltyco.terminal.ui
 
 import ae.rfmloyaltyco.terminal.TerminalApp
+import ae.rfmloyaltyco.terminal.api.TerminalRelease
+import ae.rfmloyaltyco.terminal.theme.SecondaryAction
+import ae.rfmloyaltyco.terminal.update.AppUpdater
 import ae.rfmloyaltyco.terminal.theme.PrimaryAction
 import ae.rfmloyaltyco.terminal.theme.RfmCard
 import ae.rfmloyaltyco.terminal.theme.RfmColor
@@ -56,12 +59,22 @@ fun HomeScreen(
     val server = remember { app.settings.cachedServerConfig() }
     var apiOk by remember { mutableStateOf<Boolean?>(null) }
     var ecrOk by remember { mutableStateOf<Boolean?>(null) }
+    // An update offered from here and nowhere else: this is the idle screen, so
+    // a sale can never be interrupted by an install prompt.
+    var update by remember { mutableStateOf<TerminalRelease?>(null) }
+    var dismissed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (cfg.paired) apiOk = runCatching { app.api.ping() }.getOrDefault(false)
         ecrOk = if (cfg.ecrMode == "demo") true else runCatching { app.ecr().connect() == null }.getOrDefault(false)
         runCatching { app.outbox.replayAll() }
         runCatching { app.api.fetchConfig() }.onSuccess { app.settings.cacheServerConfig(it.raw) }
+        if (cfg.paired) {
+            app.updater.clearOldDownloads()
+            // Downloads and verifies in the background; nothing is shown until
+            // there is a checked binary sitting on disk ready to install.
+            (app.updater.check() as? AppUpdater.Outcome.Ready)?.let { update = it.release }
+        }
     }
 
     Column(Modifier.fillMaxSize().background(RfmColor.Canvas).padding(20.dp)) {
@@ -99,6 +112,31 @@ fun HomeScreen(
         } else if (cfg.ecrMode == "demo") {
             Spacer(Modifier.height(12.dp))
             StatusDot(ok = true, label = "Demo mode — no real payments")
+        }
+
+        update?.takeIf { !dismissed || it.mandatory }?.let { r ->
+            Spacer(Modifier.height(18.dp))
+            RfmCard {
+                Text(
+                    "Update to ${r.versionName}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = RfmColor.Ink,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    r.notes ?: "A new version of the terminal app is ready to install.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = RfmColor.MutedFg,
+                )
+                Spacer(Modifier.height(14.dp))
+                PrimaryAction("Install now") { app.updater.install(r) }
+                if (!r.mandatory) {
+                    Spacer(Modifier.height(4.dp))
+                    // Not "never" — it returns on the next visit to this screen,
+                    // which is what stops a till drifting builds behind forever.
+                    SecondaryAction("Not now") { dismissed = true }
+                }
+            }
         }
 
         if (!cfg.paired) {

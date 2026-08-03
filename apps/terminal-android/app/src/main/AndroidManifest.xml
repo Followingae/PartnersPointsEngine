@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Over-the-air updates. Without this the package installer refuses the
+         intent outright and every terminal change is a shop visit again. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Android 11+ package visibility: without this, getPackageInfo/resolveActivity
          are filtered and SmartPay appears "not installed". -->
     <queries>
@@ -31,6 +35,18 @@
         android:theme="@style/Theme.RFMTerminal">
         <!-- Cleartext allowed for the localhost ECR socket + LAN test APIs; production
              loyalty API is HTTPS. -->
+
+        <!-- Hands the verified APK to the system installer. Its own authority,
+             not the app's, so nothing else in the app is exposed by it. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
 
         <activity
             android:name=".MainActivity"

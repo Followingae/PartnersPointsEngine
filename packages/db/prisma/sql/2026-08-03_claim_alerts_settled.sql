@@ -10,6 +10,12 @@
 -- The delay is small enough that an alert still feels immediate.
 
 DROP FUNCTION IF EXISTS public.claim_txn_alerts(int);
+-- And the two-argument form this file itself creates. Without this line the
+-- script runs exactly once: a second run finds the function it just made and
+-- fails with "already exists". That is fine for a migration applied by hand,
+-- and fatal for one applied on every container start — which is now how this
+-- reaches production.
+DROP FUNCTION IF EXISTS public.claim_txn_alerts(int, int);
 
 CREATE FUNCTION public.claim_txn_alerts(p_limit int, p_settle_seconds int DEFAULT 20)
 RETURNS TABLE (id text, event_type text, payload jsonb, created_at timestamptz)

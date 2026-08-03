@@ -1,6 +1,7 @@
 package ae.rfmloyaltyco.terminal
 
 import ae.rfmloyaltyco.terminal.api.TerminalApi
+import ae.rfmloyaltyco.terminal.update.AppUpdater
 import ae.rfmloyaltyco.terminal.data.HistoryStore
 import ae.rfmloyaltyco.terminal.data.OfflineOutbox
 import ae.rfmloyaltyco.terminal.data.SettingsStore
@@ -24,6 +25,8 @@ class TerminalApp : Application() {
         private set
     lateinit var receiptRenderer: ReceiptRenderer
         private set
+    lateinit var updater: AppUpdater
+        private set
 
     @Volatile private var ecrTransport: EcrTransport? = null
     @Volatile private var ecrKey: String = ""
@@ -35,6 +38,7 @@ class TerminalApp : Application() {
         history = HistoryStore(this)
         outbox = OfflineOutbox(this, api)
         receiptRenderer = ReceiptRenderer(this)
+        updater = AppUpdater(this, api)
     }
 
     /**

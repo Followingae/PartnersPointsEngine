@@ -24,6 +24,17 @@ export interface TxnInput {
   sourceEvent?: string;
 }
 
+/** The shape `terminal_current_release` returns. */
+interface TerminalRelease {
+  versionCode: number;
+  versionName: string;
+  url: string;
+  sha256: string;
+  notes: string | null;
+  mandatory: boolean;
+  publishedAt: string;
+}
+
 function mapTxn(t: {
   id: string;
   intent: string;
@@ -154,6 +165,48 @@ export class TerminalService {
         redemption,
       };
     });
+  }
+
+  /**
+   * The build this terminal should be running, and a note of what it is running.
+   *
+   * Called on boot and periodically. The reply is deliberately small and safe to
+   * fail: a terminal that can't reach this keeps taking payments on the build it
+   * has, which is the only acceptable behaviour for a till.
+   *
+   * `current` is null when there is no published release at all, or when the
+   * terminal already has it — the device treats both the same way, so there is
+   * no need to make it decide.
+   */
+  async appVersion(
+    ctx: TenantContext,
+    reported?: { versionCode?: number; versionName?: string },
+  ) {
+    // Recorded through the tenant context, which scopes it to this terminal's
+    // own row; a terminal can only ever report its own version.
+    if (reported?.versionCode && ctx.actor.type === 'terminal') {
+      await this.tenants
+        .run(ctx, (tx) =>
+          tx.terminal.updateMany({
+            where: { id: ctx.actor.id },
+            data: {
+              appVersionCode: reported.versionCode!,
+              ...(reported.versionName ? { appVersionName: reported.versionName } : {}),
+              appSeenAt: new Date(),
+            },
+          }),
+        )
+        // Telemetry must never be why an update check fails.
+        .catch(() => undefined);
+    }
+
+    const rows = await this.tenants.run(ctx, (tx) =>
+      tx.$queryRaw<{ release: TerminalRelease | null }[]>`
+        SELECT terminal_current_release(${ctx.platformId}) AS release`,
+    );
+    const release = rows[0]?.release ?? null;
+    const behind = release !== null && (reported?.versionCode ?? 0) < release.versionCode;
+    return { current: behind ? release : null };
   }
 
   /**

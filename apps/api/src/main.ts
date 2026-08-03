@@ -12,9 +12,22 @@ import helmet from 'helmet';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './platform-core/filters/all-exceptions.filter';
+import { applyPendingMigrations } from './platform-core/prisma/schema-migrator';
 import { buildOpenApiDocument } from './swagger';
 
 async function bootstrap(): Promise<void> {
+  // Schema first, before anything can serve a request against a database it
+  // doesn't match. A failure here is deliberately fatal: an API answering
+  // queries for columns that don't exist corrupts data quietly, where a
+  // container that won't start is loud and obvious.
+  if (process.env.SKIP_DB !== '1' && process.env.SKIP_MIGRATIONS !== '1') {
+    const r = await applyPendingMigrations({
+      info: (m) => console.log(m),
+      error: (m) => console.error(m),
+    });
+    console.log(`schema: ${r.applied.length} applied, ${r.skipped} already current`);
+  }
+
   const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
 
   app.useLogger(app.get(PinoLogger));

@@ -22,7 +22,7 @@ async function applySql(url: string): Promise<void> {
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    for (const f of ['0001_baseline.sql', 'rls.sql', 'ledger.sql', '2026-07-28_customer_wallet.sql', '2026-07-28_otp_code.sql', '2026-07-28_wallet_scan_code.sql', '2026-07-28_customer_refresh_tokens.sql', '2026-07-28_wallet_join_brand.sql', '2026-08-03_profile_and_alerts.sql', '2026-08-03_claim_txn_alerts.sql', '2026-08-03_txn_alert_context.sql', '2026-08-03_pii_backfill.sql', '2026-08-03_claim_alerts_settled.sql', '2026-08-03_wallet_sessions.sql', '2026-08-03_receipt_bonuses.sql']) {
+    for (const f of ['0001_baseline.sql', 'rls.sql', 'ledger.sql', '2026-07-28_customer_wallet.sql', '2026-07-28_otp_code.sql', '2026-07-28_wallet_scan_code.sql', '2026-07-28_customer_refresh_tokens.sql', '2026-07-28_wallet_join_brand.sql', '2026-08-03_profile_and_alerts.sql', '2026-08-03_claim_txn_alerts.sql', '2026-08-03_txn_alert_context.sql', '2026-08-03_pii_backfill.sql', '2026-08-03_claim_alerts_settled.sql', '2026-08-03_wallet_sessions.sql', '2026-08-03_receipt_bonuses.sql', '2026-08-03_terminal_releases.sql']) {
       await client.query(readFileSync(join(sqlDir, f), 'utf8'));
     }
   } finally {

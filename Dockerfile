@@ -32,6 +32,10 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV API_PORT=3001
 COPY --from=build /out /app
+# The boot migrator reads these. pnpm deploy would normally carry them inside
+# the db package, but the schema is too important to leave to that: an image
+# missing its SQL is a container that will not start.
+COPY --from=build /app/packages/db/prisma/sql /app/prisma/sql
 EXPOSE 3001
 # Healthcheck hits the liveness endpoint.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD node -e "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

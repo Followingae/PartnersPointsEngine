@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
@@ -21,6 +21,28 @@ export class TerminalController {
   @ApiOperation({ summary: 'Terminal boot config: brand identity + redemption valuation.' })
   config(@CurrentTenant() ctx: TenantContext) {
     return this.terminal.config(ctx);
+  }
+
+  /**
+   * The build this terminal should be running.
+   *
+   * A GET with the running version in the query rather than a POST: it is a
+   * read, it is cheap, and a terminal that is offline must be able to skip it
+   * without consequence. The reply is `{ current: null }` when the terminal is
+   * already up to date — there is nothing for the device to decide.
+   */
+  @Get('app-version')
+  @ApiOperation({ summary: 'The current terminal app release, if this terminal is behind it.' })
+  appVersion(
+    @CurrentTenant() ctx: TenantContext,
+    @Query('versionCode') versionCode?: string,
+    @Query('versionName') versionName?: string,
+  ) {
+    const code = Number(versionCode);
+    return this.terminal.appVersion(ctx, {
+      ...(Number.isFinite(code) && code > 0 ? { versionCode: code } : {}),
+      ...(versionName ? { versionName } : {}),
+    });
   }
 
   @Post('members/resolve')

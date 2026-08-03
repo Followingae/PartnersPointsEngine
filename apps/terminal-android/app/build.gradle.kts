@@ -44,7 +44,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    // buildConfig: the updater compares its own VERSION_CODE against the server.
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 
     packaging {

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only the update download directory is shared, and only with the package
+  installer. Exposing anything wider here would hand a content URI to whatever
+  else could resolve the intent.
+-->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

@@ -522,9 +522,48 @@ model Terminal {
   branch  Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
   apiKeys ApiKey[]
 
+  /** What this terminal last reported running, so a stuck fleet is visible. */
+  appVersionCode Int?      @map("app_version_code")
+  appVersionName String?   @map("app_version_name")
+  appSeenAt      DateTime? @map("app_seen_at")
+
   @@index([branchId])
   @@index([brandId])
   @@map("terminal")
+}
+
+/**
+ * A published build of the terminal app.
+ *
+ * Terminals are in shops, not on desks — without this every change meant
+ * carrying a laptop to each till. Platform-wide rather than per-brand: it is
+ * one fleet and one binary, and a brand-scoped release would mean a shop's
+ * terminals silently diverging from its neighbour's.
+ *
+ * The APK itself is not stored here. It lives wherever it is published and this
+ * row points at it, with the digest the device checks before installing —
+ * a terminal that fetched a swapped binary would be a very bad day.
+ */
+model TerminalRelease {
+  id          String   @id @default(uuid(7))
+  platformId  String   @map("platform_id")
+  /** Monotonic; the device compares it against its own BuildConfig. */
+  versionCode Int      @map("version_code")
+  versionName String   @map("version_name")
+  url         String
+  /** Lowercase hex SHA-256 of the APK. */
+  sha256      String
+  notes       String?
+  /** Cannot be dismissed — for a build that fixes something that matters. */
+  mandatory   Boolean  @default(false)
+  /** Draft until published, so a half-uploaded binary is never offered. */
+  publishedAt DateTime? @map("published_at")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([platformId, versionCode])
+  @@index([platformId, publishedAt])
+  @@map("terminal_release")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
