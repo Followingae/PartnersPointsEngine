@@ -13,7 +13,7 @@ import { C, R, T, font } from '@/lib/tokens';
 import { Small } from '@/components/UI';
 
 export type IconName =
-  | 'back' | 'chevron' | 'filter' | 'share' | 'check'
+  | 'back' | 'chevron' | 'filter' | 'share' | 'check' | 'search' | 'close'
   | 'trophy' | 'lock' | 'user' | 'bell' | 'shield' | 'card' | 'globe'
   | 'help' | 'info' | 'logout' | 'flame';
 
@@ -28,6 +28,13 @@ const GLYPHS: Record<IconName, ReactNode> = {
     </>
   ),
   check: <Path d="M5 13l4 4 10-11" />,
+  search: (
+    <>
+      <Circle cx={11} cy={11} r={7} />
+      <Path d="M20 20l-3.2-3.2" />
+    </>
+  ),
+  close: <Path d="M6 6l12 12M18 6L6 18" />,
   trophy: <Path d="M8 4h8v5a4 4 0 0 1-8 0zM6 5H4v2a3 3 0 0 0 3 3M18 5h2v2a3 3 0 0 1-3 3M10 18h4M12 13v5" />,
   lock: (
     <>

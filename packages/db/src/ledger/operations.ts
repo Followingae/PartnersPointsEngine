@@ -113,6 +113,122 @@ export async function earnPoints(tx: Tx, a: EarnArgs): Promise<{ journalId: stri
   return { journalId, balance: await getBalance(tx, liability.id) };
 }
 
+export interface AdjustArgs {
+  scope: BrandCustomerScope;
+  /** Positive credits the member; negative debits them. Never zero. */
+  points: bigint;
+  occurredAt: Date;
+  /** Why — a claim id, a support ticket, a correction reference. */
+  reason: string;
+  idem: Idem;
+  expiryBucket?: Date | null;
+}
+
+/**
+ * A manual correction: points granted (or taken back) outside a sale.
+ *
+ * Exists for the case a customer notices afterwards that a purchase wasn't
+ * credited. `JournalKind.adjust` was in the enum from the start but nothing
+ * implemented it, so there was no way to put right a visit the till missed.
+ *
+ * Deliberately built on the same double-entry legs as an earn rather than a
+ * shortcut that writes a balance: an adjustment has to be as traceable as
+ * anything else in the ledger, and `reason` rides on the journal so an auditor
+ * can see why it happened. A debit clamps to the available balance — a
+ * correction must never push someone negative.
+ */
+export async function adjustPoints(
+  tx: Tx,
+  a: AdjustArgs,
+): Promise<{ journalId: string; balance: Balance; applied: bigint }> {
+  if (a.points === 0n) throw new LedgerError('invalid_amount', 'adjustment must be non-zero');
+
+  const idem = await reserveIdempotency(tx, {
+    ...a.idem,
+    requestHash: hash(['adjust', a.scope.brandId, a.scope.customerId, a.points.toString(), a.reason]),
+    scope: a.scope,
+  });
+  const asset = pointsAsset(a.scope.brandId);
+  const liability = await getOrCreateAccount(tx, {
+    ledger: 'points',
+    accountType: ACCOUNT_TYPES.pointsLiability,
+    normalSide: 'credit',
+    assetCode: asset,
+    platformId: a.scope.platformId,
+    groupId: a.scope.groupId,
+    brandId: a.scope.brandId,
+    customerId: a.scope.customerId,
+  });
+  if (idem.state === 'replay') {
+    const prior = idem.response as { journalId: string; applied: string };
+    return {
+      journalId: prior.journalId,
+      balance: await getBalance(tx, liability.id),
+      applied: BigInt(prior.applied),
+    };
+  }
+
+  const expense = await getOrCreateAccount(tx, {
+    ledger: 'points',
+    accountType: ACCOUNT_TYPES.pointsExpense,
+    normalSide: 'debit',
+    assetCode: asset,
+    platformId: a.scope.platformId,
+    groupId: a.scope.groupId,
+    brandId: a.scope.brandId,
+  });
+
+  const credit = a.points > 0n;
+  let amount = credit ? a.points : -a.points;
+
+  if (!credit) {
+    // Clawing back more than someone holds would leave a negative balance,
+    // which the rest of the system has no way to represent.
+    const balance = await getBalance(tx, liability.id);
+    if (balance.available <= 0n) {
+      await completeIdempotency(tx, idem.keyId, { journalId: '', applied: '0' });
+      return { journalId: '', balance, applied: 0n };
+    }
+    if (amount > balance.available) amount = balance.available;
+  }
+
+  const journalId = await postJournal(tx, {
+    ledger: 'points',
+    kind: 'adjust',
+    occurredAt: a.occurredAt,
+    sourceEvent: a.reason,
+    scope: a.scope,
+    idempotencyKeyId: idem.keyId,
+    legs: credit
+      ? [
+          { accountId: expense.id, normalSide: 'debit', direction: 'debit', amountMinor: amount, assetCode: asset },
+          {
+            accountId: liability.id,
+            normalSide: 'credit',
+            direction: 'credit',
+            amountMinor: amount,
+            assetCode: asset,
+            pointState: 'active',
+            expiryBucket: a.expiryBucket ?? null,
+          },
+        ]
+      : [
+          {
+            accountId: liability.id,
+            normalSide: 'credit',
+            direction: 'debit',
+            amountMinor: amount,
+            assetCode: asset,
+            pointState: 'adjusted',
+          },
+          { accountId: expense.id, normalSide: 'debit', direction: 'credit', amountMinor: amount, assetCode: asset },
+        ],
+  });
+  const applied = credit ? amount : -amount;
+  await completeIdempotency(tx, idem.keyId, { journalId, applied: applied.toString() });
+  return { journalId, balance: await getBalance(tx, liability.id), applied };
+}
+
 // ── Points: redeem authorize → capture / void ─────────────────────────────────
 
 export interface RedeemArgs {

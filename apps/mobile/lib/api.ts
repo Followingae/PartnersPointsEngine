@@ -266,6 +266,10 @@ export interface Profile {
   email: string | null;
   gender: string | null;
   birthdate: string | null;
+  /** ISO 3166-1 alpha-2, uppercase. */
+  nationality: string | null;
+  /** True means the post-purchase WhatsApp is off. Sign-in codes ignore it. */
+  txnAlertsOptOut: boolean;
   joinedAt: string;
 }
 
@@ -298,10 +302,16 @@ export const getActivity = (limit = 60) =>
 export const getProfile = () => api<Profile>('/customer/wallet/profile');
 export const getDiscoverBrands = () => api<DiscoverBrand[]>('/customer/wallet/brands');
 
+/**
+ * Edit your own details. Omitting a key leaves that field alone; passing `null`
+ * clears it — so callers should send only what the screen actually edits.
+ */
 export const updateProfile = (dto: {
   fullName?: string;
   gender?: string;
   birthdate?: string | null;
+  nationality?: string | null;
+  txnAlertsOptOut?: boolean;
 }) => api<Profile>('/customer/wallet/profile', { method: 'PATCH', body: JSON.stringify(dto) });
 
 // ── per-card (brand-scoped) ────────────────────────────────────────────────

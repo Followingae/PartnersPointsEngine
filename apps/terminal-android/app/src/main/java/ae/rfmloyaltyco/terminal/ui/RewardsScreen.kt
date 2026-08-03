@@ -30,6 +30,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,6 +45,7 @@ import kotlin.math.roundToLong
  * customers negotiate in money, never in points-per-cent. Points are the
  * mechanism; AED is the language.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -66,6 +69,31 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
             onCancel = { scanningVoucher = false },
         )
         return
+    }
+
+    // The same sale going through twice charges the customer twice and awards
+    // points twice — worth one question before it happens.
+    state.duplicatePrompt?.let { dup ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { vm.dismissDuplicate() },
+            title = { Text("Charge this again?") },
+            text = {
+                Text(
+                    "The same amount was charged to this customer ${dup.secondsAgo} seconds ago. " +
+                        "Charging again will take the money and award the points a second time.",
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { vm.confirmDuplicate() }) {
+                    Text("Yes, charge again")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { vm.dismissDuplicate() }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     TerminalScaffold(
@@ -235,20 +263,24 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
                 }
 
                 // ── reward vouchers the customer brings to the till ──────────
-                RfmCard(padding = 14.dp) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Reward voucher", style = MaterialTheme.typography.titleSmall, color = RfmColor.Ink)
-                            Text(
-                                "Scan or type the code from their app",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = RfmColor.MutedFg,
-                            )
-                        }
-                        SecondaryAction("Scan", modifier = Modifier.width(110.dp)) { scanningVoucher = true }
-                    }
-                    if (showVoucherEntry) {
-                        Spacer(Modifier.height(10.dp))
+                // Just the action. The customer's own rewards are already listed
+                // above and tappable, so this is the fallback for a code from
+                // somewhere else — it doesn't warrant a titled card explaining
+                // itself on every sale. Manual entry lives behind a long press,
+                // for the rare scan that won't read.
+                SecondaryAction(
+                    if (state.voucherBusy) "Applying…" else "Scan reward",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { scanningVoucher = true },
+                            onLongClick = { showVoucherEntry = true },
+                        ),
+                    enabled = !state.voucherBusy,
+                ) { scanningVoucher = true }
+
+                if (showVoucherEntry) {
+                    RfmCard(padding = 14.dp) {
                         androidx.compose.material3.OutlinedTextField(
                             value = voucherEntry,
                             onValueChange = { voucherEntry = it.uppercase().filter { c -> c.isLetterOrDigit() } },
@@ -262,19 +294,10 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
                             voucherEntry = ""
                             showVoucherEntry = false
                         }
-                    } else {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Enter code manually",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = RfmColor.Sky,
-                            modifier = Modifier.clickable { showVoucherEntry = true },
-                        )
                     }
-                    state.voucherError?.let {
-                        Spacer(Modifier.height(6.dp))
-                        Text(it, style = MaterialTheme.typography.labelMedium, color = RfmColor.Destructive)
-                    }
+                }
+                state.voucherError?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = RfmColor.Destructive)
                 }
 
                 if (quote != null && quote.earnPoints > 0) {
@@ -291,6 +314,7 @@ fun RewardsScreen(vm: CheckoutViewModel, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AedChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(

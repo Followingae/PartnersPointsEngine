@@ -3,15 +3,16 @@ import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 import { Icon, ListRow, Tile, type IconName } from '@/components/Bits';
 import { ErrorState, H1, Loading, Screen, Small } from '@/components/UI';
-import { getProfile } from '@/lib/api';
+import { getProfile, type Profile as ProfileData } from '@/lib/api';
 import { personInitials } from '@/lib/brand';
+import { detailsSummary } from '@/lib/profile';
 import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
 
 const ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
-  { icon: 'user', title: 'Personal details', sub: 'Name, birthday, email', href: '/profile/edit' },
+  { icon: 'user', title: 'Personal details', sub: 'Name, birthday, nationality', href: '/profile/edit' },
   { icon: 'card', title: 'Linked partners', sub: 'Convert points to a partner', href: '/profile/partners' },
-  { icon: 'bell', title: 'Notifications', sub: 'Per brand and per type', href: '/profile/notifications' },
+  { icon: 'bell', title: 'Notifications', sub: 'What we send you on WhatsApp', href: '/profile/notifications' },
   { icon: 'shield', title: 'Security', sub: 'Face ID, sessions', href: '/profile/security' },
   { icon: 'lock', title: 'Privacy and data', sub: 'Export or delete', href: '/profile/privacy' },
   { icon: 'globe', title: 'Language', sub: 'English', href: '/profile/language' },
@@ -19,6 +20,21 @@ const ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
   { icon: 'info', title: 'About', sub: 'Version, terms, privacy', href: '/about' },
   { icon: 'logout', title: 'Sign out', sub: 'You can come back any time', href: '/signout' },
 ];
+
+/**
+ * Two rows answer for the profile rather than describing themselves: personal
+ * details says what is still missing, and notifications says whether the
+ * post-purchase WhatsApp is on. Both fall back to the static copy until the
+ * profile loads.
+ */
+function subtitle(href: string, fallback: string, p: ProfileData | undefined): string {
+  if (!p) return fallback;
+  if (href === '/profile/edit') return detailsSummary(p);
+  if (href === '/profile/notifications') {
+    return p.txnAlertsOptOut ? 'Transaction updates are off' : 'Transaction updates are on';
+  }
+  return fallback;
+}
 
 export default function Profile() {
   const router = useRouter();
@@ -77,7 +93,7 @@ export default function Profile() {
             key={r.title}
             lead={<Tile><Icon name={r.icon} size={19} /></Tile>}
             title={r.title}
-            sub={r.sub}
+            sub={subtitle(r.href, r.sub, data)}
             onPress={() => router.push(r.href)}
           />
         ))}

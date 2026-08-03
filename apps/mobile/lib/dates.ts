@@ -9,6 +9,18 @@
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+/** Written out in full, for the birthday picker. */
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** How many days a month has, leap years included. `month` is 1–12. */
+export function daysInMonth(year: number, month: number): number {
+  // Day 0 of the next month is the last day of this one.
+  return new Date(year, month, 0).getDate();
+}
+
 const parse = (iso: string | null | undefined): Date | null => {
   if (!iso) return null;
   const d = new Date(iso);

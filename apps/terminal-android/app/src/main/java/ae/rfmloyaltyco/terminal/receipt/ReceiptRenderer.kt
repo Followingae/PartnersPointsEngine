@@ -132,18 +132,20 @@ class ReceiptRenderer(private val context: Context) {
 
             // ── stamp cards ─────────────────────────────────────────────────
             d.stamps.forEach { s ->
-                y += 10f
+                y += 12f
                 y = rule(c, y)
+                y += 14f
+                y = center(c, s.name.uppercase(), heading, 22f, y)
+                y += 8f
+                y = stampGrid(c, s.progress, s.target, y)
                 y += 10f
-                y = center(c, s.name.uppercase(), body, 17f, y)
-                y = center(c, stampRow(s.progress, s.target), heading, 26f, y)
                 val left = (s.target - s.progress).coerceAtLeast(0)
                 y = center(
                     c,
-                    if (left == 0) "REWARD READY" else "$left more to go",
-                    body, 17f, y,
+                    if (left == 0) "REWARD READY" else "${s.progress} OF ${s.target}  ·  $left TO GO",
+                    heading, 24f, y,
                 )
-                y += 4f
+                y += 8f
             }
 
             d.unlocked.forEach { u ->
@@ -198,11 +200,60 @@ class ReceiptRenderer(private val context: Context) {
         return threshold(cropped)
     }
 
-    /** ●●●●●○○○○ — reads at a glance across the counter. */
-    private fun stampRow(progress: Int, target: Int): String {
-        if (target <= 0) return ""
+    /**
+     * The stamp card, drawn rather than typed.
+     *
+     * This used to be a line of ● and ○ glyphs at body size, which printed
+     * small and read as punctuation. Real circles can be sized to the paper,
+     * and a collected stamp is a solid disc with a ring around it — at thermal
+     * resolution that reads as "stamped" from across the counter, where a
+     * plain filled dot just looks like a bullet.
+     *
+     * Wraps onto multiple rows so a ten- or twelve-stamp card stays legible
+     * instead of shrinking to fit one line.
+     */
+    private fun stampGrid(c: Canvas, progress: Int, target: Int, top: Float): Float {
+        if (target <= 0) return top
+
         val filled = progress.coerceIn(0, target)
-        return "●".repeat(filled) + "○".repeat(target - filled) + "   $filled/$target"
+        val perRow = minOf(target, 6)
+        val rows = (target + perRow - 1) / perRow
+
+        // Sized to fill the paper width, with a floor so a long card is still
+        // comfortably stampable-looking rather than a row of pinpricks.
+        val cell = ((WIDTH - 2 * MARGIN) / perRow).coerceIn(38f, 62f)
+        val radius = cell * 0.32f
+        val rowHeight = cell * 0.96f
+
+        val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
+        val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            style = Paint.Style.STROKE
+            // Heavy enough to survive the 1-bit threshold this bitmap goes through.
+            strokeWidth = 3f
+        }
+
+        var y = top
+        for (row in 0 until rows) {
+            val start = row * perRow
+            val count = minOf(perRow, target - start)
+            val rowWidth = count * cell
+            val left = (WIDTH - rowWidth) / 2f
+            val cy = y + rowHeight / 2f
+
+            for (i in 0 until count) {
+                val cx = left + i * cell + cell / 2f
+                if (start + i < filled) {
+                    ink.style = Paint.Style.FILL
+                    c.drawCircle(cx, cy, radius, ink)
+                    c.drawCircle(cx, cy, radius + 4f, ring)
+                } else {
+                    c.drawCircle(cx, cy, radius, ring)
+                }
+            }
+            y += rowHeight
+        }
+        return y
     }
 
     /** Pure black/white — thermal heads smear antialiased grey. */

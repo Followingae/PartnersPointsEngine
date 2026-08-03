@@ -71,6 +71,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
         val payingMessage: String = "",
         val outcome: PaymentOutcome? = null,
         val flowError: String? = null,
+        /** Set when an identical sale was just charged and we want the cashier to confirm. */
+        val duplicatePrompt: DuplicatePrompt? = null,
         /** Server-owned valuation + brand identity (cached across offline restarts). */
         val server: ServerConfig? = null,
         val rate: RedemptionRate = RedemptionRate.DEFAULT,
@@ -96,6 +98,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
     val config get() = settings.snapshot()
 
     private var payJob: Job? = null
+    /** The last completed sale, for spotting the same one going through twice. */
+    private var lastCompleted: CompletedSale? = null
     private var currentOrderNo: String? = null
 
     init {
@@ -272,10 +276,34 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── payment ──────────────────────────────────────────────────────────────
 
-    fun takePayment(method: String) {
+    fun takePayment(method: String, confirmedDuplicate: Boolean = false) {
         if (payJob?.isActive == true) return
         val snapshot = _state.value
         val cfg = config
+
+        // A second identical sale moments after the first is nearly always the
+        // same sale going through twice — a re-tap, a screen the cashier thought
+        // hadn't registered. The existing guard only covers a tap *while* the
+        // first is in flight, which is why a customer was charged and awarded
+        // points twice for one purchase. Ask rather than assume: a genuine
+        // second round of the same drinks is possible, just rare.
+        val prior = lastCompleted
+        if (!confirmedDuplicate && prior != null &&
+            prior.amountMinor == snapshot.amountMinor &&
+            prior.memberKey == snapshot.member?.identifierValue &&
+            System.currentTimeMillis() - prior.atMillis < DUPLICATE_WINDOW_MS
+        ) {
+            _state.update {
+                it.copy(
+                    duplicatePrompt = DuplicatePrompt(
+                        method = method,
+                        secondsAgo = ((System.currentTimeMillis() - prior.atMillis) / 1000).toInt(),
+                    ),
+                )
+            }
+            return
+        }
+        _state.update { it.copy(duplicatePrompt = null) }
         _state.update { it.copy(paying = true, payingMessage = "Preparing…", flowError = null, outcome = null) }
 
         payJob = viewModelScope.launch {
@@ -442,6 +470,11 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
                     ae.rfmloyaltyco.terminal.receipt.ReceiptVoucher(v.code, v.rewardName, v.discountMinor)
                 },
             )
+            lastCompleted = CompletedSale(
+                amountMinor = gross,
+                memberKey = member?.identifierValue,
+                atMillis = System.currentTimeMillis(),
+            )
             _state.update {
                 it.copy(
                     paying = false,
@@ -464,6 +497,15 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissOutcome(success: Boolean) {
         if (success) resetSale() else _state.update { it.copy(outcome = null) }
     }
+
+    /** The cashier says this really is a second identical sale — proceed. */
+    fun confirmDuplicate() {
+        val prompt = _state.value.duplicatePrompt ?: return
+        _state.update { it.copy(duplicatePrompt = null) }
+        takePayment(prompt.method, confirmedDuplicate = true)
+    }
+
+    fun dismissDuplicate() = _state.update { it.copy(duplicatePrompt = null) }
 
     fun clearFlowError() = _state.update { it.copy(flowError = null) }
 
@@ -523,3 +565,22 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 }
+
+/** A sale the cashier may be about to repeat by accident. */
+data class DuplicatePrompt(val method: String, val secondsAgo: Int)
+
+/** What was last charged, for duplicate detection. */
+private data class CompletedSale(
+    val amountMinor: Long,
+    val memberKey: String?,
+    val atMillis: Long,
+)
+
+/**
+ * How long an identical sale is treated as suspicious.
+ *
+ * Long enough to cover a cashier re-tapping after a screen they thought hadn't
+ * registered; short enough that a genuine second round of the same order isn't
+ * constantly questioned.
+ */
+private const val DUPLICATE_WINDOW_MS = 120_000L

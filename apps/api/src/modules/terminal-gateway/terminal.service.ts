@@ -539,13 +539,19 @@ export class TerminalService {
         // Emitted inside the same transaction, after the idempotency guard
         // above has already returned for a replay — so this fires exactly once
         // per real sale, and never for a retry.
-        await this.outbox?.emit(tx, ctx, 'points', 'points.earned', {
-          membershipId: claims.membershipId,
-          transactionId: created.id,
-          points: r.decision.points.toString(),
-          amountMinor: dto.amountMinor ?? null,
-          journalId: r.journalId,
-        });
+        //
+        // A zero-point earn emits nothing: "you earned 0 points" is not worth a
+        // customer's attention, and a sale that only spends a reward shouldn't
+        // drag an empty earn into its summary.
+        if (r.decision.points > 0) {
+          await this.outbox?.emit(tx, ctx, 'points', 'points.earned', {
+            membershipId: claims.membershipId,
+            transactionId: created.id,
+            points: r.decision.points.toString(),
+            amountMinor: dto.amountMinor ?? null,
+            journalId: r.journalId,
+          });
+        }
 
         // Hand the till everything worth celebrating + printing on the slip.
         return {
@@ -604,12 +610,26 @@ export class TerminalService {
       // The sale is real, so any rewards held for it are now genuinely spent.
       await this.confirmVoucherHolds(tx, ctx.brandId!, t.membershipId);
 
+      // Name the reward if one was spent, so the message can say "your free
+      // coffee" rather than "500 points" — the customer thinks in rewards.
+      const spent = await tx.voucher.findFirst({
+        where: {
+          brandId: ctx.brandId!,
+          membershipId: t.membershipId,
+          status: 'redeemed',
+          redeemedAt: { gte: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) },
+        },
+        orderBy: { redeemedAt: 'desc' },
+        select: { catalogItem: { select: { name: true } } },
+      });
+
       // Capture only moves a transaction out of 'authorized' once, so this
       // emits once even if the till retries the call.
       await this.outbox?.emit(tx, ctx, 'points', 'points.redeemed', {
         membershipId: t.membershipId,
         transactionId: t.id,
         points: t.points.toString(),
+        rewardName: spent?.catalogItem?.name ?? null,
         journalId: cap.journalId,
       });
 
