@@ -54,15 +54,6 @@ function ConvertIcon({ color }: { color: string }) {
     </Svg>
   );
 }
-function WalletIcon({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" {...act(color)}>
-      <Rect x={3} y={6} width={18} height={13} rx={3} />
-      <Path d="M16 12h3" />
-    </Svg>
-  );
-}
-
 function Action({ label, icon, primary, onPress }: {
   label: string; icon: (color: string) => ReactNode; primary?: boolean; onPress?: () => void;
 }) {
@@ -262,8 +253,16 @@ export default function CardDetail() {
             icon={(c) => <ConvertIcon color={c} />}
             onPress={() => router.push({ pathname: '/convert', params: { brandId: card.brandId } })}
           />
-          {/* TODO(api): add-to-Apple/Google-Wallet pass issuance. */}
-          <Action label="Wallet" icon={(c) => <WalletIcon color={c} />} />
+          {/*
+            No "Wallet" action here yet, and deliberately not a dead one.
+            Issuing an Apple or Google pass needs credentials this platform does
+            not have — a Pass Type ID certificate and key from Apple, an issuer
+            id and service account from the Google Pay & Wallet Console. The
+            server half for Google exists (`modules/wallet-pass`) but is not
+            registered or reachable, so there is nothing for a button to call.
+            It comes back when those exist; a control that does nothing when
+            tapped is worse than one that isn't there.
+          */}
         </View>
 
         {(challenges.data ?? []).length > 0 ? (
