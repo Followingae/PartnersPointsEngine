@@ -52,7 +52,7 @@ export default function ChallengeDetail() {
   const { challenge: c, card } = state.data;
   const done = Number(c.progress);
   const total = Math.max(Number(c.target), 1);
-  const full = done >= total;
+  const full = c.rewardReady || done >= total;
   const color = brandColor(card.brandId, card.branding);
   const reward = c.rewardName ?? (Number(c.rewardPoints) > 0 ? `${c.rewardPoints} points` : 'A reward');
 

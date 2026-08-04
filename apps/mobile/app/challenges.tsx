@@ -18,7 +18,8 @@ interface Row {
 function statusOf(c: Challenge): { label: string; ready: boolean } {
   const done = Number(c.progress);
   const total = Number(c.target);
-  if (done >= total) return { label: 'Ready', ready: true };
+  // The voucher outranks the counter — see `rewardReady`.
+  if (c.rewardReady || done >= total) return { label: 'Ready', ready: true };
   if (c.isStampCard) return { label: `${done} of ${total}`, ready: false };
   return { label: `${c.progressPct}%`, ready: false };
 }
@@ -32,7 +33,11 @@ function ChallengeCard({ row, onPress }: { row: Row; onPress: () => void }) {
 
   // What they get and where — the two things that make a challenge worth doing.
   const reward = c.rewardName ?? (Number(c.rewardPoints) > 0 ? `+${c.rewardPoints} pts` : null);
-  const meta = [card.brandName, reward].filter(Boolean).join(' · ');
+  const meta = c.rewardReady
+    ? [card.brandName, c.rewardVoucherCode ? `Show ${c.rewardVoucherCode}` : 'Ready to claim']
+        .filter(Boolean)
+        .join(' · ')
+    : [card.brandName, reward].filter(Boolean).join(' · ');
 
   return (
     <Card onPress={onPress} style={{ paddingVertical: 20, paddingHorizontal: 22 }}>

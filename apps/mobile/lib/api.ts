@@ -370,6 +370,16 @@ export interface Challenge {
   completedAt: string | null;
   rewardPoints: string;
   rewardName: string | null;
+  /**
+   * Won and not yet handed over.
+   *
+   * Not derivable from progress: a stamp card rolls over the instant it fills,
+   * so the card the customer looks at afterwards is a fresh one. This survives
+   * that, because the voucher does.
+   */
+  rewardReady: boolean;
+  rewardVoucherCode: string | null;
+  rewardWonAt: string | null;
   endsAt: string | null;
 }
 

@@ -5,8 +5,10 @@ import Svg, { Path } from 'react-native-svg';
 import { BrandCard, brandColor, brandInitials } from '@/components/BrandCard';
 import { ErrorState, Header, IconButton, Loading, Screen, pts } from '@/components/UI';
 import { WalletsEmpty } from '@/components/WalletsEmpty';
-import { getCards, getProfile } from '@/lib/api';
+import { getActivity, getCards, getProfile } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
+import { Dot } from '@/components/Bits';
+import { useUnreadCount } from '@/lib/unread';
 import { C, font } from '@/lib/tokens';
 
 /** 09 · Cards (home) — the deck of brand cards. */
@@ -34,6 +36,12 @@ export default function CardsHome() {
   const profile = useAsync(getProfile, []);
   const initials = profile.data?.fullName ? brandInitials(profile.data.fullName) : '';
 
+  // Anything on the activity feed the customer hasn't opened the bell to see.
+  // Derived from the same events the notifications screen renders, so the count
+  // and the list can't disagree.
+  const notices = useAsync(() => getActivity(40), []);
+  const unread = useUnreadCount((notices.data ?? []).map((e) => e.at));
+
   useEffect(() => {
     if (signedOut) router.replace('/onboarding/phone');
   }, [signedOut, router]);
@@ -48,9 +56,12 @@ export default function CardsHome() {
         title="Cards"
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <IconButton onPress={() => router.push('/notifications')}>
-              <BellIcon />
-            </IconButton>
+            <View>
+              <IconButton onPress={() => router.push('/notifications')}>
+                <BellIcon />
+              </IconButton>
+              {unread > 0 ? <Dot count={unread} /> : null}
+            </View>
             <IconButton onPress={() => router.push('/(tabs)/profile')} style={{ borderRadius: 999 }}>
               <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.muted }}>{initials}</Text>
             </IconButton>

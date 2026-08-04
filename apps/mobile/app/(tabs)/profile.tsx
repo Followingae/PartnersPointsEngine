@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
-import { Icon, ListRow, Tile, type IconName } from '@/components/Bits';
+import { Dot, Icon, ListRow, Tile, type IconName } from '@/components/Bits';
 import { ErrorState, H1, Loading, Screen, Small } from '@/components/UI';
 import { getProfile, type Profile as ProfileData } from '@/lib/api';
 import { personInitials } from '@/lib/brand';
-import { detailsSummary } from '@/lib/profile';
+import { detailsSummary, missingDetails } from '@/lib/profile';
 import { useAsync } from '@/lib/useAsync';
 import { C, font } from '@/lib/tokens';
 
@@ -60,6 +60,8 @@ export default function Profile() {
 
   // Someone can reach this screen before they have given us a name.
   const initials = personInitials(data?.fullName);
+  // The profile asks for four things; the dot says some are still outstanding.
+  const missing = missingDetails(data).length;
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
@@ -117,7 +119,13 @@ export default function Profile() {
         {ROWS.map((r) => (
           <ListRow
             key={r.title}
-            lead={<Tile><Icon name={r.icon} size={19} /></Tile>}
+            lead={
+              <View>
+                <Tile><Icon name={r.icon} size={19} /></Tile>
+                {/* Only where there is something for them to do about it. */}
+                {r.href === '/profile/edit' && missing > 0 ? <Dot /> : null}
+              </View>
+            }
             title={r.title}
             sub={subtitle(r.href, r.sub, data)}
             onPress={() => router.push(r.href)}

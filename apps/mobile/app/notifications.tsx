@@ -3,8 +3,9 @@ import { ReactNode, useEffect } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { EmptyState, ErrorState, H1, IconButton, Label, Loading, Screen, Small } from '@/components/UI';
-import { getActivity, getVouchers, type ActivityEvent, type Voucher } from '@/lib/api';
+import { getActivity, getCards, getChallenges, getVouchers, type ActivityEvent, type Voucher } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
+import { markSeen } from '@/lib/unread';
 import { C, font } from '@/lib/tokens';
 
 /**
@@ -167,23 +168,55 @@ export default function Notifications() {
   const router = useRouter();
 
   const state = useAsync(async () => {
-    const [activity, vouchers] = await Promise.all([getActivity(40), getVouchers()]);
-    return { activity, vouchers };
+    const [activity, vouchers, cards] = await Promise.all([getActivity(40), getVouchers(), getCards()]);
+    // Challenges are per brand, so this fans out the way the Challenges screen
+    // does. A brand that fails is skipped rather than costing the whole feed.
+    const challenges = (
+      await Promise.all(
+        cards.map(async (card) => {
+          try {
+            return (await getChallenges(card.brandId)).map((c) => ({ c, card }));
+          } catch {
+            return [];
+          }
+        }),
+      )
+    ).flat();
+    return { activity, vouchers, challenges };
   }, []);
 
   useEffect(() => {
     if (state.signedOut) router.replace('/onboarding/phone');
   }, [state.signedOut, router]);
 
+  // Looking at the screen is what "read" means here.
+  useEffect(() => {
+    void markSeen();
+  }, []);
+
   const now = new Date();
   const soon = state.data ? expiringSoon(state.data.vouchers, now) : [];
+
+  // Cards standing at full — the reward is waiting to be claimed.
+  const ready: Notice[] = (state.data?.challenges ?? [])
+    .filter(({ c }) => c.rewardReady)
+    .map(({ c, card }) => ({
+      key: `challenge:${c.id}`,
+      at: now,
+      icon: <CupIcon />,
+      tile: GREEN,
+      title: c.rewardName
+        ? `${c.rewardName} is yours at ${card.brandName}`
+        : `${c.name} complete at ${card.brandName}`,
+      time: c.rewardVoucherCode ? `Show ${c.rewardVoucherCode}` : 'Ready now',
+    }));
   const past = (state.data?.activity ?? [])
     .map((e) => eventNotice(e, now))
     .filter((n): n is Notice => n !== null)
     .slice(0, 20);
-  const today = past.filter((n) => n.at.toDateString() === now.toDateString());
+  const today = [...ready, ...past.filter((n) => n.at.toDateString() === now.toDateString())];
   const earlier = past.filter((n) => n.at.toDateString() !== now.toDateString());
-  const empty = soon.length === 0 && past.length === 0;
+  const empty = ready.length === 0 && soon.length === 0 && past.length === 0;
 
   return (
     <Screen background={C.surface} bottomGap={40} refreshing={state.refreshing} onRefresh={state.refresh}>

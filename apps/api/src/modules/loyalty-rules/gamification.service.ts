@@ -293,6 +293,32 @@ export class GamificationService {
       const byChallenge = new Map(progress.map((p) => [p.challengeId, p]));
 
       const rewardIds = challenges.map((c) => c.rewardItemId).filter((v): v is string => Boolean(v));
+
+      /**
+       * Rewards already won and not yet claimed.
+       *
+       * A repeatable card rolls over the moment it fills, so progress is back
+       * near zero and `progress >= target` is never true for the customer
+       * looking at it afterwards — which is why the app showed a fresh card and
+       * celebrated nothing. The voucher is the durable evidence: it exists from
+       * the moment the card filled until somebody hands over the coffee.
+       */
+      const unclaimed = rewardIds.length
+        ? await tx.voucher.findMany({
+            where: {
+              membershipId,
+              brandId: ctx.brandId!,
+              catalogItemId: { in: rewardIds },
+              status: { in: ['issued', 'reserved'] },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { code: true, catalogItemId: true, createdAt: true },
+          })
+        : [];
+      const readyByItem = new Map(
+        unclaimed.map((v) => [v.catalogItemId!, { code: v.code, at: v.createdAt }]),
+      );
       const rewards = rewardIds.length
         ? await tx.rewardCatalogItem.findMany({
             where: { id: { in: rewardIds } },
@@ -303,6 +329,7 @@ export class GamificationService {
 
       return challenges.map((c) => {
         const p = byChallenge.get(c.id);
+        const ready = c.rewardItemId ? readyByItem.get(c.rewardItemId) : undefined;
         const done = p?.progress ?? 0n;
         const target = c.target > 0n ? c.target : 1n;
         return {
@@ -318,6 +345,11 @@ export class GamificationService {
           completedAt: p?.completedAt ?? null,
           rewardPoints: c.rewardPoints.toString(),
           rewardName: c.rewardItemId ? (rewardById.get(c.rewardItemId) ?? null) : null,
+          // Won and waiting to be handed over. Survives the card rolling over,
+          // which the progress number does not.
+          rewardReady: ready !== undefined,
+          rewardVoucherCode: ready?.code ?? null,
+          rewardWonAt: ready?.at ?? null,
           endsAt: c.endsAt,
         };
       });

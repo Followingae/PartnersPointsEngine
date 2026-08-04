@@ -7,6 +7,7 @@
  */
 import { ReactNode } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
+import { brandFg } from '@/components/BrandCard';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { C, R, T, font } from '@/lib/tokens';
@@ -230,36 +231,49 @@ export function Stamps({
             justifyContent: 'center',
           }}
         >
-          {i < done ? <Icon name="check" size={size * 0.62} weight={3} /> : null}
+          {i < done ? <Icon name="check" size={size * 0.62} weight={3} color={brandFg(color)} /> : null}
         </View>
       ))}
     </View>
   );
 }
 
+/** Five to a row, as screen 44 draws them. */
+const PER_ROW = 5;
+
 /**
  * The wide progress segments from screen 44 — one block per visit or stamp,
  * ticked once earned. Wraps when a stamp card runs past five steps.
  */
 export function Segments({ done, total, color }: { done: number; total: number; color: string }) {
+  const perRow = total <= PER_ROW ? total : PER_ROW;
+  // Every block grows to share its row, so a row that isn't full stretches its
+  // blocks to fit — and a card of six put one lone block across the whole width,
+  // which read as a loading skeleton rather than a stamp. Invisible spacers fill
+  // the last row so the real blocks keep the size they have everywhere else.
+  const fillers = (perRow - (total % perRow)) % perRow;
+
+  const block = (key: string, filled: boolean, invisible = false) => (
+    <View
+      key={key}
+      style={{
+        flexGrow: 1,
+        flexBasis: total > PER_ROW ? '17%' : 0,
+        height: 52,
+        borderRadius: R.control,
+        backgroundColor: invisible ? 'transparent' : filled ? color : C.wash,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {filled && !invisible ? <Icon name="check" size={20} weight={2.4} color={brandFg(color)} /> : null}
+    </View>
+  );
+
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-      {Array.from({ length: total }, (_, i) => (
-        <View
-          key={i}
-          style={{
-            flexGrow: 1,
-            flexBasis: total > 5 ? '17%' : 0,
-            height: 52,
-            borderRadius: R.control,
-            backgroundColor: i < done ? color : C.wash,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {i < done ? <Icon name="check" size={20} weight={2.4} /> : null}
-        </View>
-      ))}
+      {Array.from({ length: total }, (_, i) => block(String(i), i < done))}
+      {Array.from({ length: fillers }, (_, i) => block(`filler-${i}`, false, true))}
     </View>
   );
 }
@@ -280,6 +294,41 @@ export function Toggle({ on }: { on: boolean }) {
       }}
     >
       <View style={{ width: 21, height: 21, borderRadius: 999, backgroundColor: C.surface }} />
+    </View>
+  );
+}
+
+/**
+ * The unread marker.
+ *
+ * Sits on whatever it is attached to, top-right, and says either "something is
+ * here" or how many. Deliberately the one shape used for both new
+ * notifications and a profile that still wants filling in — a customer should
+ * not have to learn two vocabularies for "look at this".
+ */
+export function Dot({ count, offset = -2 }: { count?: number; offset?: number }) {
+  const label = count === undefined ? null : count > 9 ? '9+' : String(count);
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: offset,
+        right: offset,
+        minWidth: label ? 17 : 9,
+        height: label ? 17 : 9,
+        paddingHorizontal: label ? 4 : 0,
+        borderRadius: 999,
+        backgroundColor: C.crimson,
+        alignItems: 'center',
+        justifyContent: 'center',
+        // Reads as a badge rather than a smudge when it overlaps an icon.
+        borderWidth: 2,
+        borderColor: C.surface,
+      }}
+    >
+      {label ? (
+        <Text style={{ fontFamily: font(700), fontSize: 10, lineHeight: 13, color: '#fff' }}>{label}</Text>
+      ) : null}
     </View>
   );
 }

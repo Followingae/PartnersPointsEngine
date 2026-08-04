@@ -305,7 +305,11 @@ export default function CardDetail() {
                   </View>
                 )}
                 <Small style={{ marginTop: 8, fontSize: 12.5, lineHeight: 18 }}>
-                  {Number(ch.progress) >= Number(ch.target)
+                  {ch.rewardReady
+                    ? ch.rewardVoucherCode
+                      ? `${ch.rewardName ?? 'Your reward'} is ready · show ${ch.rewardVoucherCode}`
+                      : `${ch.rewardName ?? 'Your reward'} is ready`
+                    : Number(ch.progress) >= Number(ch.target)
                     ? ch.rewardName
                       ? `${ch.rewardName} is ready`
                       : 'Reward ready'
