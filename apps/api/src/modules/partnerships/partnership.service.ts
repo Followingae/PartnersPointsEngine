@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { money, toCsv, when } from '../../platform-core/csv';
 import { Prisma } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
@@ -384,9 +385,18 @@ export class PartnershipService {
   async exportPartnerConversionsCsv(ctx: TenantContext, partnerId: string): Promise<string> {
     return this.tenants.run(ctx, async (tx) => {
       const rows = await tx.conversion.findMany({ where: { partnerId, platformId: ctx.platformId }, orderBy: { createdAt: 'desc' }, take: 5000 });
-      const header = ['created_at', 'brand_id', 'membership_id', 'source_points', 'partner_points', 'ratio_bps', 'allowance_cost_minor', 'status', 'partner_txn_ref', 'failure_reason'];
-      const lines = rows.map((c) => csvRow([c.createdAt.toISOString(), c.brandId, c.membershipId, c.sourcePoints, c.partnerPoints, c.ratioBps, c.allowanceCostMinor, c.status, c.partnerTxnRef ?? '', c.failureReason ?? '']));
-      return [header.join(','), ...lines].join('\n');
+      return toCsv(rows, [
+        { header: 'Date', value: (c) => when(c.createdAt) },
+        { header: 'Status', value: (c) => c.status },
+        { header: 'Points converted', value: (c) => c.sourcePoints },
+        { header: 'Partner points issued', value: (c) => c.partnerPoints },
+        { header: 'Rate (bps)', value: (c) => c.ratioBps },
+        { header: 'Allowance cost', value: (c) => money(c.allowanceCostMinor) },
+        { header: 'Partner reference', value: (c) => c.partnerTxnRef },
+        { header: 'Failure reason', value: (c) => c.failureReason },
+        { header: 'Brand ID', value: (c) => c.brandId },
+        { header: 'Membership ID', value: (c) => c.membershipId },
+      ]);
     });
   }
 
@@ -394,19 +404,16 @@ export class PartnershipService {
   async exportBrandConversionsCsv(ctx: TenantContext): Promise<string> {
     return this.tenants.run(ctx, async (tx) => {
       const rows = await tx.conversion.findMany({ where: { brandId: ctx.brandId! }, orderBy: { createdAt: 'desc' }, take: 5000 });
-      const header = ['created_at', 'membership_id', 'source_points', 'partner_points', 'allowance_cost_minor', 'status', 'partner_txn_ref'];
-      const lines = rows.map((c) => csvRow([c.createdAt.toISOString(), c.membershipId, c.sourcePoints, c.partnerPoints, c.allowanceCostMinor, c.status, c.partnerTxnRef ?? '']));
-      return [header.join(','), ...lines].join('\n');
+      return toCsv(rows, [
+        { header: 'Date', value: (c) => when(c.createdAt) },
+        { header: 'Status', value: (c) => c.status },
+        { header: 'Points converted', value: (c) => c.sourcePoints },
+        { header: 'Partner points issued', value: (c) => c.partnerPoints },
+        { header: 'Allowance cost', value: (c) => money(c.allowanceCostMinor) },
+        { header: 'Partner reference', value: (c) => c.partnerTxnRef },
+        { header: 'Membership ID', value: (c) => c.membershipId },
+      ]);
     });
   }
 }
 
-/** Minimal RFC-4180 CSV row: quote fields containing comma/quote/newline. */
-function csvRow(values: Array<string | number | bigint>): string {
-  return values
-    .map((v) => {
-      const s = typeof v === 'bigint' ? v.toString() : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    })
-    .join(',');
-}

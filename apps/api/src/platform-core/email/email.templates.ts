@@ -190,6 +190,8 @@ export interface ReceiptEmailData {
   vouchers?: Array<{ rewardName: string; code: string; discountMinor: number }>;
   /** Campaigns that made this earn bigger — a happy hour, a double-points day. */
   bonuses?: Array<{ name: string; factor?: number; points?: number }>;
+  /** Stamp cards finished on this sale. The best news in the whole email. */
+  celebrations?: Array<{ challengeName: string; rewardName: string | null; voucherCode: string | null }>;
   /** Where the full receipt lives — this email is the summary, not the record. */
   receiptUrl: string;
 }
@@ -214,6 +216,7 @@ export function bonusValue(b: { factor?: number; points?: number }): string {
 export function receiptEmail(d: ReceiptEmailData): { subject: string; html: string; text: string } {
   const earned = Number(d.earnedPoints);
   const bonuses = d.bonuses ?? [];
+  const celebrations = d.celebrations ?? [];
   const gross = d.grossMinor ?? d.netMinor;
 
   const row = (label: string, value: string, opts: { strong?: boolean; accent?: string } = {}) => `
@@ -242,6 +245,21 @@ export function receiptEmail(d: ReceiptEmailData): { subject: string; html: stri
         ${d.memberName ? `${esc(d.memberName)} · ` : ''}Order ${esc(d.orderNo)}
       </p>
 
+      ${celebrations.map((c) => `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0 0;">
+        <tr>
+          <td style="background:${LIME};border-radius:20px;padding:20px 22px;">
+            <p style="margin:0;font-family:${FONT};font-size:13px;line-height:18px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${INK};">
+              ${esc(c.challengeName)} complete
+            </p>
+            <p style="margin:8px 0 0 0;font-family:${FONT};font-size:26px;line-height:32px;font-weight:700;letter-spacing:-0.5px;color:${INK};">
+              ${c.rewardName ? esc(c.rewardName) + ' is yours' : 'Your reward is ready'}
+            </p>
+            ${c.voucherCode ? `<p style="margin:10px 0 0 0;font-family:${FONT};font-size:14px;line-height:20px;color:${INK};">Show this at the till: <strong>${esc(c.voucherCode)}</strong></p>` : ''}
+          </td>
+        </tr>
+      </table>`).join('')}
+
       ${earned > 0 ? `
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0 0;">
         <tr>
@@ -265,12 +283,17 @@ export function receiptEmail(d: ReceiptEmailData): { subject: string; html: stri
     <tr><td align="center">${button(d.receiptUrl, 'View full receipt')}</td></tr>`;
 
   return {
-    subject: `${d.brandName} — ${money(d.netMinor, d.currency)}`,
+    subject:
+      celebrations.length > 0
+        ? `${celebrations[0]!.rewardName ?? 'Your reward'} is ready — ${d.brandName}`
+        : `${d.brandName} — ${money(d.netMinor, d.currency)}`,
     html: shell({
       preheader:
-        earned > 0
-          ? `You earned ${num(earned)} ${d.pointsCode} at ${d.brandName}`
-          : `Your receipt from ${d.brandName}`,
+        celebrations.length > 0
+          ? `${celebrations[0]!.rewardName ?? 'Your reward'} is yours at ${d.brandName}`
+          : earned > 0
+            ? `You earned ${num(earned)} ${d.pointsCode} at ${d.brandName}`
+            : `Your receipt from ${d.brandName}`,
       body,
       footnote: 'Keep this for your records, or open the full receipt any time from the app.',
     }),

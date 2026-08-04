@@ -11,8 +11,22 @@ export interface CompletedChallenge {
   name: string;
   kind: string;
   rewardPoints: string;
-  badgeName: string | null;
-  voucherCode: string | null;
+  /**
+   * What the till prints after "UNLOCKED:".
+   *
+   * The deployed fleet reads this field and falls back to the challenge name,
+   * so it carries the badge when there is one and otherwise the reward that was
+   * actually won — "FREE COFFEE" says more on a slip than "COFFEE CARD".
+   *
+   * Never null. Android's `org.json` returns the *string* "null" from
+   * `optString` for a JSON null, which is how tills started printing
+   * "UNLOCKED: NULL". Omitted entirely when there is nothing to say, so the
+   * client's `ifBlank` check does what it was written to do.
+   */
+  badgeName?: string;
+  /** The reward's own name, for clients that don't have to guess. */
+  rewardName?: string;
+  voucherCode?: string;
 }
 
 /** A stamp card's live state for the till and the customer app. */
@@ -22,6 +36,8 @@ export interface StampProgress {
   progress: number;
   target: number;
   completions: number;
+  /** Filled on this very visit — the till celebrates instead of showing a fresh card. */
+  justCompleted?: boolean;
 }
 
 export interface GamificationOutcome {
@@ -105,13 +121,30 @@ export class GamificationService {
           const badgeName = ch.badgeId
             ? (await tx.badge.findUnique({ where: { id: ch.badgeId }, select: { name: true } }))?.name ?? null
             : null;
+          const rewardName = ch.rewardItemId
+            ? (await tx.rewardCatalogItem.findUnique({
+                where: { id: ch.rewardItemId },
+                select: { name: true },
+              }))?.name ?? null
+            : null;
+          // Keys are omitted rather than set to null — see `badgeName` above.
           completed.push({
             id: ch.id,
             name: ch.name,
             kind: ch.kind,
             rewardPoints: ch.rewardPoints.toString(),
-            badgeName,
-            voucherCode,
+            ...(badgeName ?? rewardName
+              ? {
+                  // The paper slip prints this after 'UNLOCKED:'. The code goes on
+                  // the same line because a reward the customer cannot claim at
+                  // the counter is not much of a reward.
+                  badgeName: [badgeName ?? rewardName, voucherCode ? `CODE ${voucherCode}` : null]
+                    .filter(Boolean)
+                    .join(' · '),
+                }
+              : {}),
+            ...(rewardName ? { rewardName } : {}),
+            ...(voucherCode ? { voucherCode } : {}),
           });
         }
         completions += fills;
@@ -140,14 +173,22 @@ export class GamificationService {
         });
       }
 
-      // stamp cards are what the till prints — surface their live state
+      // Stamp cards are what the till prints — surface their live state.
+      //
+      // On the visit that fills a card, `progress` has already rolled over to
+      // the carry-over for the next one, so sending it would print "0 OF 10 ·
+      // 10 TO GO" at the exact moment the customer earned their reward. The
+      // card the customer just finished is the one that gets printed; the fresh
+      // one starts on their next receipt.
       if (ch.repeatable && ch.kind === 'visits') {
+        const filledNow = completed.some((c) => c.id === ch.id);
         stamps.push({
           id: ch.id,
           name: ch.name,
-          progress: Number(progress),
+          progress: filledNow ? Number(ch.target) : Number(progress),
           target: Number(ch.target),
           completions,
+          ...(filledNow ? { justCompleted: true } : {}),
         });
       }
     }

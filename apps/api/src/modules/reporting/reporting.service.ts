@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { toCsv } from '../../platform-core/csv';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 
@@ -11,6 +12,21 @@ interface RfmRow {
   f_score: number;
   m_score: number;
 }
+
+/**
+ * How each segment is written for a human — matching the brand console, so an
+ * exported file and the screen it came from do not disagree.
+ */
+export const SEGMENT_LABELS: Record<string, string> = {
+  champions: 'Champions',
+  loyal: 'Loyal',
+  new: 'New',
+  potential_loyalist: 'Potential loyalist',
+  at_risk: 'At risk',
+  cant_lose: 'Can’t lose them',
+  hibernating: 'Hibernating',
+  regular: 'Regular',
+};
 
 /** RFM segment from R/F/M quintile scores (classic loyalty segmentation). */
 export function rfmSegment(r: number, f: number, m: number): string {
@@ -196,13 +212,34 @@ export class ReportingService {
     });
   }
 
-  /** RFM as CSV for export. */
+  /**
+   * RFM as CSV.
+   *
+   * The loyalty ID leads, because a column of membership UUIDs is unusable to
+   * whoever opens this — it is the number on the customer's card that lets them
+   * act on a row. Segments are written the way the console writes them
+   * ("Can't lose them", not `cant_lose`), so the file and the screen agree.
+   */
   async rfmCsv(ctx: TenantContext): Promise<string> {
     const rows = await this.rfm(ctx, 10_000);
-    const header = 'membershipId,recencyDays,frequency,monetary,r,f,m,segment';
-    const body = rows
-      .map((r) => [r.membershipId, r.recencyDays ?? '', r.frequency, r.monetary, r.r, r.f, r.m, r.segment].join(','))
-      .join('\n');
-    return `${header}\n${body}\n`;
+    const byMembership = await this.tenants.run(ctx, async (tx) => {
+      const members = await tx.customerMembership.findMany({
+        where: { id: { in: rows.map((r) => r.membershipId) } },
+        select: { id: true, loyaltyId: true },
+      });
+      return new Map(members.map((m) => [m.id, m.loyaltyId]));
+    });
+
+    return toCsv(rows, [
+      { header: 'Loyalty ID', value: (r) => byMembership.get(r.membershipId) ?? '' },
+      { header: 'Segment', value: (r) => SEGMENT_LABELS[r.segment] ?? r.segment },
+      { header: 'Days since last visit', value: (r) => r.recencyDays },
+      { header: 'Times earned', value: (r) => r.frequency },
+      { header: 'Points earned', value: (r) => r.monetary },
+      { header: 'Recency score', value: (r) => r.r },
+      { header: 'Frequency score', value: (r) => r.f },
+      { header: 'Monetary score', value: (r) => r.m },
+      { header: 'Membership ID', value: (r) => r.membershipId },
+    ]);
   }
 }

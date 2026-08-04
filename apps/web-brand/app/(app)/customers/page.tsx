@@ -3,13 +3,17 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Badge, Card, SectionTitle } from '@/components/ui';
+import { Modal } from '@/components/form';
 import { getRfm, type RfmRow } from '@/lib/api';
+import { MEANINGFUL_SAMPLE, segmentInfo } from '@/lib/rfm';
 
 const fmt = (v: string | number) => Number(v).toLocaleString();
 
 export default function CustomersPage() {
   const [rfm, setRfm] = useState<RfmRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // The row whose segment is being explained, if any.
+  const [explaining, setExplaining] = useState<RfmRow | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -54,19 +58,20 @@ export default function CustomersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge
-                      tone={
-                        r.segment === 'champions' || r.segment === 'loyal'
-                          ? 'lime'
-                          : r.segment === 'at_risk' || r.segment === 'cant_lose'
-                            ? 'coral'
-                            : r.segment === 'new' || r.segment === 'potential_loyalist'
-                              ? 'teal'
-                              : 'neutral'
-                      }
+                    {/* Stops the row's own click from opening the member. */}
+                    <button
+                      type="button"
+                      title={segmentInfo(r.segment).short}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExplaining(r);
+                      }}
+                      className="rounded-full outline-none transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ink/30"
                     >
-                      {r.segment.replace(/_/g, ' ')}
-                    </Badge>
+                      <Badge tone={segmentInfo(r.segment).tone}>
+                        {segmentInfo(r.segment).label}
+                      </Badge>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -81,6 +86,65 @@ export default function CustomersPage() {
           </table>
         </div>
       </Card>
+
+      <Modal
+        open={explaining !== null}
+        onClose={() => setExplaining(null)}
+        title={explaining ? segmentInfo(explaining.segment).label : ''}
+        subtitle={explaining ? segmentInfo(explaining.segment).short : undefined}
+        size="lg"
+      >
+        {explaining ? (
+          <div className="space-y-5">
+            <p className="text-sm leading-relaxed text-foreground">
+              {segmentInfo(explaining.segment).meaning}
+            </p>
+
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                What to do
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed">{segmentInfo(explaining.segment).action}</p>
+            </div>
+
+            {/* This member's own numbers, so the label is traceable to data. */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Why this member
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-3">
+                {[
+                  { k: 'Recency', v: explaining.recencyDays == null ? '—' : `${explaining.recencyDays}d ago`, s: explaining.r },
+                  { k: 'Frequency', v: `${explaining.frequency} earns`, s: explaining.f },
+                  { k: 'Monetary', v: `${fmt(explaining.monetary)} pts`, s: explaining.m },
+                ].map((c) => (
+                  <div key={c.k} className="rounded-2xl border border-border/70 p-3">
+                    <p className="text-xs text-muted-foreground">{c.k}</p>
+                    <p className="mt-0.5 font-display text-lg font-bold leading-tight">{c.v}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">scores {c.s} of 5</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                {segmentInfo(explaining.segment).rule}
+              </p>
+            </div>
+
+            {/* Said plainly rather than hidden, because acting on noise costs money. */}
+            {rfm.length < MEANINGFUL_SAMPLE ? (
+              <div className="rounded-2xl border border-coral/40 bg-coral/10 p-4">
+                <p className="text-sm font-semibold text-[#9b3b52]">Treat this as provisional</p>
+                <p className="mt-1 text-sm leading-relaxed text-[#9b3b52]">
+                  Scores are quintiles — each customer is ranked against the others, not against a
+                  fixed bar. With {rfm.length} {rfm.length === 1 ? 'member' : 'members'}, somebody is
+                  in the top fifth by arithmetic alone. These labels start describing real behaviour
+                  from around {MEANINGFUL_SAMPLE} members.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

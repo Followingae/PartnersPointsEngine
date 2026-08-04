@@ -498,6 +498,8 @@ model Receipt {
   vouchers       Json      @default("[]")
   /** Campaigns that made this earn bigger: [{ id, name, factor?, points? }]. */
   bonuses        Json      @default("[]")
+  /** Stamp cards / challenges finished on this sale: [{ challengeName, rewardName, voucherCode }]. */
+  celebrations   Json      @default("[]")
   viewCount      Int       @default(0) @map("view_count")
   adClicks       Int       @default(0) @map("ad_clicks")
   firstViewedAt  DateTime? @map("first_viewed_at")

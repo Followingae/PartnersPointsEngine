@@ -324,6 +324,38 @@ export class TerminalService {
           ...(b.points ? { points: b.points } : {}),
         }));
 
+      /**
+       * Stamp cards finished on this sale.
+       *
+       * Read from the outbox rather than sent by the till, because the fleet
+       * runs a build that does not know to forward it — and the customer who
+       * just filled their card is standing at the counter either way. The
+       * transaction wrote these moments a minute ago at most; the window is
+       * generous enough for a slow receipt post and short enough that yesterday's
+       * card cannot leak onto today's slip.
+       */
+      const celebrations = claims
+        ? (
+            await tx.outbox.findMany({
+              where: {
+                brandId: ctx.brandId!,
+                eventType: 'points.challenge_completed',
+                createdAt: { gte: new Date(Date.now() - TerminalService.VOUCHER_HOLD_MS) },
+              },
+              orderBy: { createdAt: 'desc' },
+              take: 20,
+              select: { payload: true },
+            })
+          )
+            .map((o) => o.payload as { membershipId?: string; challengeName?: string; rewardName?: string | null; voucherCode?: string | null })
+            .filter((p) => p.membershipId === claims.membershipId)
+            .map((p) => ({
+              challengeName: p.challengeName ?? 'Challenge',
+              rewardName: p.rewardName ?? null,
+              voucherCode: p.voucherCode ?? null,
+            }))
+        : [];
+
       const vouchers = applied.map((v) => {
         const payload = (v.catalogItem?.payload ?? {}) as { discountMinor?: number };
         return {
@@ -358,6 +390,7 @@ export class TerminalService {
           membershipId: claims?.membershipId ?? null,
           vouchers,
           bonuses,
+          celebrations,
         },
         select: { id: true },
       });
@@ -378,6 +411,7 @@ export class TerminalService {
         memberName: dto.memberName ?? null,
         vouchers,
         bonuses,
+        celebrations,
         receiptUrl: `${this.publicBaseUrl()}/r/${dto.token}`,
       });
 
@@ -649,6 +683,23 @@ export class TerminalService {
             points: r.decision.points.toString(),
             amountMinor: dto.amountMinor ?? null,
             journalId: r.journalId,
+          });
+        }
+
+        // A finished stamp card is the best thing that happens to a customer in
+        // this system, and until now nothing outside the transaction response
+        // knew it had happened — so the receipt said nothing and no message
+        // went out. Emitted here, in the same transaction as the earn, so the
+        // receipt and the alert can both find it without the till telling them.
+        for (const done of r.gamification.completed ?? []) {
+          await this.outbox?.emit(tx, ctx, 'points', 'points.challenge_completed', {
+            membershipId: claims.membershipId,
+            transactionId: created.id,
+            challengeId: done.id,
+            challengeName: done.name,
+            rewardName: done.rewardName ?? done.badgeName ?? null,
+            rewardPoints: done.rewardPoints,
+            voucherCode: done.voucherCode ?? null,
           });
         }
 

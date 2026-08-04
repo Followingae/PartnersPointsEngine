@@ -163,7 +163,7 @@ describe('Terminal gateway (Phase 4)', () => {
 
     // third visit fills it: voucher issued, card rolls back to zero
     const third = await terminal.transaction(ctx, { intent: 'earn', memberToken, idempotencyKey: 'stamp-2', amountMinor: 1000, isVisit: true }) as {
-      completed: Array<{ name: string; voucherCode: string | null }>; stamps: Array<{ progress: number; target: number }>;
+      completed: Array<{ name: string; voucherCode?: string; badgeName?: string }>; stamps: Array<{ progress: number; target: number; justCompleted?: boolean }>;
     };
     expect(third.completed.map((c) => c.name)).toContain('Coffee card');
     const code = third.completed.find((c) => c.name === 'Coffee card')?.voucherCode;
@@ -171,7 +171,14 @@ describe('Terminal gateway (Phase 4)', () => {
     progress = await prisma.challengeProgress.findFirstOrThrow({ where: { challengeId: stamp.id } });
     expect(progress.progress).toBe(0n);
     expect(progress.completions).toBe(1);
-    expect(third.stamps.find((s) => s.target === 3)?.progress).toBe(0);
+
+    // Stored progress has rolled over, but the till is told the card is FULL.
+    // Sending the rolled-over 0 printed "0 OF 3 · 3 TO GO" on the very receipt
+    // that earned the reward, so the customer's reward read as a reset. The
+    // finished card goes on this slip; the fresh one starts on the next.
+    const shown = third.stamps.find((s) => s.target === 3);
+    expect(shown?.progress).toBe(3);
+    expect(shown?.justCompleted).toBe(true);
 
     // the till holds that voucher against the sale, once
     const redeemed = await terminal.redeemVoucher(ctx, code!.toLowerCase());

@@ -159,6 +159,21 @@ function receiptVouchers(raw: unknown): ReceiptVoucher[] {
   });
 }
 
+/** Receipt.celebrations — a card finished on this sale, if any. */
+function receiptCelebrations(raw: unknown): Array<{ challengeName: string; rewardName: string | null; voucherCode: string | null }> {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((c) => {
+    if (!c || typeof c !== 'object') return [];
+    const { challengeName, rewardName, voucherCode } = c as Record<string, unknown>;
+    if (typeof challengeName !== 'string' || !challengeName) return [];
+    return [{
+      challengeName,
+      rewardName: typeof rewardName === 'string' && rewardName ? rewardName : null,
+      voucherCode: typeof voucherCode === 'string' && voucherCode ? voucherCode : null,
+    }];
+  });
+}
+
 /**
  * Receipt.bonuses, likewise free-form JSON — a campaign row needs a name and
  * something it actually did, or it is noise on a receipt.
@@ -326,6 +341,7 @@ function receiptBody(
     balanceAfter: bigint | null; pointsCode: string; createdAt: Date; token: string;
     vouchers?: unknown;
     bonuses?: unknown;
+    celebrations?: unknown;
   },
   brand: BrandProfile,
   store: StoreLink | null,
@@ -407,6 +423,19 @@ function receiptBody(
     )
     .join('');
 
+  // The whole point of a stamp card, said loudly and before anything else.
+  const celebration = receiptCelebrations(r.celebrations)
+    .map(
+      (c) => `<div class="card" style="margin-top:12px;background:var(--lime,#E1FF3D)"><div style="padding:20px 18px">
+        <div class="tiny" style="font-weight:800;letter-spacing:1.2px;text-transform:uppercase">${esc(c.challengeName)} complete</div>
+        <div class="display" style="margin-top:6px;font-size:26px;font-weight:800;line-height:1.15">
+          ${c.rewardName ? esc(c.rewardName) + ' is yours' : 'Your reward is ready'}
+        </div>
+        ${c.voucherCode ? `<div class="sm" style="margin-top:8px">Show this at the till · <span class="mono" style="font-weight:700">${esc(c.voucherCode)}</span></div>` : ''}
+      </div></div>`,
+    )
+    .join('');
+
   const details = `
   <div class="card" style="margin-top:12px"><div style="padding:16px 18px">
     <div class="row sm"><span class="muted">Subtotal</span><span>${money(r.grossMinor, r.currency)}</span></div>
@@ -466,7 +495,7 @@ function receiptBody(
        </a>`
     : '';
 
-  return `${hero}${details}${merchantBlock}${actions}
+  return `${hero}${celebration}${details}${merchantBlock}${actions}
   <div style="text-align:center;margin-top:18px" class="tiny faint">
     Digital receipt · Powered by <b style="color:var(--muted)">Partners Points</b>
   </div>

@@ -37,4 +37,5 @@ export const INCREMENTAL_MIGRATIONS = [
   '2026-08-03_wallet_sessions.sql',
   '2026-08-03_receipt_bonuses.sql',
   '2026-08-03_terminal_releases.sql',
+  '2026-08-04_receipt_celebrations.sql',
 ] as const;
