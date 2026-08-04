@@ -1,8 +1,7 @@
 import { useRouter } from 'expo-router';
-import { Linking } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { StateScreen } from '@/components/StateScreen';
-import { requestNotifications } from '@/lib/push';
+import { openNotificationSettings } from '@/lib/push';
 import { C } from '@/lib/tokens';
 
 /**
@@ -19,11 +18,7 @@ export default function NotificationAccess() {
   const back = () => (router.canGoBack() ? router.back() : router.replace('/profile/notifications'));
 
   async function turnOn() {
-    const r = await requestNotifications();
-    if (r === 'blocked') {
-      void Linking.openSettings();
-      return;
-    }
+    await openNotificationSettings();
     back();
   }
 
@@ -36,7 +31,7 @@ export default function NotificationAccess() {
         </Svg>
       }
       title="Know when points land"
-      body="Earned points, ready rewards and expiry warnings. No marketing unless you ask."
+      body="Earned points, ready rewards and expiry warnings. No marketing unless you ask. Switched on in your device settings."
       primaryLabel="Turn on"
       onPrimary={turnOn}
       secondaryLabel="Later"

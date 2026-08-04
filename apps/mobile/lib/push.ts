@@ -1,72 +1,33 @@
 /**
- * Notification permission, and the device token that goes with it.
+ * Notification permission — what we can honestly do about it today.
  *
- * Asking is one thing; being able to reach the device is another. Registering
- * the token here means the day the server starts sending, every customer who
- * already said yes is reachable — rather than a migration where everyone is
- * asked a second time.
+ * There is no push service on the API. Nothing sends. So the app's job here is
+ * to explain what notifications would be for and take someone to the place
+ * they are switched on, not to collect a device token for a sender that does
+ * not exist.
  *
- * Sending is deliberately not implemented. There is no push service on the API
- * yet, and pretending otherwise in the permission copy is how an app gets its
- * notifications turned off permanently.
+ * `expo-notifications` is deliberately not used. It imports three packages it
+ * never declares, which pnpm's isolated layout hides from Metro; the fix is to
+ * hoist node_modules, and hoisting resolves two copies of React into the two
+ * Next consoles and breaks their production build. Destabilising two working
+ * apps to satisfy a permission primer for a feature nobody has built is a bad
+ * trade. When push is real, the SDK arrives with it and this file goes.
+ *
+ * The server already accepts a device token (`POST /customer/wallet/push-token`),
+ * so the day it is built there is somewhere for it to go.
  */
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { registerPushToken } from '@/lib/api';
+import { Linking } from 'react-native';
 
-export type PushOutcome = 'granted' | 'denied' | 'blocked' | 'unsupported';
-
-/** Where the token is sent. Failing to register must not fail the permission. */
-async function record(token: string): Promise<void> {
-  try {
-    await registerPushToken(token, Platform.OS);
-  } catch {
-    /* the permission is what the customer asked for; the rest is our problem */
-  }
-}
-
-export async function notificationStatus(): Promise<PushOutcome> {
-  try {
-    const { status, canAskAgain } = await Notifications.getPermissionsAsync();
-    if (status === 'granted') return 'granted';
-    return canAskAgain ? 'denied' : 'blocked';
-  } catch {
-    return 'unsupported';
-  }
-}
+export type PushOutcome = 'settings' | 'unsupported';
 
 /**
- * Asks, and registers on success.
- *
- * Returns `blocked` when the OS will no longer show its dialog — the caller
- * sends those to Settings, because asking again does nothing at all.
+ * Opens the OS settings page for this app, which is where notification
+ * permission genuinely lives on both platforms.
  */
-export async function requestNotifications(): Promise<PushOutcome> {
+export async function openNotificationSettings(): Promise<PushOutcome> {
   try {
-    const current = await Notifications.getPermissionsAsync();
-    if (current.status !== 'granted' && !current.canAskAgain) return 'blocked';
-
-    const { status } = current.status === 'granted'
-      ? current
-      : await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return 'denied';
-
-    // Android needs a channel before anything it delivers will make a sound.
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Points and rewards',
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
-
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-    if (!projectId) return 'granted';
-
-    const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
-    if (data) await record(data);
-    return 'granted';
+    await Linking.openSettings();
+    return 'settings';
   } catch {
     return 'unsupported';
   }
