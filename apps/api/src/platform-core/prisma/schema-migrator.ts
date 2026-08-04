@@ -74,29 +74,48 @@ export interface MigrateResult {
 }
 
 /**
- * TLS for the migration connection, matching what the URL actually asks for.
+ * The connection settings for the migration client, TLS included.
  *
- * node-postgres treats `sslmode=require` as `verify-full` — stricter than
- * libpq, and stricter than Prisma, which connects to this same database over
- * this same URL without complaint. Against Supabase, whose chain is not in the
- * default trust store, that means `SELF_SIGNED_CERT_IN_CHAIN`: the migrator
- * threw, the boot died, and the platform rolled the deploy back.
+ * node-postgres reads `sslmode=require` as `verify-full` — stricter than libpq,
+ * and stricter than Prisma, which connects to this same database over this same
+ * URL without complaint. Supabase's chain is not in the default trust store, so
+ * the raw `pg` client threw `SELF_SIGNED_CERT_IN_CHAIN`, the boot died, and the
+ * platform rolled the deploy back.
  *
- * So the modes are honoured as libpq defines them. `require` and `prefer` mean
- * encrypt the connection — they have never meant verify the chain. `verify-ca`
- * and `verify-full` do, and are passed through untouched, so anyone who asks
- * for real verification still gets it.
+ * Passing an `ssl` option alongside the URL does not fix it: `pg` parses the
+ * connection string *over* the explicit config, so whatever the string says
+ * wins. The mode therefore has to be taken out of the string entirely and
+ * applied here, where it will actually survive.
+ *
+ * The modes then mean what libpq says they mean. `require` and `prefer` encrypt
+ * — they have never meant verify the chain. `verify-ca` and `verify-full` do,
+ * and still get full verification.
  */
-export function sslFor(url: string): { rejectUnauthorized: boolean } | boolean | undefined {
-  let mode: string | null = null;
+export function migrationClientConfig(url: string): {
+  connectionString: string;
+  ssl: { rejectUnauthorized: boolean } | boolean | undefined;
+} {
+  let parsed: URL;
   try {
-    mode = new URL(url).searchParams.get('sslmode');
+    parsed = new URL(url);
   } catch {
-    return undefined;
+    // Not a URL we can reason about — hand it over untouched rather than guess.
+    return { connectionString: url, ssl: undefined };
   }
-  if (!mode || mode === 'disable') return undefined;
-  if (mode === 'verify-full' || mode === 'verify-ca') return true;
-  return { rejectUnauthorized: false };
+
+  const mode = parsed.searchParams.get('sslmode');
+  // Removed so `pg` cannot re-derive TLS from the string and overwrite us.
+  parsed.searchParams.delete('sslmode');
+  parsed.searchParams.delete('ssl');
+
+  const ssl =
+    !mode || mode === 'disable'
+      ? undefined
+      : mode === 'verify-full' || mode === 'verify-ca'
+        ? true
+        : { rejectUnauthorized: false };
+
+  return { connectionString: parsed.toString(), ssl };
 }
 
 /**
@@ -117,7 +136,7 @@ export async function applyPendingMigrations(log: {
   }
 
   const dir = sqlDir();
-  const client = new Client({ connectionString: url, ssl: sslFor(url) });
+  const client = new Client(migrationClientConfig(url));
   await client.connect();
   const applied: string[] = [];
   let skipped = 0;

@@ -9,7 +9,8 @@
 import { PrismaClient } from '@rfm-loyalty/db';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyPendingMigrations, sslFor } from '../src/platform-core/prisma/schema-migrator';
+import { Client } from 'pg';
+import { applyPendingMigrations, migrationClientConfig } from '../src/platform-core/prisma/schema-migrator';
 
 const quiet = { info: () => undefined, error: () => undefined };
 
@@ -80,27 +81,48 @@ describe('boot migrator', () => {
   });
 
   /**
-   * The TLS mode the URL asks for is the one used.
+   * The TLS the client ends up with — not the TLS we asked for.
    *
-   * node-postgres reads `sslmode=require` as full verification, which Supabase's
-   * chain fails — the migrator threw, the boot died, and six deploys rolled
-   * back before anyone could see why. libpq's meaning is the correct one:
-   * `require` encrypts, `verify-*` verifies.
+   * These are different things, which is the whole bug: `pg` parses the
+   * connection string over the explicit config, so an `ssl` option alongside a
+   * URL containing `sslmode=require` is silently discarded. Testing the helper
+   * in isolation passed while six deploys died on
+   * SELF_SIGNED_CERT_IN_CHAIN. So this asks the client.
    */
-  it('honours sslmode the way libpq defines it', async () => {
-    const base = inject('DATABASE_URL');
-    for (const [mode, expected] of [
-      ['require', { rejectUnauthorized: false }],
-      ['prefer', { rejectUnauthorized: false }],
-      ['verify-full', true],
-      ['verify-ca', true],
-      ['disable', undefined],
-    ] as const) {
-      process.env.DIRECT_URL = `${base}?sslmode=${mode}`;
-      expect(sslFor(process.env.DIRECT_URL)).toEqual(expected);
-    }
-    // No sslmode at all — plain connection, which is what local Postgres wants.
-    expect(sslFor(base)).toBeUndefined();
-    process.env.DIRECT_URL = base;
+  describe('TLS', () => {
+    const resolved = (url: string) =>
+      (new Client(migrationClientConfig(url)) as unknown as {
+        connectionParameters: { ssl: unknown };
+      }).connectionParameters.ssl;
+
+    it('require and prefer encrypt without demanding a trusted chain', () => {
+      for (const mode of ['require', 'prefer']) {
+        expect(resolved(`postgresql://u:p@db.example.com:5432/postgres?sslmode=${mode}`))
+          .toEqual({ rejectUnauthorized: false });
+      }
+    });
+
+    it('verify-full and verify-ca still verify', () => {
+      for (const mode of ['verify-full', 'verify-ca']) {
+        const ssl = resolved(`postgresql://u:p@db.example.com:5432/postgres?sslmode=${mode}`);
+        expect(ssl === true || (ssl as { rejectUnauthorized?: boolean })?.rejectUnauthorized !== false)
+          .toBe(true);
+      }
+    });
+
+    it('no sslmode means no TLS — local Postgres speaks plaintext', () => {
+      const ssl = resolved('postgresql://u:p@localhost:5432/postgres');
+      expect(ssl === undefined || ssl === false).toBe(true);
+    });
+
+    it('strips sslmode so pg cannot re-derive it from the string', () => {
+      const { connectionString } = migrationClientConfig(
+        'postgresql://u:p@db.example.com:5432/postgres?sslmode=require&pgbouncer=true',
+      );
+      expect(connectionString).not.toContain('sslmode');
+      // Everything else about the URL survives untouched.
+      expect(connectionString).toContain('pgbouncer=true');
+      expect(connectionString).toContain('db.example.com:5432');
+    });
   });
 });
