@@ -74,6 +74,32 @@ export interface MigrateResult {
 }
 
 /**
+ * TLS for the migration connection, matching what the URL actually asks for.
+ *
+ * node-postgres treats `sslmode=require` as `verify-full` — stricter than
+ * libpq, and stricter than Prisma, which connects to this same database over
+ * this same URL without complaint. Against Supabase, whose chain is not in the
+ * default trust store, that means `SELF_SIGNED_CERT_IN_CHAIN`: the migrator
+ * threw, the boot died, and the platform rolled the deploy back.
+ *
+ * So the modes are honoured as libpq defines them. `require` and `prefer` mean
+ * encrypt the connection — they have never meant verify the chain. `verify-ca`
+ * and `verify-full` do, and are passed through untouched, so anyone who asks
+ * for real verification still gets it.
+ */
+export function sslFor(url: string): { rejectUnauthorized: boolean } | boolean | undefined {
+  let mode: string | null = null;
+  try {
+    mode = new URL(url).searchParams.get('sslmode');
+  } catch {
+    return undefined;
+  }
+  if (!mode || mode === 'disable') return undefined;
+  if (mode === 'verify-full' || mode === 'verify-ca') return true;
+  return { rejectUnauthorized: false };
+}
+
+/**
  * Runs pending migrations as the owner role.
  *
  * `DIRECT_URL` rather than the pooled URL: DDL through a transaction pooler is
@@ -91,7 +117,7 @@ export async function applyPendingMigrations(log: {
   }
 
   const dir = sqlDir();
-  const client = new Client({ connectionString: url });
+  const client = new Client({ connectionString: url, ssl: sslFor(url) });
   await client.connect();
   const applied: string[] = [];
   let skipped = 0;

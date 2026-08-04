@@ -9,7 +9,7 @@
 import { PrismaClient } from '@rfm-loyalty/db';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyPendingMigrations } from '../src/platform-core/prisma/schema-migrator';
+import { applyPendingMigrations, sslFor } from '../src/platform-core/prisma/schema-migrator';
 
 const quiet = { info: () => undefined, error: () => undefined };
 
@@ -77,5 +77,30 @@ describe('boot migrator', () => {
     // race, so assert the invariant rather than the winner.
     expect(a.applied.length + b.applied.length).toBeGreaterThan(0);
     expect(Math.min(a.applied.length, b.applied.length)).toBe(0);
+  });
+
+  /**
+   * The TLS mode the URL asks for is the one used.
+   *
+   * node-postgres reads `sslmode=require` as full verification, which Supabase's
+   * chain fails — the migrator threw, the boot died, and six deploys rolled
+   * back before anyone could see why. libpq's meaning is the correct one:
+   * `require` encrypts, `verify-*` verifies.
+   */
+  it('honours sslmode the way libpq defines it', async () => {
+    const base = inject('DATABASE_URL');
+    for (const [mode, expected] of [
+      ['require', { rejectUnauthorized: false }],
+      ['prefer', { rejectUnauthorized: false }],
+      ['verify-full', true],
+      ['verify-ca', true],
+      ['disable', undefined],
+    ] as const) {
+      process.env.DIRECT_URL = `${base}?sslmode=${mode}`;
+      expect(sslFor(process.env.DIRECT_URL)).toEqual(expected);
+    }
+    // No sslmode at all — plain connection, which is what local Postgres wants.
+    expect(sslFor(base)).toBeUndefined();
+    process.env.DIRECT_URL = base;
   });
 });
