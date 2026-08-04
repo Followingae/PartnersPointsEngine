@@ -268,6 +268,11 @@ export interface Profile {
   birthdate: string | null;
   /** ISO 3166-1 alpha-2, uppercase. */
   nationality: string | null;
+  /** Resolved server-side, so the app holds no country list of its own. */
+  nationalityName: string | null;
+  /** The sixth checklist item: where they actually go. */
+  homeBranchId: string | null;
+  homeBranchName: string | null;
   /** True means the post-purchase WhatsApp is off. Sign-in codes ignore it. */
   txnAlertsOptOut: boolean;
   joinedAt: string;
@@ -301,6 +306,27 @@ export const getActivity = (limit = 60) =>
   api<ActivityEvent[]>(`/customer/wallet/activity?limit=${limit}`);
 export const getProfile = () => api<Profile>('/customer/wallet/profile');
 export const getDiscoverBrands = () => api<DiscoverBrand[]>('/customer/wallet/brands');
+
+/** One branch this person visits, with how often — the home-area suggestion. */
+export interface BranchVisit {
+  branchId: string;
+  branchName: string;
+  brandId: string;
+  brandName: string;
+  visits: number;
+}
+
+export const getBranchVisits = () => api<BranchVisit[]>('/customer/wallet/branch-visits');
+
+export const setHomeBranch = (branchId: string | null) =>
+  api<{ ok: true }>('/customer/wallet/home-branch', {
+    method: 'PATCH',
+    body: JSON.stringify({ branchId }),
+  });
+
+/** The email is stored hashed and encrypted, so it has its own endpoint. */
+export const setEmail = (email: string | null) =>
+  api<Profile>('/customer/wallet/email', { method: 'PATCH', body: JSON.stringify({ email }) });
 
 /**
  * Edit your own details. Omitting a key leaves that field alone; passing `null`

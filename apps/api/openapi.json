@@ -7399,6 +7399,86 @@
         ]
       }
     },
+    "/customer/wallet/email": {
+      "patch": {
+        "operationId": "CustomerWalletController_setEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set or clear the signed-in person’s email address.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/branch-visits": {
+      "get": {
+        "operationId": "CustomerWalletController_branchVisits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Branches this person visits, busiest first — the home-area suggestion.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/home-branch": {
+      "patch": {
+        "operationId": "CustomerWalletController_setHomeBranch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHomeBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set or clear the home area. Null clears it.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
     "/customer/wallet/sessions": {
       "get": {
         "operationId": "CustomerWalletController_sessions",
@@ -9187,6 +9267,26 @@
           "txnAlertsOptOut": {
             "type": "boolean",
             "description": "Stop the WhatsApp message sent after each transaction. Sign-in codes are unaffected."
+          }
+        }
+      },
+      "SetEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "object",
+            "nullable": true,
+            "description": "Email address, or null to clear."
+          }
+        }
+      },
+      "SetHomeBranchDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "object",
+            "nullable": true,
+            "description": "Branch id, or null to clear."
           }
         }
       }

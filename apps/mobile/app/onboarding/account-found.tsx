@@ -88,7 +88,12 @@ export default function AccountFound() {
           </View>
 
           <Footer>
-            <Button label="Open my cards" onPress={() => router.push('/onboarding/biometric')} />
+            <Button
+              label="Open my cards"
+              onPress={() =>
+                router.replace({ pathname: '/onboarding/biometric', params: { next: '/home' } })
+              }
+            />
           </Footer>
         </>
       )}

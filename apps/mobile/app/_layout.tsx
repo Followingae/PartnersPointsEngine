@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockGate } from '@/components/LockGate';
+import { PromptGate } from '@/components/PromptGate';
 import { SessionProvider } from '@/lib/session';
 import { C } from '@/lib/tokens';
 
@@ -39,6 +40,7 @@ export default function RootLayout() {
                 animation: 'slide_from_right',
               }}
             />
+            <PromptGate />
           </View>
         </LockGate>
       </SessionProvider>

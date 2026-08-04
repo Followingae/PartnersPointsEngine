@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { Button, Screen, Small } from '@/components/UI';
 import { lockSupport, setLockEnabled, unlock, type LockSupport } from '@/lib/lock';
 import { C } from '@/lib/tokens';
 import { Footer, Sub, TextLink, Title } from './_components';
 
-const NEXT = '/onboarding/profiling';
+/** Where setup carries on for someone who has no cards yet. */
+const SETUP = '/onboarding/profiling';
 
 /**
  * 06 · Face ID.
@@ -22,11 +23,16 @@ const NEXT = '/onboarding/profiling';
  */
 export default function Biometric() {
   const router = useRouter();
+  // A returning customer passes ?next=/home: they have cards, so there is
+  // nothing left to set up and walking them through the new-user chain ends on
+  // "No brands to join yet", which is the opposite of a welcome.
+  const { next: nextParam } = useLocalSearchParams<{ next?: string }>();
+  const NEXT = (Array.isArray(nextParam) ? nextParam[0] : nextParam) ?? SETUP;
   const [support, setSupport] = useState<LockSupport | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const next = () => router.push(NEXT);
+  const next = () => router.replace(NEXT);
 
   useEffect(() => {
     let alive = true;

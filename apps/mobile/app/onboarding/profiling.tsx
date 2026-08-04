@@ -51,6 +51,11 @@ export default function Profiling() {
     if (signedOut) router.replace('/onboarding/phone');
   }, [signedOut, router]);
 
+  // Already answered — don't ask again on every sign-in.
+  useEffect(() => {
+    if (data?.birthdate) router.replace(NEXT);
+  }, [data?.birthdate, router]);
+
   useEffect(() => {
     if (!data?.birthdate) return;
     const [y, m, d] = data.birthdate.slice(0, 10).split('-');

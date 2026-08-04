@@ -35,3 +35,26 @@ export class UpdateWalletProfileDto {
   @IsBoolean()
   txnAlertsOptOut?: boolean;
 }
+
+/**
+ * The home area, confirmed by the customer.
+ *
+ * Null clears it. The server rejects a branch belonging to a brand they hold
+ * no card for — a suggestion is not permission to claim any branch on the
+ * platform.
+ */
+export class SetHomeBranchDto {
+  @ApiPropertyOptional({ nullable: true, description: 'Branch id, or null to clear.' })
+  @IsOptional()
+  @IsString()
+  branchId?: string | null;
+}
+
+/** The customer's own email. Null clears it. */
+export class SetEmailDto {
+  @ApiPropertyOptional({ nullable: true, description: 'Email address, or null to clear.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(254)
+  email?: string | null;
+}

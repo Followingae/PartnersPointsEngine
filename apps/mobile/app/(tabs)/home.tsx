@@ -8,6 +8,8 @@ import { WalletsEmpty } from '@/components/WalletsEmpty';
 import { getActivity, getCards, getProfile } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { Dot } from '@/components/Bits';
+import { ProfileMeter } from '@/components/ProfileMeter';
+import { completion } from '@/lib/completion';
 import { useUnreadCount } from '@/lib/unread';
 import { C, font } from '@/lib/tokens';
 
@@ -40,6 +42,7 @@ export default function CardsHome() {
   // Derived from the same events the notifications screen renders, so the count
   // and the list can't disagree.
   const notices = useAsync(() => getActivity(40), []);
+  const profileCompletion = completion(profile.data);
   const unread = useUnreadCount((notices.data ?? []).map((e) => e.at));
 
   useEffect(() => {
@@ -68,6 +71,8 @@ export default function CardsHome() {
           </View>
         }
       />
+
+      <ProfileMeter completion={profileCompletion} />
 
       {loading ? <Loading /> : null}
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { EmailService } from '../../platform-core/email/email.service';
@@ -111,8 +112,55 @@ export class CustomerWalletService {
       birthdate: p.birthdate,
       nationality: p.nationality,
       txnAlertsOptOut: Boolean(p.txnAlertsOptOut),
+      // The sixth item on the profile checklist: where they actually go, so
+      // offers from the other side of the country stop showing up.
+      homeBranchId: p.homeBranchId ?? null,
+      homeBranchName: p.homeBranchName ?? null,
       joinedAt: p.joinedAt,
     };
+  }
+
+  /**
+   * Branches this person actually visits, busiest first.
+   *
+   * Only a suggestion — the app offers the top one and the customer confirms.
+   * Inferring a home area from behaviour and acting on it without asking is
+   * how people end up wondering why a shop they went to once now follows them
+   * around.
+   */
+  async branchVisits(personId: string) {
+    return this.call<Array<{
+      branchId: string; branchName: string; brandId: string; brandName: string; visits: number;
+    }>>('wallet_branch_visits', [personId]);
+  }
+
+  /**
+   * Set the signed-in person's email.
+   *
+   * Hashed for lookup and encrypted for storage here rather than in SQL — the
+   * key belongs to the application and must not be reachable from the database.
+   */
+  async setEmail(personId: string, email: string | null) {
+    const trimmed = email?.trim() ?? '';
+    if (email !== null && !/^[^@s]+@[^@s]+.[^@s]+$/.test(trimmed)) {
+      throw new BadRequestException('that does not look like an email address');
+    }
+    const lower = trimmed.toLowerCase();
+    const r = await this.call<{ ok: boolean; reason?: string }>('wallet_set_email', [
+      personId,
+      email === null ? null : createHash('sha256').update(lower).digest('hex'),
+      email === null ? null : Buffer.from(this.crypto.encrypt(trimmed)),
+    ]);
+    if (!r?.ok) throw new BadRequestException(r?.reason ?? 'could not save that email');
+    return this.profile(personId);
+  }
+
+  /** Set (or clear, with null) the home area. */
+  async setHomeBranch(personId: string, branchId: string | null) {
+    const ok = await this.call<boolean>('wallet_set_home_branch', [personId, branchId]);
+    // A branch of a brand they don't hold a card for isn't theirs to claim.
+    if (!ok) throw new BadRequestException('not a branch you can set as home');
+    return { ok: true as const };
   }
 
   /**
@@ -326,6 +374,8 @@ interface WalletJournal {
 }
 
 interface WalletProfile {
+  homeBranchId?: string | null;
+  homeBranchName?: string | null;
   id: string;
   fullName: string | null;
   gender: string | null;

@@ -24,6 +24,7 @@ const FEATURE_ROWS: { icon: IconName; title: string; sub: string; href: string }
 ];
 
 const ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
+  { icon: 'check', title: 'Finish your profile', sub: 'What we still don’t know about you', href: '/profile/completion' },
   { icon: 'user', title: 'Personal details', sub: 'Name, birthday, nationality', href: '/profile/edit' },
   { icon: 'card', title: 'Linked partners', sub: 'Convert points to a partner', href: '/profile/partners' },
   { icon: 'bell', title: 'Notifications', sub: 'What we send you on WhatsApp', href: '/profile/notifications' },

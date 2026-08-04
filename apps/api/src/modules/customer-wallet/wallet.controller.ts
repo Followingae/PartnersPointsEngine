@@ -5,7 +5,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../../auth/auth.service';
 import { CurrentWallet } from '../../auth/decorators/current-wallet.decorator';
 import { WalletJwtGuard, type WalletPrincipal } from '../../auth/guards/wallet-jwt.guard';
-import { UpdateWalletProfileDto } from './dto';
+import { SetEmailDto, SetHomeBranchDto, UpdateWalletProfileDto } from './dto';
 import { CustomerWalletService } from './wallet.service';
 
 /**
@@ -81,6 +81,24 @@ export class CustomerWalletController {
   @ApiOperation({ summary: 'Mint a brand-scoped customer token for one card.' })
   brandToken(@CurrentWallet() me: WalletPrincipal, @Param('brandId') brandId: string) {
     return this.auth.brandTokenForWallet(me.personId, brandId);
+  }
+
+  @Patch('email')
+  @ApiOperation({ summary: 'Set or clear the signed-in person’s email address.' })
+  setEmail(@CurrentWallet() me: WalletPrincipal, @Body() dto: SetEmailDto) {
+    return this.wallet.setEmail(me.personId, dto.email ?? null);
+  }
+
+  @Get('branch-visits')
+  @ApiOperation({ summary: 'Branches this person visits, busiest first — the home-area suggestion.' })
+  branchVisits(@CurrentWallet() me: WalletPrincipal) {
+    return this.wallet.branchVisits(me.personId);
+  }
+
+  @Patch('home-branch')
+  @ApiOperation({ summary: 'Set or clear the home area. Null clears it.' })
+  setHomeBranch(@CurrentWallet() me: WalletPrincipal, @Body() dto: SetHomeBranchDto) {
+    return this.wallet.setHomeBranch(me.personId, dto.branchId ?? null);
   }
 
   @Get('sessions')

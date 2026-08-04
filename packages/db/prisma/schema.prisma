@@ -586,6 +586,8 @@ model Person {
   birthdate  DateTime? @db.Date
   /** ISO 3166-1 alpha-2. Stored as a code, rendered as a name. */
   nationality String? @db.VarChar(2)
+  /** Where they actually go — set from the app, never inferred silently. */
+  homeBranchId String? @map("home_branch_id")
   /**
    * Customer asked to stop receiving a message after each transaction.
    * These are transactional by nature, but a message after every purchase sits
