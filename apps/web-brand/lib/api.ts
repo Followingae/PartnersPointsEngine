@@ -192,6 +192,9 @@ export interface CustomerContact {
   email: string | null;
   gender: string | null;
   birthdate: string | null;
+  nationality: string | null;
+  /** Already resolved to a country name — the console holds no country list. */
+  nationalityName: string | null;
 }
 export type CustomerActivityType =
   | 'earn' | 'redeem' | 'expiry' | 'adjust' | 'void' | 'reverse' | 'transfer'

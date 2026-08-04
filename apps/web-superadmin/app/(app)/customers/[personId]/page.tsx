@@ -170,6 +170,7 @@ export default function CustomerDetailPage() {
                   <Row k="Email" v={d.email ? <a href={`mailto:${d.email}`} className="font-medium text-[#0f6b66] hover:underline">{d.email}</a> : <Dash />} />
                   <Row k="Gender" v={d.gender ? <span className="capitalize">{d.gender}</span> : <Dash />} />
                   <Row k="Birthdate" v={d.birthdate ? day(d.birthdate) : <Dash />} />
+                  <Row k="Nationality" v={d.nationalityName ?? <Dash />} />
                   <Row k="Status" v={<Badge tone={d.status === 'active' ? 'lime' : 'neutral'}>{d.status}</Badge>} />
                   <Row k="Joined" v={day(d.createdAt)} />
                   <Row k="Person ID" v={<span className="font-mono text-xs">{d.id}</span>} />

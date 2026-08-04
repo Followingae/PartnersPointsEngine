@@ -124,6 +124,7 @@ export default function CustomerProfilePage() {
                   <Row k="Email" v={p.contact.email ? <a href={`mailto:${p.contact.email}`} className="font-medium text-[#0f6b66] hover:underline">{p.contact.email}</a> : <span className="text-muted-foreground">—</span>} />
                   <Row k="Gender" v={p.contact.gender ? <span className="capitalize">{p.contact.gender}</span> : <span className="text-muted-foreground">—</span>} />
                   <Row k="Birthdate" v={p.contact.birthdate ? new Date(p.contact.birthdate).toLocaleDateString() : <span className="text-muted-foreground">—</span>} />
+                  <Row k="Nationality" v={p.contact.nationalityName ?? <span className="text-muted-foreground">—</span>} />
                 </dl>
               </Card>
 

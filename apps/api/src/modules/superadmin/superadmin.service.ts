@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@rfm-loyalty/db';
+import { countryName } from '@rfm-loyalty/shared';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { createHash } from 'node:crypto';
 import { ROLE_PERMISSIONS } from '../../auth/authz/authz.service';
@@ -525,7 +526,7 @@ export class SuperadminService {
         where: { id: personId, platformId: ctx.platformId },
         select: {
           id: true, fullName: true, phoneEnc: true, emailEnc: true, gender: true,
-          birthdate: true, status: true, createdAt: true,
+          birthdate: true, nationality: true, status: true, createdAt: true,
           memberships: {
             select: { id: true, loyaltyId: true, status: true, joinedAt: true, brandId: true },
             orderBy: { joinedAt: 'asc' },
@@ -634,6 +635,11 @@ export class SuperadminService {
         email: this.revealPhone(p.emailEnc),
         gender: p.gender,
         birthdate: p.birthdate,
+        // Collected in the app and segmentable, but never returned here, so the
+        // console could not show what a brand is asked to target on.
+        nationality: p.nationality,
+        // The code is what segments match on; the name is what a person reads.
+        nationalityName: p.nationality ? countryName(p.nationality) : null,
         status: p.status,
         createdAt: p.createdAt,
         memberships: p.memberships.map((m) => {

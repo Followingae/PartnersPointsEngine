@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ledger, Prisma } from '@rfm-loyalty/db';
-import { EarnRule, evaluateEarn, pointsAsset, type EarnContext, type TenantContext } from '@rfm-loyalty/shared';
+import { EarnRule, countryName, evaluateEarn, pointsAsset, type EarnContext, type TenantContext } from '@rfm-loyalty/shared';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { AuditService } from '../../platform-core/audit/audit.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
@@ -634,7 +634,7 @@ export class LoyaltyService {
         where: { id: membershipId, brandId: ctx.brandId! },
         include: {
           identifiers: { select: { type: true, createdAt: true } },
-          person: { select: { fullName: true, gender: true, birthdate: true, phoneEnc: true, emailEnc: true } },
+          person: { select: { fullName: true, gender: true, birthdate: true, nationality: true, phoneEnc: true, emailEnc: true } },
         },
       });
       if (!m) throw new NotFoundException('member not found');
@@ -744,6 +744,12 @@ export class LoyaltyService {
           email: this.reveal(m.person?.emailEnc),
           gender: m.person?.gender ?? null,
           birthdate: m.person?.birthdate ? m.person.birthdate.toISOString().slice(0, 10) : null,
+          // ISO 3166-1 alpha-2. Collected in the app and segmentable since the
+          // demographics work, but never sent here — so neither console could
+          // show the field a brand is asked to target on.
+          nationality: m.person?.nationality ?? null,
+          // The code is what segments match on; the name is what a person reads.
+          nationalityName: m.person?.nationality ? countryName(m.person?.nationality) : null,
         },
         balance: { available: bal.available.toString(), pending: bal.pending.toString(), lifetime: lifetime.toString() },
         tier: tier ? { id: tier.id, name: tier.name } : null,

@@ -283,6 +283,9 @@ export interface AdminCustomerVoucher {
 export interface AdminCustomerDetail {
   id: string; fullName: string | null; phone: string | null; email: string | null;
   gender: string | null; birthdate: string | null; status: string; createdAt: string;
+  nationality: string | null;
+  /** Already resolved to a country name — the console holds no country list. */
+  nationalityName: string | null;
   memberships: AdminCustomerMembership[];
   recent: Array<{ id: string; intent: string; state: string; points: string | null; amountMinor: string | null; at: string; brandName: string | null }>;
   /** Live challenges and stamp cards, with this customer's progress. */
