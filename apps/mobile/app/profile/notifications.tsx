@@ -50,6 +50,7 @@ export default function Notifications() {
 
   return (
     <Screen>
+      {/* 66 · Notification access — the OS permission, asked for properly. */}
       <BackBar fallback="/profile" />
 
       <H1 style={{ marginTop: 20 }}>Notifications</H1>
@@ -71,6 +72,13 @@ export default function Notifications() {
                   ? <ActivityIndicator color={C.soft} />
                   : <Toggle on={on} />
               }
+            />
+            {/* 66 · the OS permission, which is a different thing from the
+                WhatsApp preference above it. */}
+            <ListRow
+              title="Push notifications"
+              sub="Points landing, rewards ready, and expiry warnings"
+              onPress={() => router.push('/notification-access')}
             />
           </View>
 

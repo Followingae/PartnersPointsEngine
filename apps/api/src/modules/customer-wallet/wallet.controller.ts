@@ -5,7 +5,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../../auth/auth.service';
 import { CurrentWallet } from '../../auth/decorators/current-wallet.decorator';
 import { WalletJwtGuard, type WalletPrincipal } from '../../auth/guards/wallet-jwt.guard';
-import { SetEmailDto, SetHomeBranchDto, UpdateWalletProfileDto } from './dto';
+import { RegisterPushTokenDto, SetEmailDto, SetHomeBranchDto, UpdateWalletProfileDto } from './dto';
 import { CustomerWalletService } from './wallet.service';
 
 /**
@@ -87,6 +87,18 @@ export class CustomerWalletController {
   @ApiOperation({ summary: 'Set or clear the signed-in person’s email address.' })
   setEmail(@CurrentWallet() me: WalletPrincipal, @Body() dto: SetEmailDto) {
     return this.wallet.setEmail(me.personId, dto.email ?? null);
+  }
+
+  @Post('push-token')
+  @ApiOperation({ summary: 'Register this device for notifications.' })
+  registerPushToken(@CurrentWallet() me: WalletPrincipal, @Body() dto: RegisterPushTokenDto) {
+    return this.wallet.registerPushToken(me.personId, dto.token, dto.platform ?? 'unknown');
+  }
+
+  @Get('offers')
+  @ApiOperation({ summary: 'Live campaigns at the brands this customer holds.' })
+  offers(@CurrentWallet() me: WalletPrincipal) {
+    return this.wallet.offers(me.personId);
   }
 
   @Get('branch-visits')

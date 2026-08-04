@@ -58,3 +58,17 @@ export class SetEmailDto {
   @MaxLength(254)
   email?: string | null;
 }
+
+/** A device that has agreed to receive notifications. */
+export class RegisterPushTokenDto {
+  @ApiPropertyOptional({ description: 'Expo push token for this install.' })
+  @IsString()
+  @MaxLength(255)
+  token!: string;
+
+  @ApiPropertyOptional({ description: 'ios | android' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  platform?: string;
+}

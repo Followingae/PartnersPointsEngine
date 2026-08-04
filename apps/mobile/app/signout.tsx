@@ -16,7 +16,7 @@ export default function SignOut() {
 
   const signOut = async () => {
     await session.signOut();
-    router.replace('/onboarding/phone');
+    router.replace('/signed-out');
   };
 
   return (

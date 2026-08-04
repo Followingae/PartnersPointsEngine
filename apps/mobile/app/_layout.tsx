@@ -12,6 +12,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockGate } from '@/components/LockGate';
 import { PromptGate } from '@/components/PromptGate';
+import { StatusGate } from '@/components/StatusGate';
 import { SessionProvider } from '@/lib/session';
 import { C } from '@/lib/tokens';
 
@@ -40,6 +41,7 @@ export default function RootLayout() {
                 animation: 'slide_from_right',
               }}
             />
+            <StatusGate />
             <PromptGate />
           </View>
         </LockGate>

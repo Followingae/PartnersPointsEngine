@@ -1,7 +1,8 @@
 import { Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, Button, H1, Screen, Small, pts } from '@/components/UI';
-import { getCards } from '@/lib/api';
+import { getCards, getProfile } from '@/lib/api';
+import { canShow } from '@/lib/prompts';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, font } from '@/lib/tokens';
 import { CenterState, Disc, Footer, Ic, TextAction } from '@/components/RewardKit';
@@ -12,6 +13,25 @@ import { CenterState, Disc, Footer, Ic, TextAction } from '@/components/RewardKi
  * it is shown here rather than only one screen further on.
  */
 export default function Redeemed() {
+  /**
+   * 81 · Email at redemption.
+   *
+   * The one place the email question belongs: a voucher has just been issued
+   * and the customer is deciding how to carry it. Skipped entirely if we
+   * already have an address, or if the prompt rules say no.
+   */
+  const showVoucher = async (voucherCode: string) => {
+    const onward = () => router.replace(`/voucher/${voucherCode}`);
+    try {
+      const profile = await getProfile();
+      if (profile.email) return onward();
+      if (!(await canShow('email', '/rewards/redeemed'))) return onward();
+      router.replace({ pathname: '/prompts/email', params: { voucherId: voucherCode } });
+    } catch {
+      onward();
+    }
+  };
+
   const router = useRouter();
   const { code, pointsSpent, name, brandId } = useLocalSearchParams<{
     code?: string; pointsSpent?: string; name?: string; brandId?: string;
@@ -54,7 +74,7 @@ export default function Redeemed() {
       </CenterState>
 
       <Footer>
-        {code ? <Button label="Show at till" onPress={() => router.replace(`/voucher/${code}`)} /> : null}
+        {code ? <Button label="Show at till" onPress={() => void showVoucher(code)} /> : null}
         <TextAction label="Later" onPress={() => router.replace('/rewards')} />
       </Footer>
     </Screen>

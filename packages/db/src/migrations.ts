@@ -40,4 +40,6 @@ export const INCREMENTAL_MIGRATIONS = [
   '2026-08-04_receipt_celebrations.sql',
   '2026-08-04_home_branch.sql',
   '2026-08-04_wallet_set_email.sql',
+  '2026-08-04_push_tokens.sql',
+  '2026-08-04_wallet_offers.sql',
 ] as const;

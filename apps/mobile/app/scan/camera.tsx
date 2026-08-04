@@ -109,8 +109,14 @@ export default function ScanCamera() {
   );
 
   useEffect(() => {
-    if (permission && !permission.granted && permission.canAskAgain) void requestPermission();
-  }, [permission, requestPermission]);
+    if (!permission) return;
+    if (permission.granted) return;
+    // 65 · Camera access explains why we want it and handles the case where
+    // iOS will no longer show its dialog. Asking silently and failing leaves
+    // someone staring at a black rectangle.
+    if (permission.canAskAgain) void requestPermission();
+    else router.replace('/camera-access');
+  }, [permission, requestPermission, router]);
 
   const resolve = useCallback(
     (raw: string) => {

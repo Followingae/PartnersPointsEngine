@@ -550,3 +550,51 @@ export const convertPoints = (brandId: string, sourcePoints: number) =>
 /** This card's transfers, newest first (server caps at 50). */
 export const getConversions = (brandId: string) =>
   brandApi<Conversion[]>(brandId, '/customer/partners/conversions');
+
+/**
+ * Is the API answering at all?
+ *
+ * Used by the maintenance and offline screens, which must not report "back
+ * online" on the strength of a request that merely failed differently. Only a
+ * healthy response counts.
+ */
+export async function apiReachable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE.replace(/\/v1$/, '')}/health`, { method: 'GET' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Remember this device so the server can notify it once sending exists. */
+export const registerPushToken = (token: string, platform: string) =>
+  api<{ ok: true }>('/customer/wallet/push-token', {
+    method: 'POST',
+    body: JSON.stringify({ token, platform }),
+  });
+
+/** What the app should do before trusting its own build. Unauthenticated. */
+export interface AppStatus {
+  minVersion: string;
+  maintenance: boolean;
+  message: string | null;
+}
+
+export const getAppStatus = () => publicApi<AppStatus>('/customer/app-status');
+
+/** A live campaign at a brand the customer holds — screens 74-76. */
+export interface Offer {
+  id: string;
+  brandId: string;
+  brandName: string;
+  branding: Record<string, unknown>;
+  headline: string;
+  kicker: string | null;
+  cta: string;
+  /** True only when it genuinely is a paid placement. */
+  sponsored: boolean;
+  endsAt: string | null;
+}
+
+export const getOffers = () => api<Offer[]>('/customer/wallet/offers');

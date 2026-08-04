@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { BrandCard, brandColor, brandInitials } from '@/components/BrandCard';
@@ -8,6 +8,8 @@ import { WalletsEmpty } from '@/components/WalletsEmpty';
 import { getActivity, getCards, getProfile } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { Dot } from '@/components/Bits';
+import { CardsSkeleton } from '@/components/CardsSkeleton';
+import { OfflineBar } from '@/components/OfflineBar';
 import { ProfileMeter } from '@/components/ProfileMeter';
 import { completion } from '@/lib/completion';
 import { useUnreadCount } from '@/lib/unread';
@@ -43,6 +45,12 @@ export default function CardsHome() {
   // and the list can't disagree.
   const notices = useAsync(() => getActivity(40), []);
   const profileCompletion = completion(profile.data);
+
+  // A failure with cards already in hand is the offline case: keep showing them
+  // and say how old they are. A failure with nothing to show is a real error.
+  const offline = Boolean(error && cards && cards.length > 0);
+  const lastLoadedAt = useRef<Date | null>(null);
+  if (cards && !error) lastLoadedAt.current = new Date();
   const unread = useUnreadCount((notices.data ?? []).map((e) => e.at));
 
   useEffect(() => {
@@ -72,9 +80,13 @@ export default function CardsHome() {
         }
       />
 
+      {/* 64 · balances stay on screen when the network doesn't. */}
+      {offline ? <OfflineBar asOf={lastLoadedAt.current} /> : null}
+
       <ProfileMeter completion={profileCompletion} />
 
-      {loading ? <Loading /> : null}
+      {/* 69 · the deck's own shape, so nothing jumps when it arrives. */}
+      {loading ? <CardsSkeleton /> : null}
 
       {!loading && error && !cards ? <ErrorState message={error} onRetry={refresh} /> : null}
 

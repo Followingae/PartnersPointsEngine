@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AppStatusController } from './app-status.controller';
 import { AuthModule } from '../../auth/auth.module';
 import { CustomerWalletController } from './wallet.controller';
 import { CustomerWalletService } from './wallet.service';
@@ -12,7 +13,7 @@ import { CustomerWalletService } from './wallet.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [CustomerWalletController],
+  controllers: [CustomerWalletController, AppStatusController],
   providers: [CustomerWalletService],
   exports: [CustomerWalletService],
 })

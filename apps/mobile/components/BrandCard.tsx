@@ -225,9 +225,18 @@ export function OnColorBar({ value, color }: { value: number; color: string }) {
 
 /** Paid placement on Cards (home): brand header, headline, CTA pill. */
 export function SponsoredOffer({
-  name, initial, color, headline, cta, onPress,
+  name, initial, color, headline, cta, onPress, sponsored = true, kicker,
 }: {
-  name: string; initial: string; color: string; headline: string; cta: string; onPress?: () => void;
+  name: string; initial: string; color: string; headline: string; cta: string;
+  onPress?: () => void;
+  /**
+   * Whether to show the "Sponsored" label. Only true for a genuine paid
+   * placement — calling a brand's own promotion an advert is a false
+   * disclosure, not a styling choice.
+   */
+  sponsored?: boolean;
+  /** The line above the headline: an offer, or a countdown. */
+  kicker?: string | null;
 }) {
   const fg = brandFg(color);
   const body = (
@@ -244,13 +253,26 @@ export function SponsoredOffer({
           </View>
           <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: fg }}>{name}</Text>
         </View>
-        <Text style={{ fontFamily: font(500), fontSize: 10, lineHeight: 14, letterSpacing: 0.8, textTransform: 'uppercase', color: fg }}>
-          Sponsored
-        </Text>
+        {sponsored ? (
+          <Text style={{ fontFamily: font(500), fontSize: 10, lineHeight: 14, letterSpacing: 0.8, textTransform: 'uppercase', color: fg }}>
+            Sponsored
+          </Text>
+        ) : null}
       </View>
+      {kicker ? (
+        <Text
+          style={{
+            marginTop: 22, fontFamily: font(500), fontSize: 12.5, lineHeight: 18,
+            letterSpacing: 0.4, color: fg, opacity: 0.85,
+          }}
+        >
+          {kicker}
+        </Text>
+      ) : null}
+
       <Text
         style={{
-          marginTop: 26, fontFamily: font(600), fontSize: 24, lineHeight: 27.4,
+          marginTop: kicker ? 8 : 26, fontFamily: font(600), fontSize: 24, lineHeight: 27.4,
           letterSpacing: -0.72, color: fg, maxWidth: 240,
         }}
       >

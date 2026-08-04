@@ -37,7 +37,7 @@ export default function Help() {
 
       <Button
         label="Contact support"
-        onPress={() => router.push('/help/contact')}
+        onPress={() => router.push('/support')}
         style={{ marginTop: 26, borderRadius: R.card, height: 58 }}
       />
     </Screen>

@@ -5,7 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { Button, EmptyState, ErrorState, Loading, pts } from '@/components/UI';
-import { getActivity, getCards, type ActivityEvent, type Card } from '@/lib/api';
+import { getActivity, getCards, getProfile, type ActivityEvent, type Card } from '@/lib/api';
+import { canShow } from '@/lib/prompts';
 import { useAsync } from '@/lib/useAsync';
 import { C, SP, font, shadow } from '@/lib/tokens';
 
@@ -27,6 +28,9 @@ import { C, SP, font, shadow } from '@/lib/tokens';
  */
 
 const H = Dimensions.get('window').height;
+
+/** Long enough for the confetti to land before anything else is asked. */
+const NUDGE_AFTER_MS = 3400;
 const CONFETTI_TONES = [C.orange, C.purple, C.green, C.blue, C.pink, C.lime];
 const PIECES = Array.from({ length: 14 }, (_, i) => ({
   left: 5 + i * 6.43,
@@ -85,6 +89,29 @@ export default function ScanResult() {
   useEffect(() => {
     if (state.signedOut) router.replace('/onboarding/phone');
   }, [state.signedOut, router]);
+
+  /**
+   * 82 · Nudge after earning.
+   *
+   * A visit just happened, so "is this your usual branch?" is a question about
+   * something in front of them rather than an interruption. Offered once the
+   * celebration has been seen, and only if the prompt rules allow it at all.
+   */
+  useEffect(() => {
+    if (!state.data?.event) return;
+    let alive = true;
+    const id = setTimeout(async () => {
+      if (!alive) return;
+      const profile = await getProfile().catch(() => null);
+      if (!alive || !profile || profile.homeBranchId) return;
+      if (!(await canShow('home-branch', '/scan/result'))) return;
+      if (alive) router.push('/prompts/home-branch');
+    }, NUDGE_AFTER_MS);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [state.data?.event, router]);
 
   const event = state.data?.event;
   const card: Card | null = state.data?.card ?? null;

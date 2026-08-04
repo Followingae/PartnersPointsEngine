@@ -4,7 +4,9 @@ import { useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Chip, EmptyState, ErrorState, H1, Loading, Screen, Small } from '@/components/UI';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
-import { getDiscoverBrands, type DiscoverBrand } from '@/lib/api';
+import { getDiscoverBrands, getOffers, type DiscoverBrand } from '@/lib/api';
+import { InlineBrandTile } from '@/components/InlineBrandTile';
+import { OfferHero } from '@/components/OfferHero';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, S, SP, font } from '@/lib/tokens';
 
@@ -56,6 +58,10 @@ export default function DiscoverTab() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('All');
   const { data, loading, refreshing, error, signedOut, refresh } = useAsync(getDiscoverBrands);
+  // 74-76 · what's on at the brands they already hold. A brand running nothing
+  // returns nothing and the hero simply isn't there.
+  const offers = useAsync(getOffers, []);
+  const [dismissedTile, setDismissedTile] = useState(false);
 
   useEffect(() => {
     if (signedOut) router.replace('/onboarding/phone');
@@ -95,6 +101,8 @@ export default function DiscoverTab() {
         </Svg>
       </Pressable>
 
+      {(offers.data ?? []).length > 0 ? <OfferHero offer={offers.data![0]!} /> : null}
+
       <View style={{ flexDirection: 'row', gap: SP.tight, marginTop: 16 }}>
         {FILTERS.map((f) => (
           <Pressable key={f} onPress={() => setFilter(f)}>
@@ -119,6 +127,21 @@ export default function DiscoverTab() {
         />
       ) : (
         <View style={{ marginTop: 24, gap: 16 }}>
+          {/* 77 · one inline placement per section, dismissible. Offered for a
+              brand they have not joined, so it is a suggestion rather than an
+              advert for something they already have. */}
+          {!dismissedTile && filter !== 'In your wallet'
+            ? (() => {
+                const suggestion = list.find((b) => !b.joined);
+                return suggestion ? (
+                  <InlineBrandTile
+                    brand={suggestion}
+                    onJoin={() => join(suggestion.brandId)}
+                    onDismiss={() => setDismissedTile(true)}
+                  />
+                ) : null;
+              })()
+            : null}
 
           {list.map((b) => (
             <BrandRow

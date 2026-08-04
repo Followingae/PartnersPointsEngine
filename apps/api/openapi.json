@@ -7429,6 +7429,56 @@
         ]
       }
     },
+    "/customer/wallet/push-token": {
+      "post": {
+        "operationId": "CustomerWalletController_registerPushToken",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPushTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register this device for notifications.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/offers": {
+      "get": {
+        "operationId": "CustomerWalletController_offers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Live campaigns at the brands this customer holds.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
     "/customer/wallet/branch-visits": {
       "get": {
         "operationId": "CustomerWalletController_branchVisits",
@@ -7523,6 +7573,21 @@
           }
         ],
         "summary": "Sign one other device out of this wallet.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/app-status": {
+      "get": {
+        "operationId": "AppStatusController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Minimum supported app build, and whether the API is accepting traffic.",
         "tags": [
           "customer"
         ]
@@ -9277,6 +9342,19 @@
             "type": "object",
             "nullable": true,
             "description": "Email address, or null to clear."
+          }
+        }
+      },
+      "RegisterPushTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Expo push token for this install."
+          },
+          "platform": {
+            "type": "string",
+            "description": "ios | android"
           }
         }
       },

@@ -155,6 +155,29 @@ export class CustomerWalletService {
     return this.profile(personId);
   }
 
+  /**
+   * Remember a device we can notify.
+   *
+   * Sending is not built yet; registering now means the day it is, everyone who
+   * already granted permission is reachable without being asked again.
+   */
+  async registerPushToken(personId: string, token: string, platform: string) {
+    if (!token.trim()) throw new BadRequestException('token required');
+    await this.call('wallet_register_push_token', [personId, token.trim(), platform.slice(0, 16)]);
+    return { ok: true as const };
+  }
+
+  /**
+   * What's on at the brands this customer holds.
+   *
+   * Screens 74-76 are one hero in three treatments; an offer with an end time
+   * close enough to matter gets the countdown, the rest do not. Which is a
+   * rendering decision, so the app makes it — this returns the fact.
+   */
+  offers(personId: string) {
+    return this.call<unknown[]>('wallet_offers', [personId]);
+  }
+
   /** Set (or clear, with null) the home area. */
   async setHomeBranch(personId: string, branchId: string | null) {
     const ok = await this.call<boolean>('wallet_set_home_branch', [personId, branchId]);
