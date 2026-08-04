@@ -3,8 +3,8 @@ import { ReactNode, useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { OnColorBar, brandColor, brandFg, brandInitials } from '@/components/BrandCard';
-import { EmptyState, ErrorState, IconButton, Label, Loading, Screen, Small, pts } from '@/components/UI';
-import { getActivity, getCards } from '@/lib/api';
+import { EmptyState, ErrorState, IconButton, Label, Loading, Progress, Screen, Small, pts } from '@/components/UI';
+import { getActivity, getCards, getChallenges, type Challenge } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { C, R, S, SP, font } from '@/lib/tokens';
 
@@ -133,6 +133,9 @@ export default function CardDetail() {
   // Kept separate from the card fetch: a failed activity read should cost the
   // preview list, not the balance the customer came here for.
   const activity = useAsync(() => getActivity(40), []);
+  // Per brand, like the rest of this screen. A brand running none returns an
+  // empty list and the section simply doesn't appear.
+  const challenges = useAsync<Challenge[]>(() => getChallenges(brandId), [brandId]);
 
   useEffect(() => {
     if (signedOut) router.replace('/onboarding/phone');
@@ -262,6 +265,58 @@ export default function CardDetail() {
           {/* TODO(api): add-to-Apple/Google-Wallet pass issuance. */}
           <Action label="Wallet" icon={(c) => <WalletIcon color={c} />} />
         </View>
+
+        {(challenges.data ?? []).length > 0 ? (
+          <View style={{ paddingHorizontal: SP.gutter, paddingTop: 30 }}>
+            <Label>Collect</Label>
+            {(challenges.data ?? []).map((ch) => (
+              <Pressable
+                key={ch.id}
+                onPress={() => router.push(`/challenges/${ch.id}?brandId=${brandId}`)}
+                style={({ pressed }) => [{ paddingVertical: 14 }, pressed ? { opacity: 0.7 } : null]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: font(600), fontSize: 15, lineHeight: 21, color: C.ink }}>
+                    {ch.name}
+                  </Text>
+                  <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 19, color: C.muted }}>
+                    {`${ch.progress}/${ch.target}`}
+                  </Text>
+                </View>
+                {ch.isStampCard && Number(ch.target) <= 20 ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                    {Array.from({ length: Number(ch.target) }, (_, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          width: 15,
+                          height: 15,
+                          borderRadius: 999,
+                          backgroundColor: i < Number(ch.progress) ? C.ink : 'transparent',
+                          borderWidth: i < Number(ch.progress) ? 0 : 1.5,
+                          borderColor: C.hairline,
+                        }}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <View style={{ marginTop: 10 }}>
+                    <Progress value={Number(ch.progress)} total={Math.max(Number(ch.target), 1)} height={4} />
+                  </View>
+                )}
+                <Small style={{ marginTop: 8, fontSize: 12.5, lineHeight: 18 }}>
+                  {Number(ch.progress) >= Number(ch.target)
+                    ? ch.rewardName
+                      ? `${ch.rewardName} is ready`
+                      : 'Reward ready'
+                    : ch.rewardName
+                      ? `${Number(ch.target) - Number(ch.progress)} more for ${ch.rewardName}`
+                      : `${Number(ch.target) - Number(ch.progress)} more to go`}
+                </Small>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         <View style={{ paddingHorizontal: SP.gutter, paddingTop: 30 }}>
           <Pressable
