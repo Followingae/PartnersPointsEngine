@@ -4,7 +4,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { BackBar, Lede } from '@/components/Bits';
 import { Body, Button, ErrorState, H1, Label, Loading, Screen, Small } from '@/components/UI';
 import { PickerSheet, SelectField, type Option } from '@/components/Picker';
-import { getProfile, updateProfile } from '@/lib/api';
+import { getProfile, setEmail, updateProfile } from '@/lib/api';
 import { COUNTRIES, countryName, searchCountries } from '@/lib/countries';
 import { MONTH_NAMES, daysInMonth } from '@/lib/dates';
 import { useAsync } from '@/lib/useAsync';
@@ -81,6 +81,7 @@ export default function EditDetails() {
   const [year, setYear] = useState('');
   const [gender, setGender] = useState('');
   const [nationality, setNationality] = useState<string | null>(null);
+  const [email, setEmailValue] = useState('');
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export default function EditDetails() {
   useEffect(() => {
     if (!data) return;
     setName(data.fullName ?? '');
+    setEmailValue(data.email ?? '');
     setGender((data.gender ?? '').toLowerCase());
     setNationality(data.nationality ? data.nationality.toUpperCase() : null);
     const [y, m, d] = (data.birthdate ?? '').slice(0, 10).split('-');
@@ -144,6 +146,12 @@ export default function EditDetails() {
         birthdate,
         nationality,
       });
+      // Only when it changed: the endpoint rejects an address already in use,
+      // and re-sending an unchanged one would fail for no reason.
+      const trimmedEmail = email.trim();
+      if (trimmedEmail !== (data?.email ?? '')) {
+        await setEmail(trimmedEmail || null);
+      }
       router.back();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Could not save your details.');
@@ -153,7 +161,7 @@ export default function EditDetails() {
   };
 
   // Counted from the form, not from the server, so it falls as things are filled in.
-  const left = [name.trim(), birthdate, gender, nationality].filter((v) => !v).length;
+  const left = [name.trim(), email.trim(), birthdate, gender, nationality].filter((v) => !v).length;
 
   return (
     <Screen>
@@ -233,9 +241,16 @@ export default function EditDetails() {
               onPress={() => setSheet('nationality')}
             />
 
-            {/* Email and phone are read-only here: the wallet profile endpoint
-                takes neither, and the number is what the account signs in with. */}
-            <Field label="Email" value={data?.email ?? ''} editable={false} keyboard="email-address" placeholder="Not set" />
+            {/* Email has its own endpoint — it is hashed for lookup and
+                encrypted at rest, which the profile PATCH does not do. The
+                number stays read-only: it is what the account signs in with. */}
+            <Field
+              label="Email"
+              value={email}
+              onChange={setEmailValue}
+              keyboard="email-address"
+              placeholder="name@email.com"
+            />
             <Field label="Phone" value={data?.phone ?? ''} editable={false} placeholder="Not set" />
           </View>
 
