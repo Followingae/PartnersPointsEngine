@@ -29,6 +29,22 @@ export interface CompletedChallenge {
   voucherCode?: string;
 }
 
+/**
+ * Trims a value to what the printed slip can physically show.
+ *
+ * The till centres this line with `drawText` — no wrapping, no shrinking — on
+ * 384-dot paper. Anything wider is clipped at *both* ends, so an over-long
+ * value doesn't overflow, it disappears. The line is rendered as
+ * "UNLOCKED: <value>" in 20px bold, which leaves about twenty characters once
+ * the prefix has had its share.
+ *
+ * This is why the reward code is not on this line: it does not fit beside a
+ * reward name, and a half-printed code is worse than none. The code is on the
+ * eReceipt behind the QR, in the email, and in the app.
+ */
+const SLIP_MAX = 20;
+const forSlip = (v: string) => (v.length <= SLIP_MAX ? v : `${v.slice(0, SLIP_MAX - 1).trimEnd()}…`);
+
 /** A stamp card's live state for the till and the customer app. */
 export interface StampProgress {
   id: string;
@@ -134,14 +150,7 @@ export class GamificationService {
             kind: ch.kind,
             rewardPoints: ch.rewardPoints.toString(),
             ...(badgeName ?? rewardName
-              ? {
-                  // The paper slip prints this after 'UNLOCKED:'. The code goes on
-                  // the same line because a reward the customer cannot claim at
-                  // the counter is not much of a reward.
-                  badgeName: [badgeName ?? rewardName, voucherCode ? `CODE ${voucherCode}` : null]
-                    .filter(Boolean)
-                    .join(' · '),
-                }
+              ? { badgeName: forSlip(badgeName ?? rewardName!) }
               : {}),
             ...(rewardName ? { rewardName } : {}),
             ...(voucherCode ? { voucherCode } : {}),

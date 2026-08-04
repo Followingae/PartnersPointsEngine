@@ -3,7 +3,7 @@ import { ReactNode, useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { brandColor, brandScrim } from '@/components/BrandCard';
 import { SheetShell } from '@/components/SheetShell';
-import { Body, Button, ErrorState, H2, Loading, Screen, Small, pts } from '@/components/UI';
+import {Body, Button, ErrorState, H2, Loading, Small, pts} from '@/components/UI';
 import { getCards, getExpiring } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { C, SP, font } from '@/lib/tokens';
@@ -68,8 +68,7 @@ export default function ExpiringPoints() {
   const buckets = expiring?.buckets ?? [];
 
   return (
-    <Screen background={backdrop} scroll={false} pad={false} bottomGap={0}>
-      <SheetShell onDismiss={() => router.back()}>
+    <SheetShell backdrop={backdrop} onDismiss={() => router.back()}>
         {state.loading ? (
           <>
             <H2 style={{ marginTop: 22, fontSize: 26, lineHeight: 32, letterSpacing: -0.65 }}>Expiring points</H2>
@@ -118,6 +117,5 @@ export default function ExpiringPoints() {
           style={{ marginTop: 26, height: 58, borderRadius: 18 }}
         />
       </SheetShell>
-    </Screen>
   );
 }

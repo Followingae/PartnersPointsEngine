@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { brandColor, brandScrim } from '@/components/BrandCard';
 import { SheetShell } from '@/components/SheetShell';
-import { Body, Button, ErrorState, H2, Loading, Screen, Small, money, pts } from '@/components/UI';
+import {Body, Button, ErrorState, H2, Loading, Small, money, pts} from '@/components/UI';
 import { getCards, getProgram, type Program } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { C, SP, font } from '@/lib/tokens';
@@ -108,8 +108,7 @@ export default function HowYouEarn() {
   const nothingToSay = Boolean(program) && rules.length === 0 && !boost && !worth;
 
   return (
-    <Screen background={backdrop} scroll={false} pad={false} bottomGap={0}>
-      <SheetShell onDismiss={() => router.back()}>
+    <SheetShell backdrop={backdrop} onDismiss={() => router.back()}>
         <H2 style={{ marginTop: 22, fontSize: 26, lineHeight: 32, letterSpacing: -0.65 }}>How you earn</H2>
 
         {state.loading ? (
@@ -158,6 +157,5 @@ export default function HowYouEarn() {
 
         <Button label="Got it" onPress={() => router.back()} style={{ marginTop: 26, height: 58, borderRadius: 18 }} />
       </SheetShell>
-    </Screen>
   );
 }

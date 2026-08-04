@@ -26,6 +26,7 @@ export class TxnAlertService {
     redeemed: 'TWILIO_TPL_REDEEMED',
     adjusted: 'TWILIO_TPL_ADJUSTED',
     saleSummary: 'TWILIO_TPL_SALE_SUMMARY',
+    challengeComplete: 'TWILIO_TPL_CHALLENGE_COMPLETE',
   } as const;
 
   constructor(
@@ -99,6 +100,19 @@ export class TxnAlertService {
     const earned = sale.earnedPoints;
     const redeemed = sale.redeemedReward;
     const adjusted = sale.adjustedPoints;
+
+    // A finished stamp card is bigger news than the points that filled it, and
+    // sending both would put two messages on one visit — which is exactly the
+    // thing the sale summary exists to avoid. So this one wins outright.
+    if (sale.challenge) {
+      return this.send('challengeComplete', phone, [
+        who.firstName,
+        sale.challenge.name,
+        sale.challenge.reward ?? 'Your reward',
+        who.brandName,
+        receiptToken,
+      ]);
+    }
 
     // Adjustments are their own thing — an apology for a missed visit, not part
     // of a purchase — so they never merge into a sale summary.
@@ -181,6 +195,8 @@ interface Sale {
   earnedPoints: string | null;
   redeemedReward: string | null;
   adjustedPoints: string | null;
+  /** A stamp card filled on this sale — the news that outranks the points. */
+  challenge: { name: string; reward: string | null } | null;
 }
 
 /**
@@ -223,6 +239,7 @@ function toSale(events: AlertEvent[]): Sale {
   const earn = find('points.earned');
   const redeem = find('points.redeemed');
   const adjust = find('points.adjusted');
+  const challenge = find('points.challenge_completed');
 
   // The redemption is the better anchor when present: its transaction is the one
   // the receipt is written against.
@@ -237,6 +254,12 @@ function toSale(events: AlertEvent[]): Sale {
       ? ((redeem.payload.rewardName as string) ?? `${String(redeem.payload.points ?? 0)} points`)
       : null,
     adjustedPoints: adjust ? String(adjust.payload.points ?? '0') : null,
+    challenge: challenge
+      ? {
+          name: String(challenge.payload.challengeName ?? 'Your card'),
+          reward: (challenge.payload.rewardName as string | null) ?? null,
+        }
+      : null,
   };
 }
 
