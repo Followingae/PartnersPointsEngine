@@ -112,9 +112,21 @@ describe('Analytics suite (W3)', () => {
     expect(cohorts.cohorts[0]!.retention[0]).toBeGreaterThan(0); // month-0 retention > 0
   });
 
-  it('CSV exports have headers + rows', async () => {
+  it('CSV exports open correctly in a spreadsheet', async () => {
     const csv = await analytics.clvCsv(ctx);
-    expect(csv.split('\n')[0]).toContain('membershipId,loyaltyId,lifetime');
-    expect(csv.trim().split('\n').length).toBeGreaterThan(1);
+
+    // Without the BOM, Excel on Windows reads UTF-8 as the local codepage and
+    // an Arabic customer name arrives as mojibake.
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+
+    // Headers are written for a person, and the loyalty ID leads — a column of
+    // membership UUIDs is unusable to whoever opens this.
+    const header = csv.replace(/^\uFEFF/, '').split('\r\n')[0]!;
+    expect(header.startsWith('Loyalty ID')).toBe(true);
+    expect(header).toContain('Points earned');
+
+    // CRLF, as every spreadsheet expects.
+    expect(csv).toContain('\r\n');
+    expect(csv.replace(/^\uFEFF/, '').trim().split('\r\n').length).toBeGreaterThan(1);
   });
 });

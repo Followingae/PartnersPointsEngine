@@ -231,24 +231,40 @@ export class AnalyticsService {
   }
 
   // ── CSV exports ──────────────────────────────────────────────────────────
+  //
+  // Written through the shared writer, which escapes, carries a UTF-8 BOM so
+  // Excel doesn't mangle Arabic names, and formats dates for a reader. Headers
+  // are for a person and the loyalty ID leads: a column of membership UUIDs is
+  // unusable to whoever opens this.
+
   async clvCsv(ctx: TenantContext): Promise<string> {
     const { top } = await this.clv(ctx, 10_000);
-    const header = 'membershipId,loyaltyId,lifetime,redeemed,net';
-    const body = top.map((t) => [t.membershipId, t.loyaltyId, t.lifetime, t.redeemed, t.net].join(',')).join('\n');
-    return `${header}\n${body}\n`;
+    return toCsv(top, [
+      { header: 'Loyalty ID', value: (t) => t.loyaltyId },
+      { header: 'Points earned', value: (t) => t.lifetime },
+      { header: 'Points redeemed', value: (t) => t.redeemed },
+      { header: 'Points outstanding', value: (t) => t.net },
+      { header: 'Membership ID', value: (t) => t.membershipId },
+    ]);
   }
 
   async visitFrequencyCsv(ctx: TenantContext): Promise<string> {
     const { leaderboard } = await this.visitFrequency(ctx, 10_000);
-    const header = 'membershipId,loyaltyId,visits,lastVisit';
-    const body = leaderboard.map((r) => [r.membershipId, r.loyaltyId, r.visits, r.lastVisit ? new Date(r.lastVisit).toISOString() : ''].join(',')).join('\n');
-    return `${header}\n${body}\n`;
+    return toCsv(leaderboard, [
+      { header: 'Loyalty ID', value: (r) => r.loyaltyId },
+      { header: 'Visits', value: (r) => r.visits },
+      { header: 'Last visit', value: (r) => when(r.lastVisit) },
+      { header: 'Membership ID', value: (r) => r.membershipId },
+    ]);
   }
 
   async churnCsv(ctx: TenantContext): Promise<string> {
     const { atRisk } = await this.churnRisk(ctx, 10_000);
-    const header = 'membershipId,loyaltyId,lastActivity,daysSince';
-    const body = atRisk.map((r) => [r.membershipId, r.loyaltyId, r.lastActivity ? new Date(r.lastActivity).toISOString() : '', r.daysSince ?? ''].join(',')).join('\n');
-    return `${header}\n${body}\n`;
+    return toCsv(atRisk, [
+      { header: 'Loyalty ID', value: (r) => r.loyaltyId },
+      { header: 'Last activity', value: (r) => when(r.lastActivity) },
+      { header: 'Days since', value: (r) => r.daysSince },
+      { header: 'Membership ID', value: (r) => r.membershipId },
+    ]);
   }
 }

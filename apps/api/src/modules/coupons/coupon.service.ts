@@ -162,8 +162,17 @@ export class CouponService {
 
   async exportCsv(ctx: TenantContext, batchId?: string): Promise<string> {
     const { rows } = await this.list(ctx, { batchId, limit: 10_000 });
-    const header = 'code,kind,valueMinor,percentOff,maxRedemptions,redeemedCount,status,expiresAt';
-    const body = rows.map((c) => [c.code, c.kind, c.valueMinor, c.percentOff ?? '', c.maxRedemptions, c.redeemedCount, c.status, c.expiresAt ? new Date(c.expiresAt).toISOString() : ''].join(',')).join('\n');
-    return `${header}\n${body}\n`;
+    // Through the shared writer: coupon codes are user-defined and a comma in
+    // one silently shifted every column to its right.
+    return toCsv(rows, [
+      { header: 'Code', value: (c) => c.code },
+      { header: 'Type', value: (c) => c.kind },
+      { header: 'Value', value: (c) => money(c.valueMinor) },
+      { header: 'Percent off', value: (c) => c.percentOff },
+      { header: 'Max redemptions', value: (c) => c.maxRedemptions },
+      { header: 'Redeemed', value: (c) => c.redeemedCount },
+      { header: 'Status', value: (c) => c.status },
+      { header: 'Expires', value: (c) => day(c.expiresAt) },
+    ]);
   }
 }

@@ -4,6 +4,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepe
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
+import { Confetti } from '@/components/Confetti';
 import { Button, EmptyState, ErrorState, Loading, pts } from '@/components/UI';
 import { getActivity, getCards, getProfile, type ActivityEvent, type Card } from '@/lib/api';
 import { canShow } from '@/lib/prompts';
@@ -31,33 +32,6 @@ const H = Dimensions.get('window').height;
 
 /** Long enough for the confetti to land before anything else is asked. */
 const NUDGE_AFTER_MS = 3400;
-const CONFETTI_TONES = [C.orange, C.purple, C.green, C.blue, C.pink, C.lime];
-const PIECES = Array.from({ length: 14 }, (_, i) => ({
-  left: 5 + i * 6.43,
-  height: [8, 11, 14][i % 3] as number,
-  tone: CONFETTI_TONES[i % CONFETTI_TONES.length] as string,
-  duration: 2000 + (i % 5) * 300,
-  delay: (i % 7) * 180,
-}));
-
-function Piece({ left, height, tone, duration, delay }: (typeof PIECES)[number]) {
-  const v = useSharedValue(0);
-  useEffect(() => {
-    v.value = withDelay(delay, withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false));
-  }, [v, duration, delay]);
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: -20 + v.value * (H + 40) }, { rotate: `${v.value * 540}deg` }],
-  }));
-  return (
-    <Animated.View
-      style={[
-        { position: 'absolute', top: 0, left: `${left}%`, width: 8, height, borderRadius: 2, backgroundColor: tone },
-        style,
-      ]}
-    />
-  );
-}
-
 /** "Today · 2:41 PM" for today, "12 Jul · 8:40 AM" before that. */
 function whenLabel(iso: string): string {
   const d = new Date(iso);
@@ -125,11 +99,7 @@ export default function ScanResult() {
   return (
     <View style={{ flex: 1, backgroundColor: C.surface, paddingTop: insets.top }}>
       {/* Only celebrate something that actually happened. */}
-      {landed ? (
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
-          {PIECES.map((p, i) => <Piece key={i} {...p} />)}
-        </View>
-      ) : null}
+      <Confetti active={landed} />
 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SP.gutter }}>
         {state.loading ? (

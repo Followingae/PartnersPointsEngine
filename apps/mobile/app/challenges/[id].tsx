@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { BackBar, Icon, Lede, ListRow, Segments, Tile } from '@/components/Bits';
+import { Confetti } from '@/components/Confetti';
 import { brandColor } from '@/components/BrandCard';
 import { Button, ErrorState, H1, Label, Loading, Screen, Small } from '@/components/UI';
 import { getCards, getChallenges } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
-import { C, R } from '@/lib/tokens';
+import { C, R, font } from '@/lib/tokens';
 
 /** 44 · One challenge, with where the member has got to. */
 export default function ChallengeDetail() {
@@ -62,21 +63,67 @@ export default function ChallengeDetail() {
 
   return (
     <Screen scroll={false} bottomGap={34}>
+      {/* Only for a card that is actually finished — confetti on every visit
+          is confetti nobody sees. */}
+      <Confetti active={full} />
+
       <BackBar fallback="/challenges" />
 
       <View style={{ flex: 1 }}>
-        <H1 style={{ marginTop: 20 }}>{c.name}</H1>
-        <Lede style={{ marginTop: 12 }}>{blurb}</Lede>
+        <H1 style={{ marginTop: 20 }}>{full ? `${reward} is yours` : c.name}</H1>
+        <Lede style={{ marginTop: 12 }}>
+          {full
+            ? `You filled your ${c.name.toLowerCase()} at ${card.brandName}. Show the code below at the till.`
+            : blurb}
+        </Lede>
 
         <View style={{ marginTop: 30 }}>
           <Segments done={done} total={total} color={color} />
         </View>
+        {full && c.rewardVoucherCode ? (
+          <View
+            style={{
+              marginTop: 22,
+              alignItems: 'center',
+              backgroundColor: C.lime,
+              borderRadius: R.card,
+              paddingVertical: 22,
+              paddingHorizontal: 18,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: font(600),
+                fontSize: 11,
+                lineHeight: 16,
+                letterSpacing: 1.4,
+                textTransform: 'uppercase',
+                color: C.ink,
+              }}
+            >
+              Show this at the till
+            </Text>
+            <Text
+              style={{
+                marginTop: 8,
+                fontFamily: font(700),
+                fontSize: 30,
+                lineHeight: 36,
+                letterSpacing: 3,
+                color: C.ink,
+              }}
+            >
+              {c.rewardVoucherCode}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ marginTop: 14, flexDirection: 'row', justifyContent: 'space-between' }}>
           <Small style={{ fontSize: 12.5, lineHeight: 18 }}>
             {full ? 'Ready to claim' : `${done} of ${total}`}
           </Small>
           <Small style={{ fontSize: 12.5, lineHeight: 18 }}>
-            {full ? 'Show your code at the till' : `${total - done} to go`}
+            {full ? 'Yours to use on your next visit' : `${total - done} to go`}
           </Small>
         </View>
 

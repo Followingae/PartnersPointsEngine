@@ -5,10 +5,12 @@ import Svg, { Path } from 'react-native-svg';
 import { BrandCard, brandColor, brandInitials } from '@/components/BrandCard';
 import { ErrorState, Header, IconButton, Loading, Screen, pts } from '@/components/UI';
 import { WalletsEmpty } from '@/components/WalletsEmpty';
-import { getActivity, getCards, getProfile } from '@/lib/api';
+import { getActivity, getCards, getChallenges, getProfile, getVouchers } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
 import { Dot } from '@/components/Bits';
 import { CardsSkeleton } from '@/components/CardsSkeleton';
+import { ReadyRewards } from '@/components/ReadyRewards';
+import { StampStrip } from '@/components/StampStrip';
 import { OfflineBar } from '@/components/OfflineBar';
 import { ProfileMeter } from '@/components/ProfileMeter';
 import { completion } from '@/lib/completion';
@@ -44,6 +46,25 @@ export default function CardsHome() {
   // Derived from the same events the notifications screen renders, so the count
   // and the list can't disagree.
   const notices = useAsync(() => getActivity(40), []);
+  // What the customer is collecting, and what they have already won — both
+  // belong on the first screen rather than two taps down.
+  const vouchers = useAsync(getVouchers, []);
+  const stamps = useAsync(async () => {
+    const list = await getCards();
+    const rows = await Promise.all(
+      list.map(async (card) => {
+        try {
+          return (await getChallenges(card.brandId))
+            .filter((c) => c.isStampCard || c.rewardReady)
+            .map((challenge) => ({ challenge, card }));
+        } catch {
+          // One brand failing must not cost the whole strip.
+          return [];
+        }
+      }),
+    );
+    return rows.flat();
+  }, []);
   const profileCompletion = completion(profile.data);
 
   // A failure with cards already in hand is the offline case: keep showing them
@@ -113,6 +134,9 @@ export default function CardsHome() {
               );
             })}
           </View>
+
+          <ReadyRewards vouchers={vouchers.data ?? []} />
+          <StampStrip rows={stamps.data ?? []} />
 
           {all.length > DECK ? (
             <Pressable
