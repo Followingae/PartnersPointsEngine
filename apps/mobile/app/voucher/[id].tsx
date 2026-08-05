@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import QRCode from 'react-native-qrcode-svg';
 import {
   Button, EmptyState, ErrorState, IconButton, Loading, Screen, Small, money, pts,
 } from '@/components/UI';
 import { C, font, shadow } from '@/lib/tokens';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import {
-  Footer, Ic, Perforation, QrPlaceholder, ROUND, TextAction, TopBar,
+  Footer, Ic, Perforation, ROUND, TextAction, TopBar,
 } from '@/components/RewardKit';
 import { getVouchers, type Voucher } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
@@ -45,13 +46,6 @@ function worthLine(v: Voucher): string {
   ];
   return parts.filter(Boolean).join(' · ');
 }
-
-/** Deterministic pattern per voucher, so the same code always looks the same. */
-const seedFor = (code: string) => {
-  let h = 0;
-  for (let i = 0; i < code.length; i += 1) h = (h * 31 + code.charCodeAt(i)) >>> 0;
-  return (h % 9973) + 1;
-};
 
 export default function VoucherScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -122,7 +116,9 @@ export default function VoucherScreen() {
             <Perforation background={fill} notch={C.surface} />
 
             <View style={{ paddingTop: 26, paddingHorizontal: 22, paddingBottom: 24, alignItems: 'center', gap: 20 }}>
-              <QrPlaceholder size={150} seed={seedFor(v.code)} />
+              {/* A real code: the till scans this to redeem. It used to be a
+                  procedural stand-in, which looked scannable and was not. */}
+              <QRCode value={v.code} size={150} color={C.ink} backgroundColor={C.surface} ecl="M" />
               <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, letterSpacing: 2.4, color: C.ink }}>
                 {v.code}
               </Text>
@@ -139,13 +135,12 @@ export default function VoucherScreen() {
         {spendable ? (
           <>
             {/*
-              The voucher itself is live data; this one action is not. There is no
-              customer-side endpoint to burn a voucher — the till redeems it and the
-              status arrives on the next fetch — so the button only returns to the
-              list. TODO(api): call it once a customer-side redeem exists.
+              There is no "Mark as used" here on purpose. Only the till can burn
+              a voucher, and a button that merely navigated away — leaving the
+              voucher live — taught customers that tapping it did something. The
+              status arrives on the next fetch after the till redeems it.
             */}
-            <Button label="Mark as used" onPress={() => router.replace('/vouchers')} />
-            <TextAction label="Keep for later" onPress={back} />
+            <TextAction label="Back to vouchers" onPress={back} />
           </>
         ) : (
           <TextAction label="Back to vouchers" onPress={back} />

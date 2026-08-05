@@ -72,3 +72,18 @@ export class RegisterPushTokenDto {
   @MaxLength(16)
   platform?: string;
 }
+
+/**
+ * Asking for an account to be deleted.
+ *
+ * The reason is optional and free text — it is the only thing on this request
+ * the customer writes, and it is what the team has to go on when they ring
+ * about unspent points.
+ */
+export class RequestDeletionDto {
+  @ApiPropertyOptional({ description: 'Why they are leaving, if they said.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}

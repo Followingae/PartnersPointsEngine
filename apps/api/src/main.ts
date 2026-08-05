@@ -55,12 +55,29 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const document = buildOpenApiDocument(app);
-  SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'docs-json' });
+  // Swagger describes all 211 routes, 69 of them admin and superadmin. Served
+  // openly it hands anyone the full map of the control plane, and third-party
+  // POS partners are only ever meant to see the terminal gateway — that surface
+  // is documented for them separately in docs/pos-integration-api.md.
+  //
+  // So: mounted unconditionally outside production, and in production only when
+  // API_DOCS_ENABLED is deliberately set. Off by default, because the risk of
+  // forgetting to turn it off outweighs the convenience of it being on.
+  const docsEnabled =
+    process.env.NODE_ENV !== 'production' || process.env.API_DOCS_ENABLED === 'true';
+  if (docsEnabled) {
+    const document = buildOpenApiDocument(app);
+    SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'docs-json' });
+  }
 
   const port = Number(process.env.API_PORT ?? 3001);
   await app.listen(port);
-  app.get(PinoLogger).log(`RFM Loyalty API listening on http://localhost:${port} (docs: /docs)`);
+  app
+    .get(PinoLogger)
+    .log(
+      `RFM Loyalty API listening on http://localhost:${port}` +
+        (docsEnabled ? ' (docs: /docs)' : ' (docs disabled)'),
+    );
 }
 
 void bootstrap();

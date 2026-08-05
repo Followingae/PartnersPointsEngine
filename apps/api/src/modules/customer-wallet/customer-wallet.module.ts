@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppStatusController } from './app-status.controller';
 import { AuthModule } from '../../auth/auth.module';
 import { CustomerWalletController } from './wallet.controller';
+import { AccountDeletionService } from './deletion.service';
 import { CustomerWalletService } from './wallet.service';
 
 /**
@@ -14,7 +15,7 @@ import { CustomerWalletService } from './wallet.service';
 @Module({
   imports: [AuthModule],
   controllers: [CustomerWalletController, AppStatusController],
-  providers: [CustomerWalletService],
-  exports: [CustomerWalletService],
+  providers: [CustomerWalletService, AccountDeletionService],
+  exports: [CustomerWalletService, AccountDeletionService],
 })
 export class CustomerWalletModule {}

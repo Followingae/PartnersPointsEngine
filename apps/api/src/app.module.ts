@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { validateEnv } from './config/env';
@@ -26,9 +28,19 @@ import { TeamModule } from './modules/team/team.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { PartnershipsModule } from './modules/partnerships/partnerships.module';
 import { CustomerWalletModule } from './modules/customer-wallet/customer-wallet.module';
+import { WalletPassModule } from './modules/wallet-pass/wallet-pass.module';
 
 @Module({
   imports: [
+    // Rate limiting. Without it the OTP endpoint is a public SMS-billing
+    // endpoint anyone can call in a loop, and the app being listed on a store
+    // is what turns that from theoretical into likely.
+    //
+    // Generous by default — a till mid-rush must never be throttled — with the
+    // endpoints that cost money or guard a door tightened individually.
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 300 },
+    ]),
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
@@ -76,6 +88,8 @@ import { CustomerWalletModule } from './modules/customer-wallet/customer-wallet.
     ApiKeysModule,
     PartnershipsModule,
     CustomerWalletModule,
+    WalletPassModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

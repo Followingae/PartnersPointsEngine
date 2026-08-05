@@ -3,20 +3,32 @@
     "name": "Partners Points",
     "slug": "partners-points",
     "scheme": "partnerspoints",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#F4F3EF"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "ae.partnerspoints.app"
+      "bundleIdentifier": "ae.partnerspoints.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "ae.partnerspoints.app",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B04D9"
+      }
     },
     "plugins": [
       "expo-router",
@@ -24,7 +36,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Partners Points uses the camera to scan the code at a till so you can join a brand and collect points."
+          "cameraPermission": "Partners Points uses the camera to scan the code at a till so you can join a brand and collect points.",
+          "recordAudioAndroid": false
         }
       ],
       [

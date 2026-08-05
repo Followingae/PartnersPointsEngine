@@ -92,9 +92,15 @@ export class GoogleWalletService {
         balance: { string: `${d.stamps.collected} / ${d.stamps.target}` },
       };
     }
-    if (d.tier) {
-      object.textModulesData = [{ header: 'Tier', body: d.tier, id: 'tier' }];
-    }
+    // Google renders these as a plain list, so the design's "Tier / Member /
+    // Since" trio degrades to text rows rather than the laid-out fields Apple
+    // gives us. Same facts, same order.
+    const rows: { header: string; body: string; id: string }[] = [];
+    if (d.tier) rows.push({ header: 'Tier', body: d.tier, id: 'tier' });
+    if (d.memberName) rows.push({ header: 'Member', body: d.memberName, id: 'member' });
+    rows.push({ header: 'Since', body: d.memberSince, id: 'since' });
+    object.textModulesData = rows;
+
     return object;
   }
 

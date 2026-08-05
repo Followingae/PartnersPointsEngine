@@ -4,6 +4,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepe
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Body, Button, ErrorState, H1, Loading, pts } from '@/components/UI';
+import { AddToWallet } from '@/components/AddToWallet';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { getCards } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
@@ -115,15 +116,7 @@ export default function JoinSuccess() {
               Keep it on your phone so the till can find you without the app.
             </Body>
 
-            {/* TODO(api): PassKit pass from GET /customer/memberships/{id}/pass */}
-            <View
-              style={{
-                marginTop: 24, height: 50, borderRadius: 12, borderWidth: 1.5, borderColor: C.hairline,
-                alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Text style={{ fontFamily: font(500), fontSize: 11.5, lineHeight: 16, color: C.soft }}>Add to Apple Wallet · official badge</Text>
-            </View>
+            <AddToWallet membershipId={card.membershipId} />
           </>
         )}
       </View>

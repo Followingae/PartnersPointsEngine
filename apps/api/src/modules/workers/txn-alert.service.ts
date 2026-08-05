@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
 import { SmsSenderService } from '../../auth/otp/sms-sender.service';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
+import { WalletPassService } from '../wallet-pass/wallet-pass.service';
 
 /**
  * Sends the customer a WhatsApp after each transaction.
@@ -34,6 +35,7 @@ export class TxnAlertService {
     private readonly sms: SmsSenderService,
     private readonly crypto: EnvelopeCryptoService,
     private readonly config: ConfigService,
+    private readonly passes: WalletPassService,
   ) {}
 
   /**
@@ -77,6 +79,16 @@ export class TxnAlertService {
    * customer hears about their visit once.
    */
   private async handleSale(sale: Sale): Promise<boolean> {
+    // The balance on a saved Google Wallet pass is stale from the moment points
+    // move, and that is independent of messaging — someone who opted out of
+    // WhatsApp still carries the card. So this runs before any of the opt-out
+    // checks below, and its outcome never affects whether the alert is sent.
+    if (sale.membershipId) {
+      await this.passes.refresh(sale.membershipId).catch((e: Error) => {
+        this.logger.warn(`wallet pass refresh failed for ${sale.membershipId}: ${e.message}`);
+      });
+    }
+
     // Everything in one definer call. Each table on this path — outbox,
     // terminal_transaction, customer_membership, person — is under tenant RLS,
     // and this relay spans brands, so a direct read returns nothing.
@@ -189,6 +201,9 @@ interface AlertEvent {
 }
 
 interface Sale {
+  /** Whose sale it is. Needed to refresh their wallet pass, which happens
+   *  whether or not they take messages. */
+  membershipId: string;
   /** The transaction the message's context and receipt are read from. */
   anchorTransactionId: string;
   transactionIds: string[];
@@ -246,6 +261,7 @@ function toSale(events: AlertEvent[]): Sale {
   const anchor = redeem ?? adjust ?? earn ?? events[0]!;
 
   return {
+    membershipId: String(anchor.payload.membershipId ?? ''),
     anchorTransactionId: String(anchor.payload.transactionId ?? ''),
     transactionIds: events.map((e) => String(e.payload.transactionId ?? '')),
     // A zero-point earn isn't worth telling anyone about.

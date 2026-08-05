@@ -19,6 +19,10 @@ export interface PassData {
   pointsCode: string;
   balance: string;
   tier: string | null;
+  /** "Maya K." — shortened, because a pass field is one short line. */
+  memberName: string | null;
+  /** Joining year, as the design's "Since 2024". */
+  memberSince: string;
   /** Present only for a stamp card, which the wallets draw differently. */
   stamps: { collected: number; target: number; rewardName: string | null } | null;
   /** Brand fill, `#rrggbb`, already validated. */
@@ -30,6 +34,19 @@ export interface PassData {
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 /** Apple's nfc.message ceiling. Enforced here so QR-now/NFC-later stays open. */
 const MAX_TOKEN_BYTES = 64;
+
+/**
+ * "Maya Khoury" → "Maya K.", which is what the design shows and what fits.
+ *
+ * A single-word name is left whole rather than reduced to an initial: "Maya"
+ * is a name, "M." is not.
+ */
+function shortName(full: string | null): string | null {
+  const parts = (full ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0]!;
+  return `${parts[0]} ${parts[parts.length - 1]![0]!.toUpperCase()}.`;
+}
 
 export function brandFill(branding: unknown, fallback = '#15150F'): string {
   const c = (branding as { primaryColor?: unknown } | null)?.primaryColor;
@@ -50,7 +67,13 @@ export async function buildPassData(
 ): Promise<PassData | null> {
   const m = await tx.customerMembership.findUnique({
     where: { id: membershipId },
-    select: { id: true, loyaltyId: true, brandId: true },
+    select: {
+      id: true,
+      loyaltyId: true,
+      brandId: true,
+      createdAt: true,
+      person: { select: { fullName: true } },
+    },
   });
   if (!m) return null;
 
@@ -120,6 +143,8 @@ export async function buildPassData(
     pointsCode: brand.pointsCurrencyCode,
     balance,
     tier: tierRow[0]?.name ?? null,
+    memberName: shortName(m.person?.fullName ?? null),
+    memberSince: String(m.createdAt.getUTCFullYear()),
     stamps,
     color: brandFill(brand.branding),
     siteUrl,

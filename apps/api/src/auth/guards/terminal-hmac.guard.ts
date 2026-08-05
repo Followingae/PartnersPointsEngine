@@ -19,7 +19,18 @@ import { NonceStoreService } from '../nonce-store.service';
  * Parses `Authorization: Loyalty-HMAC publishableKeyId=...,ts=...,nonce=...,sig=...`,
  * enforces the timestamp-skew window + nonce presence, decrypts the per-terminal
  * shared secret, recomputes the canonical signature over the RAW request body, and
- * constant-time compares. Supports overlapping {current, previous} secret rotation.
+ * constant-time compares.
+ *
+ * Exactly one secret is accepted at a time. This comment previously claimed
+ * overlapping {current, previous} rotation, which was never built: `api_key`
+ * carries a `prev_secret_hash`, and a *hash* cannot verify an HMAC — recomputing
+ * a signature needs the secret itself. Nothing here reads that column.
+ *
+ * The distinction matters operationally. Somebody planning a fleet rotation on
+ * the strength of that sentence would have issued new secrets expecting a grace
+ * period and taken every till in the estate offline at once. Rotation today is a
+ * cutover per terminal. Building the overlap means storing the previous secret
+ * encrypted (not hashed) with an expiry, and trying it second.
  */
 @Injectable()
 export class TerminalHmacGuard implements CanActivate {

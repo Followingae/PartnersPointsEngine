@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { AuthService } from '../auth.service';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
@@ -12,8 +13,13 @@ import { AdminJwtGuard } from '../guards/admin-jwt.guard';
 export class AdminAuthController {
   constructor(private readonly auth: AuthService) {}
 
+  /**
+   * The console's front door. Ten attempts a minute leaves a forgetful admin
+   * unbothered and makes a password list impractical.
+   */
   @Post('login')
   @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Email + password login; returns tokens or { mfaRequired: true }.' })
   login(@Body() dto: LoginDto) {
     return this.auth.adminLogin(dto.email, dto.password);
@@ -21,6 +27,7 @@ export class AdminAuthController {
 
   @Post('mfa')
   @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Verify TOTP after a login that returned mfaRequired.' })
   mfa(@Body() dto: MfaVerifyDto) {
     return this.auth.adminMfa(dto.email, dto.password, dto.code);

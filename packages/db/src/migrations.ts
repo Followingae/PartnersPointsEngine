@@ -42,4 +42,5 @@ export const INCREMENTAL_MIGRATIONS = [
   '2026-08-04_wallet_set_email.sql',
   '2026-08-04_push_tokens.sql',
   '2026-08-04_wallet_offers.sql',
+  '2026-08-05_account_deletion.sql',
 ] as const;

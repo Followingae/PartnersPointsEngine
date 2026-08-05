@@ -5,7 +5,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../../auth/auth.service';
 import { CurrentWallet } from '../../auth/decorators/current-wallet.decorator';
 import { WalletJwtGuard, type WalletPrincipal } from '../../auth/guards/wallet-jwt.guard';
-import { RegisterPushTokenDto, SetEmailDto, SetHomeBranchDto, UpdateWalletProfileDto } from './dto';
+import { RegisterPushTokenDto, RequestDeletionDto, SetEmailDto, SetHomeBranchDto, UpdateWalletProfileDto } from './dto';
+import { AccountDeletionService } from './deletion.service';
 import { CustomerWalletService } from './wallet.service';
 
 /**
@@ -21,6 +22,7 @@ export class CustomerWalletController {
   constructor(
     private readonly wallet: CustomerWalletService,
     private readonly auth: AuthService,
+    private readonly deletion: AccountDeletionService,
   ) {}
 
   @Get('cards')
@@ -131,5 +133,28 @@ export class CustomerWalletController {
       throw new BadRequestException('use sign out to end this device’s session');
     }
     return this.wallet.revokeSession(me.personId, id);
+  }
+
+  // ── account deletion ─────────────────────────────────────────────────────
+  // Both stores require a customer to start and finish deletion from inside
+  // the app, without staff involvement. These three do that: schedule, check,
+  // and change your mind.
+
+  @Get('deletion')
+  @ApiOperation({ summary: 'Whether a deletion is scheduled, and for when.' })
+  deletionStatus(@CurrentWallet() me: WalletPrincipal) {
+    return this.deletion.status(me.personId);
+  }
+
+  @Post('deletion')
+  @ApiOperation({ summary: 'Schedule this account for deletion.' })
+  requestDeletion(@CurrentWallet() me: WalletPrincipal, @Body() dto: RequestDeletionDto) {
+    return this.deletion.request(me.personId, dto.reason);
+  }
+
+  @Delete('deletion')
+  @ApiOperation({ summary: 'Cancel a scheduled deletion.' })
+  cancelDeletion(@CurrentWallet() me: WalletPrincipal) {
+    return this.deletion.cancel(me.personId);
   }
 }

@@ -598,3 +598,30 @@ export interface Offer {
 }
 
 export const getOffers = () => api<Offer[]>('/customer/wallet/offers');
+
+// ── account deletion ───────────────────────────────────────────────────────
+
+/**
+ * A scheduled deletion, as the app sees it.
+ *
+ * `scheduledFor` is only present while one is pending — the screen shows the
+ * date so nobody has to take "up to 30 days" on trust.
+ */
+export interface DeletionStatus {
+  pending: boolean;
+  requestedAt?: string;
+  scheduledFor?: string;
+  noticeDays: number;
+}
+
+export const getDeletionStatus = () =>
+  api<DeletionStatus>('/customer/wallet/deletion');
+
+export const requestDeletion = (reason?: string) =>
+  api<DeletionStatus>('/customer/wallet/deletion', {
+    method: 'POST',
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
+
+export const cancelDeletion = () =>
+  api<{ cancelled: boolean }>('/customer/wallet/deletion', { method: 'DELETE' });

@@ -23,14 +23,18 @@ const FEATURE_ROWS: { icon: IconName; title: string; sub: string; href: string }
   { icon: 'share', title: 'Invite friends', sub: 'Share your code, you both benefit', href: '/referrals' },
 ];
 
+/**
+ * Language and Linked partners are deliberately absent: both screens exist but
+ * neither persists anything, so a customer who changed a setting there would
+ * find it reverted next launch. They come back when there is an endpoint behind
+ * them — a control that silently does nothing is worse than one that is missing.
+ */
 const ROWS: { icon: IconName; title: string; sub: string; href: string }[] = [
   { icon: 'check', title: 'Finish your profile', sub: 'What we still don’t know about you', href: '/profile/completion' },
   { icon: 'user', title: 'Personal details', sub: 'Name, birthday, nationality', href: '/profile/edit' },
-  { icon: 'card', title: 'Linked partners', sub: 'Convert points to a partner', href: '/profile/partners' },
   { icon: 'bell', title: 'Notifications', sub: 'What we send you on WhatsApp', href: '/profile/notifications' },
   { icon: 'shield', title: 'Security', sub: 'Face ID, sessions', href: '/profile/security' },
-  { icon: 'lock', title: 'Privacy and data', sub: 'Export or delete', href: '/profile/privacy' },
-  { icon: 'globe', title: 'Language', sub: 'English', href: '/profile/language' },
+  { icon: 'lock', title: 'Privacy and data', sub: 'Manage or delete your data', href: '/profile/privacy' },
   { icon: 'help', title: 'Help and support', sub: 'Answers and contact', href: '/help' },
   { icon: 'info', title: 'About', sub: 'Version, terms, privacy', href: '/about' },
   { icon: 'logout', title: 'Sign out', sub: 'You can come back any time', href: '/signout' },

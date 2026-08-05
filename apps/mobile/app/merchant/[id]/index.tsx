@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { Button, EmptyState, ErrorState, Label, Loading, Screen, pts } from '@/components/UI';
+import { AddToWallet } from '@/components/AddToWallet';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { getCards, getDiscoverBrands, getRewards, type Card, type DiscoverBrand, type Reward } from '@/lib/api';
 import { useAsync } from '@/lib/useAsync';
@@ -149,6 +150,9 @@ export default function MerchantStorefront() {
             ))}
           </View>
         )}
+
+        {/* Only for a card actually held — there is nothing to add otherwise. */}
+        {joined && card ? <AddToWallet membershipId={card.membershipId} /> : null}
       </ScrollView>
 
       <View style={{ paddingHorizontal: SP.gutter, paddingBottom: 34 + insets.bottom }}>

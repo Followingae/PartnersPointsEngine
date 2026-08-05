@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 import { ExpirySweepService } from './expiry-sweep.service';
+import { AccountDeletionService } from '../customer-wallet/deletion.service';
 import { SettlementService } from './settlement.service';
 import { TxnAlertService } from './txn-alert.service';
 import { WebhookService } from './webhook.service';
@@ -36,6 +37,7 @@ export class WorkerRunner implements OnModuleInit, OnModuleDestroy {
     private readonly webhooks: WebhookService,
     private readonly settlement: SettlementService,
     private readonly expiry: ExpirySweepService,
+    private readonly deletions: AccountDeletionService,
     private readonly config: ConfigService,
   ) {}
 
@@ -59,7 +61,13 @@ export class WorkerRunner implements OnModuleInit, OnModuleDestroy {
     this.every('point-expiry', 3600, () => this.perBrand('point-expiry', (ctx) =>
       this.expiry.sweepBrand(ctx).then(() => undefined)));
 
-    this.logger.log('background jobs running: txn-alerts, webhooks, settlement, point-expiry');
+    // Hourly is right for a thirty-day deadline: nobody notices sixty minutes,
+    // and it means a restart cannot leave a due deletion sitting for a day.
+    this.every('account-deletions', 3600, () => this.deletions.sweep().then(() => undefined));
+
+    this.logger.log(
+      'background jobs running: txn-alerts, webhooks, settlement, point-expiry, account-deletions',
+    );
   }
 
   onModuleDestroy(): void {

@@ -41,3 +41,24 @@ Thumbs.db
 
 # Local credentials, never committed
 .do-token
+
+# Store signing material. Any one of these in a commit is a lost signing
+# identity: the Play service account can publish releases, the keystore IS the
+# app's Android identity and cannot be reissued, and the .p12 signs wallet
+# passes.
+play-service-account.json
+*.keystore
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+apps/mobile/credentials.json
+
+# Google downloads service-account keys under the project's own name —
+# `rfm-partners-points-e4e293781a82.json` — which none of the patterns above
+# would have caught. Extensions can't be relied on here, so anything genuinely
+# secret goes in this directory and nothing in it is ever tracked.
+secrets/
+*service-account*.json
+*serviceaccount*.json
