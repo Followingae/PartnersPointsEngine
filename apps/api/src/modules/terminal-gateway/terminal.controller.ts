@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { TerminalHmacGuard } from '../../auth/guards/terminal-hmac.guard';
@@ -10,6 +11,16 @@ import { TerminalService } from './terminal.service';
  * Terminal/POS gateway — narrow, versioned, HMAC-signed surface for the first-party
  * fleet. authorize → capture/void state machine + offline store-and-forward replay.
  */
+/*
+ * Exempt from rate limiting on purpose.
+ *
+ * The throttler counts by IP, and a venue's tills sit behind one public
+ * address — four of them at a lunch rush would share a budget meant for one
+ * caller, and the failure mode is a queue at the counter. These routes are
+ * already HMAC-signed with single-use nonces, so they are not a brute-force
+ * target the way an OTP or a login is.
+ */
+@SkipThrottle()
 @ApiTags('terminal')
 @ApiSecurity('terminal-hmac')
 @Controller('terminal')
