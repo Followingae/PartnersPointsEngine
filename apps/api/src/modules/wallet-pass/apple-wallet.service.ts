@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import JSZip from 'jszip';
@@ -23,19 +23,11 @@ import type { PassData } from './pass-data';
  * Unconfigured, `issue` returns null rather than throwing, matching
  * GoogleWalletService: a brand without wallet passes still has a working app.
  *
- * Note on updates: a pass already in someone's wallet only refreshes when the
- * device is told to, which is the separate PassKit web service plus an APNs
- * certificate. Until that exists a pass shows the balance it held when it was
- * added, so `issue` is cheap and meant to be re-run — the app re-fetches rather
- * than caching a stale pass. See docs/wallet-passes.md.
+ * Keeping a pass current after it is added is PassKitService's job. This class
+ * only signs; it contributes the `webServiceURL` and `authenticationToken` that
+ * let the device find that service.
  */
-/**
- * The object identifiers the signature needs.
- *
- * Named here rather than read from `forge.pki.oids`, whose lookups are typed as
- * possibly-undefined: an OID that silently came back undefined would produce a
- * signature Apple rejects without saying why.
- */
+
 /**
  * Pluralises the reward noun for the remainder sentence.
  *
@@ -50,6 +42,13 @@ function plural(noun: string, n: number): string {
   return `${noun}s`;
 }
 
+/**
+ * The object identifiers the signature needs.
+ *
+ * Named here rather than read from `forge.pki.oids`, whose lookups are typed as
+ * possibly-undefined: an OID that silently came back undefined would produce a
+ * signature Apple rejects without saying why.
+ */
 const OID = {
   certBag: '1.2.840.113549.1.12.10.1.3',
   pkcs8ShroudedKeyBag: '1.2.840.113549.1.12.10.1.2',
@@ -108,6 +107,18 @@ export class AppleWalletService {
         },
       ],
       associatedStoreIdentifiers: [] as number[],
+
+      // Without these two the pass is inert: iOS never registers the device and
+      // never asks for an update, so the balance stays frozen at whatever it
+      // was when the card was added. Both are omitted rather than left blank
+      // when the web service is not configured — a webServiceURL the device
+      // cannot reach makes it retry forever.
+      ...(this.webServiceUrl()
+        ? {
+            webServiceURL: this.webServiceUrl(),
+            authenticationToken: this.authToken(d.membershipId),
+          }
+        : {}),
     };
 
     if (d.stamps) {
@@ -165,6 +176,29 @@ export class AppleWalletService {
         ],
       },
     };
+  }
+
+  /**
+   * Where the device goes to ask about updates.
+   *
+   * PUBLIC_API_URL already carries the /v1 prefix, and Apple's protocol also
+   * expects a /v1 segment — the same one, by coincidence rather than design.
+   */
+  private webServiceUrl(): string | null {
+    const base = this.config.get<string>('PUBLIC_API_URL') ?? 'https://api.partnerspoints.ae/v1';
+    // Only advertise it once pushes can actually be sent; otherwise the device
+    // polls a service that will never tell it anything changed.
+    return this.config.get<string>('APPLE_APNS_KEY_P8') ? base : null;
+  }
+
+  /**
+   * Derived the same way PassKitService derives it — the two must agree, since
+   * one writes the token into the pass and the other checks what comes back.
+   */
+  private authToken(serialNumber: string): string {
+    return createHmac('sha256', this.config.getOrThrow<string>('JWT_ACCESS_SECRET'))
+      .update(`pass:${serialNumber}`)
+      .digest('hex');
   }
 
   private grouped(balance: string): string {

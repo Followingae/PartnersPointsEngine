@@ -4,6 +4,7 @@ import { TokenService } from '../../auth/tokens/token.service';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 import { AppleWalletService } from './apple-wallet.service';
 import { GoogleWalletService } from './google-wallet.service';
+import { PassKitService } from './passkit.service';
 import { buildPassData, type PassData } from './pass-data';
 import { passImages } from './pass-images';
 
@@ -23,6 +24,7 @@ export class WalletPassService {
     private readonly google: GoogleWalletService,
     private readonly config: ConfigService,
     private readonly tokens: TokenService,
+    private readonly passkit: PassKitService,
   ) {}
 
   private siteUrl(): string {
@@ -124,6 +126,12 @@ export class WalletPassService {
    * refresh is not worth losing a sale over.
    */
   async refresh(membershipId: string): Promise<{ updated: boolean }> {
+    // Apple and Google update by opposite mechanisms: Google is a REST patch we
+    // make, Apple is a push that makes the device come and ask. Both are fired
+    // here so callers have one thing to call, and neither is allowed to fail
+    // the transaction that triggered it.
+    await this.passkit.notifyPassChanged(membershipId).catch(() => ({ notified: 0 }));
+
     if (!this.google.configured) return { updated: false };
     const data = await buildPassData(this.prisma, membershipId, this.siteUrl());
     if (!data) return { updated: false };
