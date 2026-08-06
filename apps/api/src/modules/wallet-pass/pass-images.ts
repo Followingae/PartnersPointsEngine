@@ -141,8 +141,8 @@ export async function imagesFor(d: {
     };
   }
 
-  const left = d.stamps.target - d.stamps.collected;
-  const noun = d.stamps.rewardName ?? 'visit';
+  const { headline, subhead } = stampCopy(d.stamps);
+
   return {
     ...base,
     ...(await stampStrip({
@@ -150,8 +150,50 @@ export async function imagesFor(d: {
       target: d.stamps.target,
       icon: d.stampIcon,
       color: d.color,
-      headline: left > 0 ? `${left} more ${plural(noun, left)}` : `Free ${noun} ready`,
-      subhead: left > 0 ? `for a free ${noun}` : 'Show this at the counter',
+      headline,
+      subhead,
     })),
+  };
+}
+
+/**
+ * Whether a reward name can be counted in a sentence.
+ *
+ * "coffee" and "wash" can — "3 more coffees" reads. "AED 50 Voucher" and
+ * "20% off" cannot, and the naive version produced "1 more AED 50 Voucher".
+ * One short word, no digits or symbols, is the test that separates them.
+ */
+function countsAsNoun(reward: string): boolean {
+  return /^[a-z]+$/i.test(reward) && reward.length <= 12;
+}
+
+/**
+ * The two lines on a stamp strip.
+ *
+ * Exported so it can be tested directly: the copy now lives inside a PNG, and
+ * asserting on rendered pixels would test the rasteriser rather than the words.
+ *
+ * What is counted is stamps, not rewards. The design's "3 more coffees" works
+ * because that brand's reward *is* a coffee — apply the same rule to an "AED 50
+ * Voucher" and you get "1 more AED 50 Voucher", which is what shipped.
+ */
+export function stampCopy(stamps: {
+  collected: number;
+  target: number;
+  rewardName: string | null;
+}): { headline: string; subhead: string } {
+  const left = stamps.target - stamps.collected;
+  const reward = stamps.rewardName?.trim();
+  const countable = reward && countsAsNoun(reward) ? reward : null;
+
+  if (left <= 0) {
+    return {
+      headline: reward ? `${reward} ready` : 'Reward ready',
+      subhead: 'Show this at the counter',
+    };
+  }
+  return {
+    headline: `${left} more ${plural(countable ?? 'stamp', left)}`,
+    subhead: reward ? `for a free ${reward}` : 'until your next reward',
   };
 }

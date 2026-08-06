@@ -28,18 +28,35 @@ import type { PassData } from './pass-data';
  * let the device find that service.
  */
 
+/** One channel, gamma-corrected, per the WCAG relative-luminance definition. */
+const channel = (v: number) => {
+  const s = v / 255;
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+};
+
 /**
- * Pluralises the reward noun for the remainder sentence.
+ * Readable ink over a fill, as `#rrggbb`.
  *
- * The design calls this out twice — "3 more coffees" against "1 more wash" —
- * so one remaining has to read singular, and "wash" has to become "washes"
- * rather than "washs".
+ * Whichever of near-black or white actually contrasts better against the
+ * brand's colour, measured rather than assumed. `dim` fades it toward the fill
+ * for label rows, which Apple sets separately from the values.
  */
-function plural(noun: string, n: number): string {
-  if (n === 1) return noun;
-  if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
-  if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
-  return `${noun}s`;
+function inkOn(hex: string, dim = 1): string {
+  const h = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
+  const lum = 0.2126 * channel(r!) + 0.7152 * channel(g!) + 0.0722 * channel(b!);
+  const ratio = (a: number, x: number) => (Math.max(a, x) + 0.05) / (Math.min(a, x) + 0.05);
+
+  const white = ratio(lum, 1);
+  const ink = ratio(lum, channel(0x15) * 0.2126 + channel(0x15) * 0.7152 + channel(0x0f) * 0.0722);
+  const [tr, tg, tb] = white > ink ? [255, 255, 255] : [0x15, 0x15, 0x0f];
+
+  if (dim >= 1) return `#${[tr, tg, tb].map((v) => v!.toString(16).padStart(2, '0')).join('')}`;
+  // Apple takes no alpha here, so a dimmed label is mixed against the fill.
+  const mix = (t: number, base: number) => Math.round(base + (t - base) * dim);
+  return `#${[mix(tr!, r!), mix(tg!, g!), mix(tb!, b!)]
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('')}`;
 }
 
 /**
@@ -96,8 +113,11 @@ export class AppleWalletService {
       description: `${d.brandName} loyalty card`,
       logoText: d.brandName,
       backgroundColor: d.color,
-      foregroundColor: '#FFFFFF',
-      labelColor: '#FFFFFF',
+      // Measured, not assumed. These were hardcoded white, so a brand with a
+      // pale fill — a light lime bakery, in the case that found this — got
+      // white type on near-white and could read none of its own card.
+      foregroundColor: inkOn(d.color),
+      labelColor: inkOn(d.color, 0.65),
       barcodes: [
         {
           format: 'PKBarcodeFormatQR',
@@ -122,8 +142,6 @@ export class AppleWalletService {
     };
 
     if (d.stamps) {
-      const left = d.stamps.target - d.stamps.collected;
-      const noun = d.stamps.rewardName ?? 'visit';
       return {
         ...common,
         storeCard: {
@@ -134,15 +152,11 @@ export class AppleWalletService {
               value: `${d.stamps.collected} of ${d.stamps.target}`,
             },
           ],
-          // The design states the remainder as a sentence rather than a pair of
-          // statistics: "3 more coffees" over "for a free coffee".
-          primaryFields: [
-            {
-              key: 'remaining',
-              label: left > 0 ? `for a free ${noun}` : 'Show this at the counter',
-              value: left > 0 ? `${left} more ${plural(noun, left)}` : `Free ${noun} ready`,
-            },
-          ],
+          // Deliberately empty. The strip image sits behind this row and
+          // already carries the headline in the brand's own typeface — leaving
+          // a field here made iOS draw its own copy on top, which is exactly
+          // the garbled overlap that shipped.
+          primaryFields: [],
           secondaryFields: [
             ...(d.memberName ? [{ key: 'member', label: 'Member', value: d.memberName }] : []),
             { key: 'card', label: 'Card', value: d.loyaltyId },

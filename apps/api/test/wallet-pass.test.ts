@@ -135,29 +135,48 @@ describe('Apple Wallet pass', () => {
       ]);
     });
 
-    it('screen 71 — "6 of 9" over "3 more coffees / for a free coffee"', async () => {
+    it('leaves primaryFields empty so iOS does not draw over the strip', async () => {
       const { pass } = await entries({ ...base, stamps: { collected: 6, target: 9, rewardName: 'coffee' } });
       expect(pass.storeCard.headerFields![0]!.value).toBe('6 of 9');
-      expect(pass.storeCard.primaryFields![0]!.value).toBe('3 more coffees');
-      expect(pass.storeCard.primaryFields![0]!.label).toBe('for a free coffee');
+      // The strip image already carries the headline in the brand's typeface.
+      // A field here made iOS render its own copy on top of it, which shipped
+      // as garbled overlapping text on a real device.
+      expect(pass.storeCard.primaryFields).toEqual([]);
+    });
+
+    it('screen 71 — counts down to the reward', async () => {
+      const { stampCopy } = await import('../src/modules/wallet-pass/pass-images');
+      expect(stampCopy({ collected: 6, target: 9, rewardName: 'coffee' })).toEqual({
+        headline: '3 more coffees', subhead: 'for a free coffee',
+      });
     });
 
     it('screen 72 — singular resolves at one remaining', async () => {
-      const { pass } = await entries({ ...base, stamps: { collected: 4, target: 5, rewardName: 'wash' } });
-      expect(pass.storeCard.primaryFields![0]!.value).toBe('1 more wash');
-      expect(pass.storeCard.primaryFields![0]!.label).toBe('for a free wash');
+      const { stampCopy } = await import('../src/modules/wallet-pass/pass-images');
+      expect(stampCopy({ collected: 4, target: 5, rewardName: 'wash' })).toEqual({
+        headline: '1 more wash', subhead: 'for a free wash',
+      });
     });
 
     it('pluralises awkward nouns rather than appending a bare s', async () => {
-      const wash = await entries({ ...base, stamps: { collected: 1, target: 5, rewardName: 'wash' } });
-      expect(wash.pass.storeCard.primaryFields![0]!.value).toBe('4 more washes');
-      const smoothie = await entries({ ...base, stamps: { collected: 1, target: 3, rewardName: 'smoothie' } });
-      expect(smoothie.pass.storeCard.primaryFields![0]!.value).toBe('2 more smoothies');
+      const { stampCopy } = await import('../src/modules/wallet-pass/pass-images');
+      expect(stampCopy({ collected: 1, target: 5, rewardName: 'wash' }).headline).toBe('4 more washes');
+      expect(stampCopy({ collected: 1, target: 3, rewardName: 'smoothie' }).headline).toBe('2 more smoothies');
+    });
+
+    it('counts stamps when the reward is not a countable noun', async () => {
+      const { stampCopy } = await import('../src/modules/wallet-pass/pass-images');
+      // A real brand shipped 'AED 50 Voucher' and the naive rule produced
+      // '1 more AED 50 Voucher'.
+      expect(stampCopy({ collected: 5, target: 6, rewardName: 'AED 50 Voucher' })).toEqual({
+        headline: '1 more stamp', subhead: 'for a free AED 50 Voucher',
+      });
+      expect(stampCopy({ collected: 1, target: 4, rewardName: '20% off' }).headline).toBe('3 more stamps');
     });
 
     it('a filled card announces the reward instead of counting down', async () => {
-      const { pass } = await entries({ ...base, stamps: { collected: 9, target: 9, rewardName: 'coffee' } });
-      expect(pass.storeCard.primaryFields![0]!.value).toBe('Free coffee ready');
+      const { stampCopy } = await import('../src/modules/wallet-pass/pass-images');
+      expect(stampCopy({ collected: 9, target: 9, rewardName: 'coffee' }).headline).toBe('coffee ready');
     });
 
     it('groups the balance without going through Number', async () => {

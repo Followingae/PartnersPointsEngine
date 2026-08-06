@@ -18,7 +18,16 @@ import { fit, textPath, textWidth } from './strip-text';
 /** Apple's storeCard strip, in points. Rendered at 3x for retina. */
 const W = 375;
 const H = 123;
-const PAD = 24;
+
+/**
+ * Horizontal safe zone.
+ *
+ * Apple scales the strip to the card's width and crops whatever does not fit,
+ * and the card is narrower than the screen. At 24 the headline ran off the left
+ * edge on a Pro Max — "1 more…" arrived as "l more…". Forty is roughly a tenth
+ * of the width each side, which survives the crop on every size Apple ships.
+ */
+const PAD = 40;
 
 /**
  * Industry glyphs, drawn inside a 24×24 box.
@@ -45,12 +54,23 @@ export type StampIcon = keyof typeof STAMP_ICONS | string;
 
 const glyph = (n: StampIcon) => STAMP_ICONS[n] ?? STAMP_ICONS.star!;
 
-/** Readable ink for a given fill — the same rule the app's cards use. */
+/**
+ * Readable ink for a given fill.
+ *
+ * WCAG contrast rather than a brightness threshold. The threshold version put
+ * white on a pale lime at 1.17:1 — the glyphs were there and could not be seen.
+ */
 function inkOn(hex: string): string {
   const h = hex.replace('#', '');
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
-  // Perceived luminance; a mid-grey brand should get dark ink, not white.
-  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 150 ? '#15150F' : '#FFFFFF';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
+  const ch = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const lum = 0.2126 * ch(r!) + 0.7152 * ch(g!) + 0.0722 * ch(b!);
+  const ratio = (a: number, x: number) => (Math.max(a, x) + 0.05) / (Math.min(a, x) + 0.05);
+  const inkLum = 0.2126 * ch(0x15) + 0.7152 * ch(0x15) + 0.0722 * ch(0x0f);
+  return ratio(lum, 1) > ratio(lum, inkLum) ? '#FFFFFF' : '#15150F';
 }
 
 async function rasterise(svg: string) {
@@ -127,6 +147,10 @@ export async function stampStrip(opts: {
 
   const INK = '#15150F';
   const SHEET = '#FFFFFF';
+  // The glyph is knocked out of the filled disc, so it has to contrast with the
+  // brand colour — not with the sheet behind it. White on a pale lime disc was
+  // 1.17:1 and effectively invisible.
+  const knockout = inkOn(opts.color);
 
   // Headline block first; the grid takes whatever is left.
   const headSize = 21;
@@ -169,7 +193,7 @@ export async function stampStrip(opts: {
     parts.push(
       done
         ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${opts.color}"/>` +
-            `<g transform="${g}" fill="none" stroke="${SHEET}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${glyph(opts.icon)}"/></g>`
+            `<g transform="${g}" fill="none" stroke="${knockout}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${glyph(opts.icon)}"/></g>`
         : `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${opts.color}" stroke-opacity="0.32" stroke-width="1.4" stroke-dasharray="3 3"/>` +
             `<g transform="${g}" fill="none" stroke="${opts.color}" stroke-opacity="0.28" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${glyph(opts.icon)}"/></g>`,
     );
