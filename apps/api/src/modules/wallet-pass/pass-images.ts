@@ -98,3 +98,60 @@ export function passImages(color: string): Record<string, Buffer> {
     'logo@2x.png': solidPng(100, color),
   };
 }
+
+/** Digits grouped without going through Number, which rounds past 2^53. */
+function grouped(balance: string): string {
+  return balance.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** "3 more coffees" against "1 more wash" — the design calls out both. */
+function plural(noun: string, n: number): string {
+  if (n === 1) return noun;
+  if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
+  if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
+  return `${noun}s`;
+}
+
+/**
+ * Every image a pass carries, including the strip that holds the design.
+ *
+ * Which strip depends on what the brand is running, which is what makes the
+ * two pass types in the design distinct without any branching in the caller:
+ * no stamp card gives screen 70's flat brand block with the balance in it, a
+ * running one gives 71 and 72's headline over the icon grid.
+ */
+export async function imagesFor(d: {
+  color: string;
+  balance: string;
+  pointsCode: string;
+  stamps: { collected: number; target: number; rewardName: string | null } | null;
+  stampIcon: string;
+}): Promise<Record<string, Buffer>> {
+  const base = passImages(d.color);
+  const { pointsStrip, stampStrip } = await import('./stamp-strip');
+
+  if (!d.stamps) {
+    return {
+      ...base,
+      ...(await pointsStrip({
+        balance: grouped(d.balance),
+        pointsCode: d.pointsCode,
+        color: d.color,
+      })),
+    };
+  }
+
+  const left = d.stamps.target - d.stamps.collected;
+  const noun = d.stamps.rewardName ?? 'visit';
+  return {
+    ...base,
+    ...(await stampStrip({
+      collected: d.stamps.collected,
+      target: d.stamps.target,
+      icon: d.stampIcon,
+      color: d.color,
+      headline: left > 0 ? `${left} more ${plural(noun, left)}` : `Free ${noun} ready`,
+      subhead: left > 0 ? `for a free ${noun}` : 'Show this at the counter',
+    })),
+  };
+}

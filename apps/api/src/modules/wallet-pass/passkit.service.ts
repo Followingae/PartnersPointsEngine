@@ -5,7 +5,7 @@ import { PrismaService } from '../../platform-core/prisma/prisma.service';
 import { ApnsService } from './apns.service';
 import { AppleWalletService } from './apple-wallet.service';
 import { buildPassData } from './pass-data';
-import { passImages } from './pass-images';
+import { imagesFor } from './pass-images';
 
 /**
  * The half of Apple Wallet that keeps a pass current after it is added.
@@ -130,7 +130,7 @@ export class PassKitService {
     const data = await buildPassData(this.prisma, serialNumber, siteUrl);
     if (!data) return null;
 
-    const bytes = await this.apple.issue(data, passImages(data.color));
+    const bytes = await this.apple.issue(data, await imagesFor(data));
     if (!bytes) return null;
     return { bytes, lastModified };
   }

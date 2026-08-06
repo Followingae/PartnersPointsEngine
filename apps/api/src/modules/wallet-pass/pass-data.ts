@@ -25,6 +25,8 @@ export interface PassData {
   memberSince: string;
   /** Present only for a stamp card, which the wallets draw differently. */
   stamps: { collected: number; target: number; rewardName: string | null } | null;
+  /** Which glyph fills a stamp — set per brand, defaulting to a star. */
+  stampIcon: string;
   /** Brand fill, `#rrggbb`, already validated. */
   color: string;
   /** How the customer reaches the programme from the pass. */
@@ -46,6 +48,12 @@ function shortName(full: string | null): string | null {
   if (parts.length === 0) return null;
   if (parts.length === 1) return parts[0]!;
   return `${parts[0]} ${parts[parts.length - 1]![0]!.toUpperCase()}.`;
+}
+
+/** The brand's chosen stamp glyph. Unset brands get a star rather than nothing. */
+export function stampIconOf(branding: unknown): string {
+  const v = (branding as { stampIcon?: unknown } | null)?.stampIcon;
+  return typeof v === 'string' && v.trim() ? v.trim() : 'star';
 }
 
 export function brandFill(branding: unknown, fallback = '#15150F'): string {
@@ -115,6 +123,7 @@ export async function buildPassData(
           rewardName: r.stamps.rewardName ?? null,
         }
       : null,
+    stampIcon: stampIconOf(r.branding),
     color: brandFill(r.branding),
     siteUrl,
   };

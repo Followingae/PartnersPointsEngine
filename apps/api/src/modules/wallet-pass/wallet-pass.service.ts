@@ -6,7 +6,7 @@ import { AppleWalletService } from './apple-wallet.service';
 import { GoogleWalletService } from './google-wallet.service';
 import { PassKitService } from './passkit.service';
 import { buildPassData, type PassData } from './pass-data';
-import { passImages } from './pass-images';
+import { imagesFor } from './pass-images';
 
 /**
  * Issuing wallet passes for the signed-in customer's own cards.
@@ -56,7 +56,7 @@ export class WalletPassService {
   /** The signed `.pkpass` bytes for one of the caller's cards. */
   async applePass(personId: string, membershipId: string): Promise<Buffer> {
     const data = await this.dataFor(personId, membershipId);
-    const pass = await this.apple.issue(data, passImages(data.color));
+    const pass = await this.apple.issue(data, await imagesFor(data));
     if (!pass) throw new ForbiddenException('Apple Wallet is not configured');
     return pass;
   }
