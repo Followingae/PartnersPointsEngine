@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, { Path } from 'react-native-svg';
@@ -113,9 +114,7 @@ export default function MyQrTab() {
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                <Text style={{ fontFamily: font(600), fontSize: 10, lineHeight: 14, color: brandFg(brandColor(card.brandId, card.branding)) }}>
-                  {brandInitials(card.brandName)}
-                </Text>
+                <BrandMark name={card.brandName} branding={card.branding} size={24} color={brandFg(brandColor(card.brandId, card.branding))} />
               </View>
               <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: C.ink }}>{card.brandName}</Text>
               {list.length > 1 ? (

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import {
@@ -98,9 +99,7 @@ export default function VoucherScreen() {
                 width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(21,21,15,.17)',
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Text style={{ fontFamily: font(600), fontSize: 12, lineHeight: 17, color: fg }}>
-                  {brandInitials(v.brandName)}
-                </Text>
+                <BrandMark name={v.brandName} branding={v.branding} size={30} color={fg} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontFamily: font(600), fontSize: 16, lineHeight: 22, color: fg }} numberOfLines={2}>

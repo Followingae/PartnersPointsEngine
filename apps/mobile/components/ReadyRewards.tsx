@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { Label, Small } from '@/components/UI';
 import type { Voucher } from '@/lib/api';
@@ -55,9 +56,7 @@ export function ReadyRewards({ vouchers }: { vouchers: Voucher[] }) {
                   justifyContent: 'center',
                 }}
               >
-                <Text style={{ fontFamily: font(600), fontSize: 13, lineHeight: 18, color: brandFg(color) }}>
-                  {brandInitials(v.brandName)}
-                </Text>
+                <BrandMark name={v.brandName} branding={v.branding} size={32} color={brandFg(color)} />
               </View>
 
               <View style={{ flex: 1, minWidth: 0 }}>

@@ -1,4 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import Svg, { Path } from 'react-native-svg';
 import { brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { Chip, Small } from '@/components/UI';
@@ -49,9 +50,7 @@ export function InlineBrandTile({
           justifyContent: 'center',
         }}
       >
-        <Text style={{ fontFamily: font(600), fontSize: 14, lineHeight: 20, color: brandFg(color) }}>
-          {brandInitials(brand.brandName)}
-        </Text>
+        <BrandMark name={brand.brandName} branding={brand.branding} size={34} color={brandFg(color)} />
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>

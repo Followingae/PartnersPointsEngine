@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ReactNode, useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { AddToWallet } from '@/components/AddToWallet';
 import { OnColorBar, brandColor, brandFg, brandInitials } from '@/components/BrandCard';
@@ -198,7 +199,7 @@ export default function CardDetail() {
               alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <Text style={{ fontFamily: font(600), fontSize: 17, lineHeight: 24, color: fg }}>{brandInitials(card.brandName)}</Text>
+            <BrandMark name={card.brandName} branding={card.branding} size={40} color={fg} />
           </View>
           <View>
             <Text style={{ fontFamily: font(600), fontSize: 19, lineHeight: 23, letterSpacing: -0.38, color: fg }}>{card.brandName}</Text>
