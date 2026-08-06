@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ReactNode, useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { AddToWallet } from '@/components/AddToWallet';
 import { OnColorBar, brandColor, brandFg, brandInitials } from '@/components/BrandCard';
 import { EmptyState, ErrorState, IconButton, Label, Loading, Progress, Screen, Small, pts } from '@/components/UI';
 import { getActivity, getCards, getChallenges, type Challenge } from '@/lib/api';
@@ -361,6 +362,12 @@ export default function CardDetail() {
             <Text style={{ fontFamily: font(600), fontSize: 12.5, lineHeight: 18, color: C.ink }}>Expiring points</Text>
           </Pressable>
         </View>
+
+        {/* This is the screen someone reaches from their own cards, so it is
+            where they look for this. It was originally only on the join
+            confirmation — seen once, and never again by anyone who joined
+            before passes existed. */}
+        <AddToWallet membershipId={card.membershipId} />
       </View>
     </Screen>
   );
