@@ -14,7 +14,19 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
-// pnpm uses symlinks; let Metro follow them and not climb above the workspace.
-config.resolver.disableHierarchicalLookup = true;
+
+// Hierarchical lookup stays ON, which is the opposite of what Expo's monorepo
+// guide says — and correct here, because that guide assumes a hoisted npm or
+// yarn layout where every package sits flat in the root node_modules.
+//
+// pnpm does not do that. A package's dependencies are symlinked next to it
+// inside .pnpm/<pkg>/node_modules/, so `expo` finds `expo-modules-core` by
+// Metro walking up from the importing file. Disabling that leaves only the two
+// directories above, and `expo-modules-core` is in neither.
+//
+// This built locally for months anyway: a stale copy of expo-modules-core was
+// sitting in the workspace root from some earlier install, so the flat lookup
+// happened to hit. A clean install has no such copy, which is why the first EAS
+// build was also the first honest test of this file.
 
 module.exports = config;
