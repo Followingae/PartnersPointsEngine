@@ -74,6 +74,7 @@ export default function AllCards() {
                 size="tile"
                 name={c.brandName}
                 initial={brandInitials(c.brandName)}
+                    branding={c.branding}
                 color={brandColor(c.brandId, c.branding)}
                 tier={c.tier ?? undefined}
                 points={Number(c.available)}

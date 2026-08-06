@@ -123,6 +123,7 @@ export default function CardsHome() {
                   <BrandCard
                     name={c.brandName}
                     initial={brandInitials(c.brandName)}
+                    branding={c.branding}
                     color={color}
                     tier={c.tier ?? undefined}
                     points={Number(c.available)}

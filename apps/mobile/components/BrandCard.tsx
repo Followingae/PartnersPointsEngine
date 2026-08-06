@@ -1,4 +1,5 @@
 import { Pressable, Text, View, ViewStyle } from 'react-native';
+import { BrandMark } from '@/components/BrandMark';
 import { C, R, font, shadow } from '@/lib/tokens';
 import { pts } from '@/components/UI';
 
@@ -20,22 +21,41 @@ const parseHex = (hex: string) => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
 };
 
-/** Brand fills dark enough to need white type. Everything else takes ink. */
-const ON_DARK: string[] = [C.purple, C.blue, C.electric, C.ink, C.black, C.greenDeep];
-/** Every fill the design itself ships; anything else came from a brand. */
-const OURS: string[] = Object.values(C);
+/** One channel, gamma-corrected, per the WCAG relative-luminance definition. */
+const channel = (v: number) => {
+  const s = v / 255;
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+};
+
+const luminance = (r: number, g: number, b: number) =>
+  0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+
+/** WCAG contrast ratio between two luminances, 1 (identical) to 21 (black on white). */
+const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
 /**
- * Readable type over a fill. The design's own palette is decided by hand — a
- * brand-supplied colour can be anything, so that case falls back to perceived
- * brightness rather than guessing.
+ * Readable type over a fill.
+ *
+ * Whichever of ink or white actually contrasts better — measured, not listed.
+ *
+ * This used to consult two hardcoded arrays first, and `OURS` was every value
+ * in the token file, so any brand whose colour happened to match a design token
+ * skipped the brightness check altogether and took whatever the list said. A
+ * pale fill could end up with white type on it, which is how it was found.
+ *
+ * Measuring costs nothing and cannot drift out of step with the palette.
  */
 export const brandFg = (color: string) => {
-  if (ON_DARK.includes(color)) return '#fff';
-  if (OURS.includes(color)) return C.ink;
   const [r, g, b] = parseHex(color);
   if (Number.isNaN(r)) return C.ink;
-  return (r * 299 + g * 587 + b * 114) / 1000 < 150 ? '#fff' : C.ink;
+
+  const fill = luminance(r, g, b);
+  const [ir, ig, ib] = parseHex(C.ink);
+  // Ink is preferred on a tie: dark-on-light is easier to read at small sizes,
+  // and it keeps the app's own surfaces consistent.
+  return ratio(fill, luminance(255, 255, 255)) > ratio(fill, luminance(ir, ig, ib))
+    ? '#fff'
+    : C.ink;
 };
 
 /** Fills a card rotates through when its brand hasn't set one. */
@@ -88,8 +108,10 @@ const trackOn = (color: string) => (brandFg(color) === '#fff' ? 'rgba(255,255,25
 
 export type BrandCardProps = {
   name: string;
-  /** 1–2 letters shown in the badge. */
+  /** 1–2 letters shown in the badge when the brand has no logo. */
   initial: string;
+  /** The brand's theming. Carries logoUrl, which the badge prefers. */
+  branding?: Record<string, unknown> | null;
   /** The brand's fill colour. */
   color: string;
   tier?: string;
@@ -106,7 +128,7 @@ export type BrandCardProps = {
 };
 
 export function BrandCard({
-  name, initial, color, tier, points, footnote, progress, size = 'full', sponsored, onPress, style,
+  name, initial, branding, color, tier, points, footnote, progress, size = 'full', sponsored, onPress, style,
 }: BrandCardProps) {
   const fg = brandFg(color);
   const tile = size === 'tile';
@@ -123,7 +145,7 @@ export function BrandCard({
           backgroundColor: veil(color), alignItems: 'center', justifyContent: 'center',
         }}
       >
-        <Text style={{ fontFamily: font(600), fontSize: badge.size, lineHeight: badge.size + 5, color: fg }}>{initial}</Text>
+        <BrandMark name={name} branding={branding} size={badge.width} color={fg} />
       </View>
       <Text
         numberOfLines={1}
