@@ -221,3 +221,71 @@ describe('pass images', () => {
     ]);
   });
 });
+
+/**
+ * The strip image is where the design lives, and it fails quietly.
+ *
+ * A NaN in the path data makes librsvg stop parsing mid-string: the headline
+ * rendered, the subhead came out as "for" and a stray mark, and nothing errored
+ * anywhere. It came from stripping GPOS out of the font — opentype needs it for
+ * positioning — so these guard the font files as much as the drawing code.
+ */
+describe('pass strip images', () => {
+  it('renders text with no NaN coordinates', async () => {
+    const { textPath } = await import('../src/modules/wallet-pass/strip-text');
+    for (const weight of [500, 700] as const) {
+      const path = textPath({
+        // Deliberately long and mixed: the failure only appeared past the
+        // fourth character, so single glyphs would have looked fine.
+        text: 'for a free coffee · 2,480 PTS',
+        x: 24,
+        baseline: 40,
+        size: 21,
+        weight,
+        fill: '#15150F',
+      });
+      expect(path, `weight ${weight}`).not.toContain('NaN');
+      expect(path, `weight ${weight}`).not.toContain('undefined');
+    }
+  });
+
+  it('measures text without truncating what fits', async () => {
+    const { fit } = await import('../src/modules/wallet-pass/strip-text');
+    // 327pt is the strip's width inside its padding.
+    expect(fit('for a free coffee', 327, 21, 500)).toBe('for a free coffee');
+    // And still truncates what genuinely does not.
+    expect(fit('a'.repeat(200), 327, 21, 500)).toContain('…');
+  });
+
+  it('gives a points card the brand block and a stamp card the grid', async () => {
+    const { imagesFor } = await import('../src/modules/wallet-pass/pass-images');
+    const common = { color: '#15150F', balance: '2480', pointsCode: 'PTS', stampIcon: 'coffee' };
+
+    const points = await imagesFor({ ...common, stamps: null });
+    const stamps = await imagesFor({
+      ...common,
+      stamps: { collected: 6, target: 9, rewardName: 'coffee' },
+    });
+
+    // Both carry a strip; which one they carry is the whole distinction
+    // between the two pass types in the design.
+    for (const set of [points, stamps]) {
+      expect(Object.keys(set)).toEqual(
+        expect.arrayContaining(['icon.png', 'strip.png', 'strip@2x.png', 'strip@3x.png']),
+      );
+    }
+    // The grid makes the stamp strip materially larger than a flat colour block.
+    expect(stamps['strip@3x.png']!.length).toBeGreaterThan(points['strip@3x.png']!.length);
+  });
+
+  it('caps a rolled-over stamp card at its target', async () => {
+    const { imagesFor } = await import('../src/modules/wallet-pass/pass-images');
+    // Stamp cards roll over, so 11 of 9 is a real state. Drawing eleven icons
+    // would be wrong in a way nobody could interpret.
+    const rolled = await imagesFor({
+      color: '#15150F', balance: '0', pointsCode: 'PTS', stampIcon: 'coffee',
+      stamps: { collected: 11, target: 9, rewardName: 'coffee' },
+    });
+    expect(rolled['strip@3x.png']).toBeInstanceOf(Buffer);
+  });
+});

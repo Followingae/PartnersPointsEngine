@@ -156,9 +156,9 @@ export async function stampStrip(opts: {
   for (let i = 0; i < target; i += 1) {
     const row = Math.floor(i / perRow);
     const col = i % perRow;
-    const inRow = Math.min(perRow, target - row * perRow);
-    // Rows are centred independently so a short final row does not hang left.
-    const x = Math.floor((W - inRow * cell) / 2 + col * cell + cell / 2);
+    // Left-aligned to the same padding as the headline, as in the design —
+    // centring floated the grid away from the text it belongs to.
+    const x = Math.floor(PAD + col * cell + cell / 2);
     const y = Math.floor(gridTop + row * cell + cell / 2);
     const done = i < collected;
     const g = `translate(${x - 12 * iconScale},${y - 12 * iconScale}) scale(${iconScale.toFixed(3)})`;
