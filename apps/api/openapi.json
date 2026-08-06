@@ -2754,6 +2754,592 @@
         ]
       }
     },
+    "/customer/wallet/passes/availability": {
+      "get": {
+        "operationId": "WalletPassController_availability",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Which wallet buttons to show — Apple, Google, or neither.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/passes/{membershipId}/google": {
+      "get": {
+        "operationId": "WalletPassController_google",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The \"Add to Google Wallet\" save link for one card.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/passes/{membershipId}/apple": {
+      "get": {
+        "operationId": "WalletPassController_appleLink",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A short-lived URL the phone opens to add the pass.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/passes/apple/{token}": {
+      "get": {
+        "operationId": "ApplePassLinkController_serve",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Serves the .pkpass a signed link points at.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/cards": {
+      "get": {
+        "operationId": "CustomerWalletController_cards",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Every card in the wallet, with balance and tier progress.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/vouchers": {
+      "get": {
+        "operationId": "CustomerWalletController_vouchers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Rewards held across all brands.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/activity": {
+      "get": {
+        "operationId": "CustomerWalletController_activity",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One timeline across every brand: points and reward events.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/profile": {
+      "get": {
+        "operationId": "CustomerWalletController_profile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The signed-in person’s own details.",
+        "tags": [
+          "customer"
+        ]
+      },
+      "patch": {
+        "operationId": "CustomerWalletController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWalletProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Edit name, gender or birthdate.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/brands": {
+      "get": {
+        "operationId": "CustomerWalletController_brands",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Brands to discover and join.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/brands/{brandId}/join": {
+      "post": {
+        "operationId": "CustomerWalletController_join",
+        "parameters": [
+          {
+            "name": "brandId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Join a brand from the app and get a card.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/cards/{brandId}/scan-code": {
+      "get": {
+        "operationId": "CustomerWalletController_scanCode",
+        "parameters": [
+          {
+            "name": "brandId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The value to show as a QR at this brand’s till.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/cards/{brandId}/token": {
+      "post": {
+        "operationId": "CustomerWalletController_brandToken",
+        "parameters": [
+          {
+            "name": "brandId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mint a brand-scoped customer token for one card.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/email": {
+      "patch": {
+        "operationId": "CustomerWalletController_setEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set or clear the signed-in person’s email address.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/push-token": {
+      "post": {
+        "operationId": "CustomerWalletController_registerPushToken",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPushTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register this device for notifications.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/offers": {
+      "get": {
+        "operationId": "CustomerWalletController_offers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Live campaigns at the brands this customer holds.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/branch-visits": {
+      "get": {
+        "operationId": "CustomerWalletController_branchVisits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Branches this person visits, busiest first — the home-area suggestion.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/home-branch": {
+      "patch": {
+        "operationId": "CustomerWalletController_setHomeBranch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHomeBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set or clear the home area. Null clears it.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/sessions": {
+      "get": {
+        "operationId": "CustomerWalletController_sessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Devices currently signed in to this wallet.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/sessions/{id}": {
+      "delete": {
+        "operationId": "CustomerWalletController_revokeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sign one other device out of this wallet.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/wallet/deletion": {
+      "get": {
+        "operationId": "CustomerWalletController_deletionStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether a deletion is scheduled, and for when.",
+        "tags": [
+          "customer"
+        ]
+      },
+      "post": {
+        "operationId": "CustomerWalletController_requestDeletion",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestDeletionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Schedule this account for deletion.",
+        "tags": [
+          "customer"
+        ]
+      },
+      "delete": {
+        "operationId": "CustomerWalletController_cancelDeletion",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel a scheduled deletion.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
+    "/customer/app-status": {
+      "get": {
+        "operationId": "AppStatusController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Minimum supported app build, and whether the API is accepting traffic.",
+        "tags": [
+          "customer"
+        ]
+      }
+    },
     "/manage/reports/summary": {
       "get": {
         "operationId": "ManageReportsController_summary",
@@ -7174,424 +7760,6 @@
           "partnerships"
         ]
       }
-    },
-    "/customer/wallet/cards": {
-      "get": {
-        "operationId": "CustomerWalletController_cards",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Every card in the wallet, with balance and tier progress.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/vouchers": {
-      "get": {
-        "operationId": "CustomerWalletController_vouchers",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Rewards held across all brands.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/activity": {
-      "get": {
-        "operationId": "CustomerWalletController_activity",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "One timeline across every brand: points and reward events.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/profile": {
-      "get": {
-        "operationId": "CustomerWalletController_profile",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "The signed-in person’s own details.",
-        "tags": [
-          "customer"
-        ]
-      },
-      "patch": {
-        "operationId": "CustomerWalletController_updateProfile",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateWalletProfileDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Edit name, gender or birthdate.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/brands": {
-      "get": {
-        "operationId": "CustomerWalletController_brands",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Brands to discover and join.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/brands/{brandId}/join": {
-      "post": {
-        "operationId": "CustomerWalletController_join",
-        "parameters": [
-          {
-            "name": "brandId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Join a brand from the app and get a card.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/cards/{brandId}/scan-code": {
-      "get": {
-        "operationId": "CustomerWalletController_scanCode",
-        "parameters": [
-          {
-            "name": "brandId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "The value to show as a QR at this brand’s till.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/cards/{brandId}/token": {
-      "post": {
-        "operationId": "CustomerWalletController_brandToken",
-        "parameters": [
-          {
-            "name": "brandId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Mint a brand-scoped customer token for one card.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/email": {
-      "patch": {
-        "operationId": "CustomerWalletController_setEmail",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetEmailDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Set or clear the signed-in person’s email address.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/push-token": {
-      "post": {
-        "operationId": "CustomerWalletController_registerPushToken",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterPushTokenDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Register this device for notifications.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/offers": {
-      "get": {
-        "operationId": "CustomerWalletController_offers",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Live campaigns at the brands this customer holds.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/branch-visits": {
-      "get": {
-        "operationId": "CustomerWalletController_branchVisits",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Branches this person visits, busiest first — the home-area suggestion.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/home-branch": {
-      "patch": {
-        "operationId": "CustomerWalletController_setHomeBranch",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetHomeBranchDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Set or clear the home area. Null clears it.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/sessions": {
-      "get": {
-        "operationId": "CustomerWalletController_sessions",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Devices currently signed in to this wallet.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/wallet/sessions/{id}": {
-      "delete": {
-        "operationId": "CustomerWalletController_revokeSession",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Sign one other device out of this wallet.",
-        "tags": [
-          "customer"
-        ]
-      }
-    },
-    "/customer/app-status": {
-      "get": {
-        "operationId": "AppStatusController_status",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Minimum supported app build, and whether the API is accepting traffic.",
-        "tags": [
-          "customer"
-        ]
-      }
     }
   },
   "info": {
@@ -8242,6 +8410,75 @@
             "items": {
               "$ref": "#/components/schemas/GovernanceOverrideDto"
             }
+          }
+        }
+      },
+      "UpdateWalletProfileDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "Zain Ahmed"
+          },
+          "gender": {
+            "type": "string",
+            "example": "female"
+          },
+          "birthdate": {
+            "type": "object",
+            "example": "1994-03-17",
+            "description": "ISO date; null clears it."
+          },
+          "nationality": {
+            "type": "object",
+            "example": "AE",
+            "description": "ISO 3166-1 alpha-2 country code; null clears it."
+          },
+          "txnAlertsOptOut": {
+            "type": "boolean",
+            "description": "Stop the WhatsApp message sent after each transaction. Sign-in codes are unaffected."
+          }
+        }
+      },
+      "SetEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "object",
+            "nullable": true,
+            "description": "Email address, or null to clear."
+          }
+        }
+      },
+      "RegisterPushTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Expo push token for this install."
+          },
+          "platform": {
+            "type": "string",
+            "description": "ios | android"
+          }
+        }
+      },
+      "SetHomeBranchDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "object",
+            "nullable": true,
+            "description": "Branch id, or null to clear."
+          }
+        }
+      },
+      "RequestDeletionDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why they are leaving, if they said."
           }
         }
       },
@@ -9307,66 +9544,6 @@
           "sourcePoints",
           "idempotencyKey"
         ]
-      },
-      "UpdateWalletProfileDto": {
-        "type": "object",
-        "properties": {
-          "fullName": {
-            "type": "string",
-            "example": "Zain Ahmed"
-          },
-          "gender": {
-            "type": "string",
-            "example": "female"
-          },
-          "birthdate": {
-            "type": "object",
-            "example": "1994-03-17",
-            "description": "ISO date; null clears it."
-          },
-          "nationality": {
-            "type": "object",
-            "example": "AE",
-            "description": "ISO 3166-1 alpha-2 country code; null clears it."
-          },
-          "txnAlertsOptOut": {
-            "type": "boolean",
-            "description": "Stop the WhatsApp message sent after each transaction. Sign-in codes are unaffected."
-          }
-        }
-      },
-      "SetEmailDto": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "object",
-            "nullable": true,
-            "description": "Email address, or null to clear."
-          }
-        }
-      },
-      "RegisterPushTokenDto": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "description": "Expo push token for this install."
-          },
-          "platform": {
-            "type": "string",
-            "description": "ios | android"
-          }
-        }
-      },
-      "SetHomeBranchDto": {
-        "type": "object",
-        "properties": {
-          "branchId": {
-            "type": "object",
-            "nullable": true,
-            "description": "Branch id, or null to clear."
-          }
-        }
       }
     }
   }

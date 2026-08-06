@@ -82,6 +82,31 @@ export class TokenService {
       secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
     });
   }
+
+  /**
+   * Grants a single Apple Wallet pass download.
+   *
+   * iOS adds a pass by opening it, which leaves the app and takes the bearer
+   * token with it, so the grant has to travel in the URL. Five minutes, one
+   * membership, and typed `apple_pass` so an ordinary access token cannot be
+   * presented in its place.
+   *
+   * Lives here rather than in the wallet module because JwtService is private
+   * to AuthModule — injecting it elsewhere compiles and then fails to resolve
+   * at boot, which is exactly how it was found.
+   */
+  issuePassToken(personId: string, membershipId: string): Promise<string> {
+    return this.jwt.signAsync(
+      { sub: personId, mid: membershipId, typ: 'apple_pass' },
+      { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'), expiresIn: 300 },
+    );
+  }
+
+  verifyPassToken(token: string): Promise<{ sub?: string; mid?: string; typ?: string }> {
+    return this.jwt.verifyAsync(token, {
+      secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
+    });
+  }
 }
 
 export interface MemberTokenClaims {

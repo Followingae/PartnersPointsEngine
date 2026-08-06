@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { TokenService } from '../../auth/tokens/token.service';
 import { PrismaService } from '../../platform-core/prisma/prisma.service';
 import { AppleWalletService } from './apple-wallet.service';
 import { GoogleWalletService } from './google-wallet.service';
@@ -22,7 +22,7 @@ export class WalletPassService {
     private readonly apple: AppleWalletService,
     private readonly google: GoogleWalletService,
     private readonly config: ConfigService,
-    private readonly jwt: JwtService,
+    private readonly tokens: TokenService,
   ) {}
 
   private siteUrl(): string {
@@ -77,10 +77,7 @@ export class WalletPassService {
     await this.dataFor(personId, membershipId); // ownership, before minting anything
     if (!this.apple.configured) throw new ForbiddenException('Apple Wallet is not configured');
 
-    const token = await this.jwt.signAsync(
-      { sub: personId, mid: membershipId, typ: 'apple_pass' },
-      { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'), expiresIn: 300 },
-    );
+    const token = await this.tokens.issuePassToken(personId, membershipId);
     return { url: `${this.apiBaseUrl()}/passes/apple/${token}` };
   }
 
@@ -88,9 +85,7 @@ export class WalletPassService {
   async applePassFromLink(token: string): Promise<Buffer> {
     let claims: { sub?: string; mid?: string; typ?: string };
     try {
-      claims = await this.jwt.verifyAsync(token, {
-        secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
-      });
+      claims = await this.tokens.verifyPassToken(token);
     } catch {
       throw new UnauthorizedException('this pass link has expired');
     }
