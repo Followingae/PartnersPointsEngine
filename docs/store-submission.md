@@ -72,13 +72,24 @@ If the name is taken the form says so immediately. `Partners Points UAE` and
 moment the record exists, so creating it early is worth doing even when the
 build is weeks away.
 
-### Why `eas.json` names no Apple ids
+### `ascAppId`, and when you need it
 
-`submit.production.ios` is deliberately empty. With the App Store Connect API
-key uploaded, EAS resolves both the app record and the team from the bundle
-identifier, so hard-coding them buys nothing and rots the moment either changes.
+`submit.production.ios` is currently empty, which works for an interactive
+submit: EAS finds the app from the bundle identifier and asks you to confirm.
 
-If a submit ever fails to find the app, the two values to add are:
+**It does not work with `--non-interactive`.** Unattended, EAS refuses to guess
+and fails with *"Set ascAppId in the submit profile"*. So the moment submits
+run from CI, or from any script that cannot answer a prompt, `ascAppId` has to
+be pinned:
+
+```json
+"ios": { "ascAppId": "1234567890" }
+```
+
+Note that `eas.json` is schema-validated and rejects unknown keys — including
+comment keys like `_comment`. Explanations go here, not in that file.
+
+The two values, if you need them:
 
 - **`ascAppId`** — the app's **App Information** page, field labelled
   **Apple ID**. Ten digits; unrelated to the email address you sign in with.
