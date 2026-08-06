@@ -1,4 +1,4 @@
-import type { Prisma } from '@rfm-loyalty/db';
+import type { PrismaClient } from '@rfm-loyalty/db';
 
 /**
  * What a card looks like on a phone's wallet, independent of which wallet.
@@ -53,100 +53,69 @@ export function brandFill(branding: unknown, fallback = '#15150F'): string {
   return typeof c === 'string' && HEX6.test(c.trim()) ? c.trim() : fallback;
 }
 
+interface PassRow {
+  membershipId: string;
+  brandId: string;
+  brandName: string;
+  loyaltyId: string;
+  pointsCode: string;
+  balance: string;
+  tier: string | null;
+  branding: unknown;
+  createdAt: string;
+  memberName: string | null;
+  stamps: { collected: number; target: number; rewardName: string | null } | null;
+}
+
 /**
  * Builds the pass view of a membership.
  *
- * The stamp card is whichever repeatable visits challenge the member is
- * furthest through — a wallet pass has room for one, and the one they are
- * closest to finishing is the one worth showing.
+ * Read through `wallet_pass_data`, a definer function, rather than with Prisma
+ * directly. Every table involved is under tenant RLS and this is a person-level
+ * call with no tenant to run as — querying them directly returns nothing at
+ * all, which surfaced as the pass endpoint answering "card not found" for cards
+ * that plainly existed.
+ *
+ * `personId` is optional: the app supplies it and gets an ownership check, the
+ * PassKit web service does not have one and relies on the pass's own token.
  */
 export async function buildPassData(
-  tx: Prisma.TransactionClient,
+  prisma: PrismaClient,
   membershipId: string,
   siteUrl: string,
+  personId?: string,
 ): Promise<PassData | null> {
-  const m = await tx.customerMembership.findUnique({
-    where: { id: membershipId },
-    select: {
-      id: true,
-      loyaltyId: true,
-      brandId: true,
-      createdAt: true,
-      person: { select: { fullName: true } },
-    },
-  });
-  if (!m) return null;
+  const rows = await prisma.$queryRaw<{ wallet_pass_data: PassRow | null }[]>`
+    SELECT wallet_pass_data(${membershipId}::text, ${personId ?? null}::text)`;
 
-  // CustomerMembership has no `brand` relation in the schema (brandId is
-  // denormalised for flat RLS), so the brand is a separate read.
-  const brand = await tx.brand.findUnique({
-    where: { id: m.brandId },
-    select: { name: true, pointsCurrencyCode: true, branding: true },
-  });
-  if (!brand) return null;
+  const r = rows[0]?.wallet_pass_data;
+  if (!r) return null;
 
-  if (Buffer.byteLength(m.loyaltyId, 'utf8') > MAX_TOKEN_BYTES) {
+  if (Buffer.byteLength(r.loyaltyId, 'utf8') > MAX_TOKEN_BYTES) {
     // Loud rather than silent: Apple truncates without complaint, which would
     // produce a pass that scans as a different member.
     throw new Error(`loyalty id exceeds ${MAX_TOKEN_BYTES} bytes and cannot be carried by a pass`);
   }
 
-  const balanceRows = await tx.$queryRaw<{ available: bigint }[]>`
-    SELECT (ab.posted_credits - ab.posted_debits - ab.pending_debits) AS available
-      FROM ledger_account la JOIN account_balance ab ON ab.account_id = la.id
-     WHERE la.account_type = 'points_liability' AND la.customer_id = ${membershipId}
-     LIMIT 1`;
-  const balance = (balanceRows[0]?.available ?? 0n).toString();
-
-  const tierRow = await tx.$queryRaw<{ name: string }[]>`
-    SELECT t.name FROM tier t
-     WHERE t.brand_id = ${m.brandId}
-       AND t.threshold <= (
-         SELECT coalesce(ab.posted_credits, 0) FROM ledger_account la
-           JOIN account_balance ab ON ab.account_id = la.id
-          WHERE la.account_type = 'points_liability' AND la.customer_id = ${membershipId} LIMIT 1)
-     ORDER BY t.threshold DESC LIMIT 1`;
-
-  const stampRow = await tx.challengeProgress.findFirst({
-    where: {
-      membershipId,
-      challenge: { brandId: m.brandId, enabled: true, repeatable: true, kind: 'visits' },
-    },
-    orderBy: { progress: 'desc' },
-    select: {
-      progress: true,
-      challenge: { select: { target: true, rewardItemId: true } },
-    },
-  });
-
-  let stamps: PassData['stamps'] = null;
-  if (stampRow?.challenge) {
-    const reward = stampRow.challenge.rewardItemId
-      ? await tx.rewardCatalogItem.findUnique({
-          where: { id: stampRow.challenge.rewardItemId },
-          select: { name: true },
-        })
-      : null;
-    stamps = {
-      collected: Number(stampRow.progress),
-      target: Number(stampRow.challenge.target),
-      rewardName: reward?.name ?? null,
-    };
-  }
-
   return {
-    membershipId: m.id,
-    brandId: m.brandId,
-    brandName: brand.name,
-    memberToken: m.loyaltyId,
-    loyaltyId: m.loyaltyId,
-    pointsCode: brand.pointsCurrencyCode,
-    balance,
-    tier: tierRow[0]?.name ?? null,
-    memberName: shortName(m.person?.fullName ?? null),
-    memberSince: String(m.createdAt.getUTCFullYear()),
-    stamps,
-    color: brandFill(brand.branding),
+    membershipId: r.membershipId,
+    brandId: r.brandId,
+    brandName: r.brandName,
+    memberToken: r.loyaltyId,
+    loyaltyId: r.loyaltyId,
+    pointsCode: r.pointsCode,
+    balance: r.balance,
+    tier: r.tier,
+    memberName: shortName(r.memberName),
+    memberSince: String(new Date(r.createdAt).getUTCFullYear()),
+    stamps: r.stamps
+      ? {
+          collected: Number(r.stamps.collected),
+          target: Number(r.stamps.target),
+          rewardName: r.stamps.rewardName ?? null,
+        }
+      : null,
+    color: brandFill(r.branding),
     siteUrl,
   };
 }

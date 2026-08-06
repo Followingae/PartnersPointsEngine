@@ -39,13 +39,11 @@ export class WalletPassService {
    * leaking that it exists.
    */
   private async dataFor(personId: string, membershipId: string): Promise<PassData> {
-    const owned = await this.prisma.customerMembership.findFirst({
-      where: { id: membershipId, personId },
-      select: { id: true },
-    });
-    if (!owned) throw new NotFoundException('card not found');
-
-    const data = await buildPassData(this.prisma, membershipId, this.siteUrl());
+    // Ownership is enforced inside wallet_pass_data. It has to be: every table
+    // a pass reads is under tenant RLS, and this call has no tenant to run as,
+    // so the definer function is the only thing that can see them. Checking
+    // here with Prisma first returned nothing and 404'd every valid card.
+    const data = await buildPassData(this.prisma, membershipId, this.siteUrl(), personId);
     if (!data) throw new NotFoundException('card not found');
     return data;
   }
