@@ -3,11 +3,7 @@ import { dirname, join } from 'node:path';
 import { Marked, type Tokens } from 'marked';
 import { bundledLanguages, codeToHtml } from 'shiki';
 
-/**
- * The portal renders the partner documentation straight from the repo's
- * `docs/pos-integration-api.md`, so there is exactly one source of truth and
- * publishing is a deploy, not a copy-paste.
- */
+/** Repo root, so the OpenAPI export can be read from apps/api at build time. */
 export function repoRoot(): string {
   let dir = process.cwd();
   for (let i = 0; i < 6; i++) {
@@ -17,18 +13,24 @@ export function repoRoot(): string {
   return join(process.cwd(), '..', '..');
 }
 
+/** The docs app's own content folder. */
+export function contentDir(): string {
+  const local = join(process.cwd(), 'content');
+  if (existsSync(local)) return local;
+  return join(repoRoot(), 'apps', 'docs', 'content');
+}
+
 export type TocItem = { id: string; text: string; depth: 2 | 3 };
 
-export type Reference = {
-  title: string;
-  version: string;
-  html: string;
-  toc: TocItem[];
-};
+export type Rendered = { html: string; toc: TocItem[] };
+
+export type GuideMeta = { title: string; description: string };
+
+export type Guide = GuideMeta & Rendered & { slug: string };
 
 const stripTags = (s: string) => s.replace(/<[^>]+>/g, '');
 
-function slugify(text: string): string {
+export function slugify(text: string): string {
   return stripTags(text)
     .toLowerCase()
     .replace(/&amp;/g, 'and')
@@ -42,12 +44,14 @@ function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
-export async function loadReference(): Promise<Reference> {
-  const md = readFileSync(join(repoRoot(), 'docs', 'pos-integration-api.md'), 'utf8');
+/** Syntax-highlight a snippet with the portal's light theme. */
+export async function highlight(code: string, lang: string): Promise<string> {
+  const known = lang && lang in bundledLanguages ? lang : 'text';
+  return codeToHtml(code, { lang: known, theme: 'github-light' });
+}
 
-  const title = /^# (.+)$/m.exec(md)?.[1]?.trim() ?? 'POS Integration API';
-  const version = /^\*\*(Version[^*]+)\*\*/m.exec(md)?.[1]?.trim() ?? 'Version 1';
-
+/** Markdown → HTML with anchored headings, highlighted code and a table of contents. */
+export async function renderMarkdown(md: string): Promise<Rendered> {
   const toc: TocItem[] = [];
   const seen = new Map<string, number>();
 
@@ -58,8 +62,7 @@ export async function loadReference(): Promise<Reference> {
       if (token.type !== 'code') return;
       const t = token as Tokens.Code;
       const lang = (t.lang ?? '').trim().toLowerCase();
-      const known = lang && lang in bundledLanguages ? lang : 'text';
-      const highlighted = await codeToHtml(t.text, { lang: known, theme: 'github-light' });
+      const highlighted = await highlight(t.text, lang);
       Object.assign(token, {
         type: 'html',
         block: true,
@@ -81,8 +84,30 @@ export async function loadReference(): Promise<Reference> {
   });
 
   const rendered = await marked.parse(md);
-  // Tables need a scroll container on narrow screens; marked has no hook for it.
   const html = rendered.replace(/<table>/g, '<div class="table-wrap"><table>').replace(/<\/table>/g, '</table></div>');
+  return { html, toc };
+}
 
-  return { title, version, html, toc };
+/** Minimal front matter: `---\nkey: value\n---` at the top of the file. */
+function parseFrontMatter(raw: string): { meta: Record<string, string>; body: string } {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(raw);
+  if (!m) return { meta: {}, body: raw };
+  const meta: Record<string, string> = {};
+  for (const line of m[1]!.split(/\r?\n/)) {
+    const idx = line.indexOf(':');
+    if (idx > 0) meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim().replace(/^"(.*)"$/, '$1');
+  }
+  return { meta, body: raw.slice(m[0].length) };
+}
+
+export function guideExists(slug: string): boolean {
+  return /^[a-z0-9-]+$/.test(slug) && existsSync(join(contentDir(), 'guides', `${slug}.md`));
+}
+
+export async function loadGuide(slug: string): Promise<Guide | null> {
+  if (!guideExists(slug)) return null;
+  const raw = readFileSync(join(contentDir(), 'guides', `${slug}.md`), 'utf8');
+  const { meta, body } = parseFrontMatter(raw);
+  const rendered = await renderMarkdown(body);
+  return { slug, title: meta.title ?? slug, description: meta.description ?? '', ...rendered };
 }

@@ -208,8 +208,8 @@ already know from Stripe and it costs a day, not an environment.
 Superadmin Swagger stays off. **Live since 2026-09-23** as `apps/docs`, a
 Next.js app deployed on Vercel (`developers.partnerspoints.ae`):
 
-- Renders `docs/pos-integration-api.md` straight from the repo, so a doc change
-  is a deploy, not a copy-paste.
+- Content lives in `apps/docs/content/` (guide markdown plus a typed endpoint
+  reference), so a doc change is a deploy, not a copy-paste.
 - Gated by **per-partner access codes** (`DOCS_ACCESS_CODES=till=…,acme=…`)
   behind a signed, expiring session cookie. Revoking a partner is deleting its
   entry. Every response carries `noindex`; robots are disallowed.
