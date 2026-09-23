@@ -62,3 +62,4 @@ apps/mobile/credentials.json
 secrets/
 *service-account*.json
 *serviceaccount*.json
+.vercel
