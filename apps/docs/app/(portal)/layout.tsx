@@ -29,6 +29,15 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      <details className="border-b border-border lg:hidden">
+        <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-ink/80 [&::-webkit-details-marker]:hidden">
+          ☰&nbsp; Browse documentation
+        </summary>
+        <div className="px-5 pb-6 pt-2">
+          <Sidebar groups={NAV} />
+        </div>
+      </details>
+
       <div className="mx-auto flex max-w-[1400px] px-5">
         <aside className="hidden w-[248px] shrink-0 border-r border-border lg:block">
           <div className="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto py-8 pr-5">
