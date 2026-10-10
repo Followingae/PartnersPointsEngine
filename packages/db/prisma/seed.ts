@@ -38,6 +38,15 @@ const ROLE_PERMS: Record<string, string[]> = {
 };
 
 async function main() {
+  // Demo data (known password, no MFA) must never reach a production database.
+  // Set SEED_ALLOW_PRODUCTION=1 only for a deliberate, non-default override.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_PRODUCTION !== '1') {
+    throw new Error(
+      'Refusing to seed demo data with NODE_ENV=production. This creates known-password admin accounts. ' +
+        'If you really mean to, set SEED_ALLOW_PRODUCTION=1.',
+    );
+  }
+
   const passwordHash = await argonHash(DEMO_PASSWORD);
 
   // ── Platform ──────────────────────────────────────────────────────────────

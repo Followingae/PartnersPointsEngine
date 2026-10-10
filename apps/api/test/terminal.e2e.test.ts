@@ -246,14 +246,29 @@ describe('Terminal gateway (Phase 4)', () => {
     expect(bal.available).toBe('150'); // 100 + 50 (dup applied once)
   });
 
-  it('redeems via authorize → capture', async () => {
+  it('redeems via authorize → capture (server enforces min + bill cap)', async () => {
     const { memberToken } = await terminal.resolve(ctx, 'phone', phone);
-    const auth = await terminal.transaction(ctx, { intent: 'redeem', memberToken, idempotencyKey: 'pos-redeem-1', points: 40 });
+    // Top up so there is enough to meet this brand's configured 200-pt minimum.
+    await terminal.transaction(ctx, { intent: 'earn', memberToken, idempotencyKey: 'pos-redeem-topup', amountMinor: 10000 }); // +100 → 250
+    // Redeem 200 pts = AED 2.00 off a AED 10.00 bill: >= 200 min and <= 50% cap.
+    const auth = await terminal.transaction(ctx, { intent: 'redeem', memberToken, idempotencyKey: 'pos-redeem-1', points: 200, amountMinor: 1000 });
     expect(auth.state).toBe('authorized');
     const cap = await terminal.capture(ctx, auth.id);
     expect(cap.state).toBe('captured');
     const bal = await loyalty.balance(ctx, membershipId);
-    expect(bal.available).toBe('110'); // 150 - 40
+    expect(bal.available).toBe('50'); // 150 + 100 − 200
+  });
+
+  it('rejects a redeem below the minimum or over the bill cap', async () => {
+    const { memberToken } = await terminal.resolve(ctx, 'phone', phone);
+    // below the 200-pt minimum
+    await expect(
+      terminal.transaction(ctx, { intent: 'redeem', memberToken, idempotencyKey: 'pos-redeem-min', points: 50, amountMinor: 1000 }),
+    ).rejects.toThrow(/minimum/i);
+    // 1000 pts (AED 10) against a AED 1.00 bill, cap 50% → max 50 pts
+    await expect(
+      terminal.transaction(ctx, { intent: 'redeem', memberToken, idempotencyKey: 'pos-redeem-cap', points: 1000, amountMinor: 100 }),
+    ).rejects.toThrow(/maximum share of the bill/i);
   });
 
   it('replays an offline batch, deduping by idempotency key', async () => {
@@ -265,6 +280,6 @@ describe('Terminal gateway (Phase 4)', () => {
     const r1 = await terminal.batch(ctx, ops);
     expect(r1.results.every((x) => x.ok)).toBe(true);
     const bal = await loyalty.balance(ctx, membershipId);
-    expect(bal.available).toBe('130'); // 110 + 20 (batch dup applied once)
+    expect(bal.available).toBe('70'); // 50 + 20 (batch dup applied once)
   });
 });

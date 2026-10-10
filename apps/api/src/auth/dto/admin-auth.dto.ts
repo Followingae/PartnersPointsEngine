@@ -2,11 +2,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, Length, MinLength } from 'class-validator';
 
 export class LoginDto {
-  @ApiProperty({ example: 'superadmin@rfm-loyalty.dev' })
+  @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ example: 'ChangeMe123!' })
+  @ApiProperty({ format: 'password' })
   @IsString()
   @MinLength(8)
   password!: string;
@@ -39,4 +39,23 @@ export class ConfirmMfaDto {
   @IsString()
   @Length(6, 6)
   code!: string;
+}
+
+export class EnrolMfaDto {
+  @ApiProperty({ format: 'password', description: 'Current password — re-authentication for a sensitive change.' })
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}
+
+export class ChangePasswordDto {
+  @ApiProperty({ format: 'password' })
+  @IsString()
+  @MinLength(8)
+  currentPassword!: string;
+
+  @ApiProperty({ format: 'password', description: 'At least 12 characters.' })
+  @IsString()
+  @MinLength(12)
+  newPassword!: string;
 }

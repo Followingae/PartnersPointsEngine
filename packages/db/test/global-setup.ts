@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import EmbeddedPostgres from 'embedded-postgres';
 import { Client } from 'pg';
 import type { GlobalSetupContext } from 'vitest/node';
+import { INCREMENTAL_MIGRATIONS } from '../src/migrations';
 
 declare module 'vitest' {
   interface ProvidedContext {
@@ -21,7 +22,12 @@ let pg: EmbeddedPostgres | undefined;
 
 async function applySql(url: string): Promise<void> {
   const sqlDir = join(process.cwd(), 'prisma', 'sql');
-  const files = ['0001_baseline.sql', 'rls.sql', 'ledger.sql'];
+  // The incremental list belongs here for the same reason it belongs in the
+  // API's harness and in `db:apply`: without it these tests run against the
+  // baseline schema — a world without any column or enum value added since —
+  // and a change that works everywhere fails only here, or worse, passes here
+  // and fails everywhere else.
+  const files = ['0001_baseline.sql', 'rls.sql', 'ledger.sql', ...INCREMENTAL_MIGRATIONS];
   const client = new Client({ connectionString: url });
   await client.connect();
   try {

@@ -588,11 +588,13 @@ export class SuperadminService {
       // brand this person belongs to: points movements from the ledger, reward
       // events from the voucher table (gifted vouchers exist only there).
       const journalRows = membershipIds.length
-        ? await tx.$queryRaw<{ id: string; kind: string; direction: string; amount_minor: bigint; occurred_at: Date; customer_id: string }[]>`
-            SELECT j.id, j.kind, e.direction, e.amount_minor, j.occurred_at, la.customer_id
+        ? await tx.$queryRaw<{ id: string; kind: string; direction: string; amount_minor: bigint; occurred_at: Date; customer_id: string; branch_name: string | null }[]>`
+            SELECT j.id, j.kind, e.direction, e.amount_minor, j.occurred_at, la.customer_id,
+                   br.name AS branch_name
               FROM entry e
               JOIN journal j ON j.id = e.journal_id
               JOIN ledger_account la ON la.id = e.account_id
+              LEFT JOIN branch br ON br.id = j.branch_id
              WHERE la.account_type = 'points_liability'
                AND la.customer_id IN (${Prisma.join(membershipIds)})
              ORDER BY j.occurred_at DESC, j.id DESC LIMIT 60`
@@ -618,6 +620,7 @@ export class SuperadminService {
             id: r.id, kind: r.kind, direction: r.direction,
             amountMinor: r.amount_minor, occurredAt: r.occurred_at,
             brandId, brandName: brandId ? brandById.get(brandId)?.name ?? null : null,
+            branchName: r.branch_name,
           };
         }),
         vouchers: voucherRows.map((v) => ({

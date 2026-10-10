@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { CustomerWalletModule } from '../customer-wallet/customer-wallet.module';
 import { WalletPassModule } from '../wallet-pass/wallet-pass.module';
+import { FraudModule } from '../fraud/fraud.module';
 import { ExpirySweepService } from './expiry-sweep.service';
 import { OutboxService } from './outbox.service';
 import { PiiBackfillService } from './pii-backfill.service';
@@ -18,7 +19,7 @@ import { WorkerScheduler } from './worker-scheduler';
  * callable on demand and are unit-tested directly.
  */
 @Module({
-  imports: [AuthModule, WalletPassModule, CustomerWalletModule], // crypto for webhook secrets; passes to refresh saved cards
+  imports: [AuthModule, WalletPassModule, CustomerWalletModule, FraudModule], // crypto for webhook secrets; passes to refresh saved cards; fraud scans
   providers: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService, PiiBackfillService, WorkerRunner, WorkerScheduler],
   exports: [SettlementService, OutboxService, WebhookService, ExpirySweepService, TxnAlertService],
 })

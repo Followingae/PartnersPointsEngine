@@ -45,4 +45,10 @@ export const INCREMENTAL_MIGRATIONS = [
   '2026-08-05_account_deletion.sql',
   '2026-08-06_pass_registrations.sql',
   '2026-08-06_wallet_pass_data.sql',
+  '2026-08-06_membership_load_spend.sql',
+  // Pre-production hardening (2026-10-10 remediation).
+  '2026-10-10_worker_enumeration.sql',
+  '2026-10-10_ledger_hardening.sql',
+  '2026-10-10_retention.sql',
+  '2026-10-10_fraud_module.sql',
 ] as const;

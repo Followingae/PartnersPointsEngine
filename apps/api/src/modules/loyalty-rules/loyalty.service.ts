@@ -651,9 +651,14 @@ export class LoyaltyService {
         : 100;
 
       const txns = accountId
-        ? await tx.$queryRaw<{ id: string; kind: string; direction: string; amount_minor: bigint; occurred_at: Date; point_state: string | null }[]>`
-            SELECT j.id, j.kind, e.direction, e.amount_minor, j.occurred_at, e.point_state
-              FROM entry e JOIN journal j ON j.id = e.journal_id
+        ? await tx.$queryRaw<{ id: string; kind: string; direction: string; amount_minor: bigint; occurred_at: Date; point_state: string | null; branch_name: string | null }[]>`
+            SELECT j.id, j.kind, e.direction, e.amount_minor, j.occurred_at, e.point_state,
+                   br.name AS branch_name
+              FROM entry e
+              JOIN journal j ON j.id = e.journal_id
+              -- Left, not inner: an expiry sweep and a back-office adjustment
+              -- happen at no branch, and they still belong in the history.
+              LEFT JOIN branch br ON br.id = j.branch_id
              WHERE e.account_id = ${accountId}
              ORDER BY j.occurred_at DESC, j.id DESC LIMIT 50`
         : [];
@@ -675,6 +680,7 @@ export class LoyaltyService {
         journals: txns.map((r) => ({
           id: r.id, kind: r.kind, direction: r.direction,
           amountMinor: r.amount_minor, occurredAt: r.occurred_at,
+          branchName: r.branch_name,
         })),
         vouchers: vouchers.map((v) => ({
           id: v.id, code: v.code, status: v.status, createdAt: v.createdAt,
@@ -908,6 +914,19 @@ export class LoyaltyService {
       try {
         await ledger.authorizeRedeem(tx, { ...redeemArgs, idem: { actorId: ctx.actor.id, key: `${idempotencyKey}:auth` } });
         const cap = await ledger.captureRedeem(tx, { ...redeemArgs, idem: { actorId: ctx.actor.id, key: `${idempotencyKey}:cap` } });
+
+        // The voucher must be part of the idempotent unit. On replay the ledger
+        // debit is a no-op and returns the SAME capture journal id, so a voucher
+        // already tied to it means this is a replay — return it instead of
+        // minting another. Previously the create ran unconditionally, so one
+        // debit could yield unlimited vouchers by replaying the client key.
+        const existing = await tx.voucher.findFirst({
+          where: { redeemJournalId: cap.journalId },
+          select: { id: true, code: true, status: true, pointsSpent: true },
+        });
+        if (existing) {
+          return { voucher: { ...existing, pointsSpent: existing.pointsSpent.toString() } };
+        }
 
         const voucher = await tx.voucher.create({
           data: {

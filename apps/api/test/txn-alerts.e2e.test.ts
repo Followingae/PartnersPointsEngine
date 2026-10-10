@@ -126,7 +126,7 @@ describe('Transaction alerts', () => {
     const before = (await alertEvents()).length;
 
     const auth = await terminal.transaction(ctx, {
-      intent: 'redeem', memberToken, idempotencyKey: `r-${randomUUID()}`, points: 10,
+      intent: 'redeem', memberToken, idempotencyKey: `r-${randomUUID()}`, points: 10, amountMinor: 1000,
     });
     // Authorizing is a hold, not a spend — nothing has happened worth telling
     // the customer about yet.
@@ -143,7 +143,7 @@ describe('Transaction alerts', () => {
     const before = (await alertEvents()).length;
 
     const auth = await terminal.transaction(ctx, {
-      intent: 'redeem', memberToken, idempotencyKey: `v-${randomUUID()}`, points: 5,
+      intent: 'redeem', memberToken, idempotencyKey: `v-${randomUUID()}`, points: 5, amountMinor: 1000,
     });
     await terminal.voidTxn(ctx, auth.id);
 

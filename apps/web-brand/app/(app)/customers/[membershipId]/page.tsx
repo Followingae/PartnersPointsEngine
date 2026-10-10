@@ -167,6 +167,10 @@ export default function CustomerProfilePage() {
                         <p className="text-sm font-medium">{e.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(e.at).toLocaleString()}
+                          {/* For an ordinary brand this is the branch they
+                              visited; for one running a membership card, where
+                              the points went is the whole point of the line. */}
+                          {e.branchName ? <> · {e.branchName}</> : null}
                           {e.voucherCode ? <> · <span className="font-mono">{e.voucherCode}</span></> : null}
                         </p>
                       </div>

@@ -14,8 +14,10 @@ import {
   getBalance,
   getOrCreateAccount,
   LedgerError,
+  loadPoints,
   pointsAsset,
   postJournal,
+  spendPoints,
   topUpWallet,
   voidRedeem,
   type Tx,
@@ -108,6 +110,127 @@ describe('Ledger & wallet correctness', () => {
     );
     const bal = await tx((t) => getBalance(t, acc.id));
     expect(bal.available).toBe(100n);
+  });
+
+  // ── Membership card: load + spend ──────────────────────────────────────────
+
+  it('load credits the member and books the points as sold, not spent', async () => {
+    const customer = randomUUID();
+    const r = await tx((t) =>
+      loadPoints(t, {
+        scope: scope(customer),
+        points: 300n,
+        amountPaidMinor: 30000n,
+        occurredAt: new Date(),
+        idem: { actorId: customer, key: 'load-1' },
+      }),
+    );
+    expect(r.balance.available).toBe(300n);
+
+    // The contra leg is what separates a sold point from a given one: an earn
+    // debits points_expense, and a load must not, or the programme's cost is
+    // whatever the entrance took that day.
+    const asset = pointsAsset(BRAND);
+    const sold = await tx((t) =>
+      getOrCreateAccount(t, { ledger: 'points', accountType: 'points_sold', normalSide: 'debit', assetCode: asset, platformId: PLATFORM, groupId: GROUP, brandId: BRAND }),
+    );
+    const legs = await prisma.entry.count({ where: { accountId: sold.id } });
+    expect(legs).toBeGreaterThanOrEqual(1);
+  });
+
+  it('load is idempotent on (actorId, key)', async () => {
+    const customer = randomUUID();
+    const idem = { actorId: customer, key: 'load-dup' };
+    const args = { scope: scope(customer), points: 250n, amountPaidMinor: 25000n, occurredAt: new Date(), idem };
+    const first = await tx((t) => loadPoints(t, args));
+    const second = await tx((t) => loadPoints(t, args));
+    expect(second.journalId).toBe(first.journalId);
+    expect(second.balance.available).toBe(250n);
+  });
+
+  it('spend debits the member in one step and attributes it to the branch', async () => {
+    const customer = randomUUID();
+    const branchId = randomUUID();
+    await tx((t) => loadPoints(t, { scope: scope(customer), points: 400n, amountPaidMinor: 40000n, occurredAt: new Date(), idem: { actorId: customer, key: 'l' } }));
+    const r = await tx((t) =>
+      spendPoints(t, {
+        scope: { ...scope(customer), branchId },
+        points: 120n,
+        occurredAt: new Date(),
+        sourceEvent: 'Bumper Cars',
+        idem: { actorId: customer, key: 's1' },
+      }),
+    );
+    expect(r.balance.available).toBe(280n);
+    // No hold: a stall charge is over before the customer walks away.
+    expect(r.balance.pending).toBe(0n);
+
+    const j = await prisma.journal.findUnique({ where: { id: r.journalId } });
+    expect(j?.kind).toBe('spend');
+    expect(j?.branchId).toBe(branchId); // the whole of the stall-visibility report
+  });
+
+  it('spend fails when the balance is short — no overdraft', async () => {
+    const customer = randomUUID();
+    await tx((t) => loadPoints(t, { scope: scope(customer), points: 50n, amountPaidMinor: 5000n, occurredAt: new Date(), idem: { actorId: customer, key: 'l' } }));
+    await expect(
+      tx((t) => spendPoints(t, { scope: scope(customer), points: 80n, occurredAt: new Date(), idem: { actorId: customer, key: 's' } })),
+    ).rejects.toThrowError(LedgerError);
+
+    const asset = pointsAsset(BRAND);
+    const acc = await tx((t) =>
+      getOrCreateAccount(t, { ledger: 'points', accountType: 'points_liability', normalSide: 'credit', assetCode: asset, platformId: PLATFORM, groupId: GROUP, brandId: BRAND, customerId: customer }),
+    );
+    expect((await tx((t) => getBalance(t, acc.id))).available).toBe(50n);
+  });
+
+  it('concurrent stall charges cannot push a member negative', async () => {
+    const customer = randomUUID();
+    await tx((t) => loadPoints(t, { scope: scope(customer), points: 500n, amountPaidMinor: 50000n, occurredAt: new Date(), idem: { actorId: customer, key: 'l' } }));
+
+    // Eight phones charging 100 at once against 500 → exactly five get paid.
+    const attempts = Array.from({ length: 8 }, (_, i) =>
+      tx((t) => spendPoints(t, { scope: scope(customer), points: 100n, occurredAt: new Date(), idem: { actorId: customer, key: `sc-${i}` } })),
+    );
+    const results = await Promise.allSettled(attempts);
+    expect(results.filter((r) => r.status === 'fulfilled').length).toBe(5);
+
+    const asset = pointsAsset(BRAND);
+    const acc = await tx((t) =>
+      getOrCreateAccount(t, { ledger: 'points', accountType: 'points_liability', normalSide: 'credit', assetCode: asset, platformId: PLATFORM, groupId: GROUP, brandId: BRAND, customerId: customer }),
+    );
+    expect((await tx((t) => getBalance(t, acc.id))).available).toBe(0n);
+  });
+
+  it('a spend and its earn-back are one transaction', async () => {
+    const customer = randomUUID();
+    const branchId = randomUUID();
+    await tx((t) => loadPoints(t, { scope: scope(customer), points: 200n, amountPaidMinor: 20000n, occurredAt: new Date(), idem: { actorId: customer, key: 'l' } }));
+
+    // The stall charge succeeds, then the earn-back fails. Nothing may survive:
+    // a customer charged 60 points and given none back is a complaint.
+    await expect(
+      tx(async (t) => {
+        await spendPoints(t, { scope: { ...scope(customer), branchId }, points: 60n, occurredAt: new Date(), idem: { actorId: customer, key: 'sx' } });
+        await earnPoints(t, { scope: { ...scope(customer), branchId }, points: 0n, occurredAt: new Date(), idem: { actorId: customer, key: 'bx' } });
+      }),
+    ).rejects.toThrow();
+
+    const asset = pointsAsset(BRAND);
+    const acc = await tx((t) =>
+      getOrCreateAccount(t, { ledger: 'points', accountType: 'points_liability', normalSide: 'credit', assetCode: asset, platformId: PLATFORM, groupId: GROUP, brandId: BRAND, customerId: customer }),
+    );
+    expect((await tx((t) => getBalance(t, acc.id))).available).toBe(200n);
+  });
+
+  it('rejects a zero or negative load/spend before reserving the key', async () => {
+    const customer = randomUUID();
+    await expect(
+      tx((t) => loadPoints(t, { scope: scope(customer), points: 0n, amountPaidMinor: 0n, occurredAt: new Date(), idem: { actorId: customer, key: 'z' } })),
+    ).rejects.toThrowError(LedgerError);
+    // The key must not exist, or the till's retry replays a success for a
+    // transaction that never happened.
+    expect(await prisma.idempotencyKey.findUnique({ where: { actorId_key: { actorId: customer, key: 'z' } } })).toBeNull();
   });
 
   it('rejects an unbalanced journal at commit (DB trigger)', async () => {

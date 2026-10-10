@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { AuthService } from '../auth.service';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
-import { ConfirmMfaDto, LoginDto, MfaVerifyDto, RefreshDto } from '../dto/admin-auth.dto';
+import { ChangePasswordDto, ConfirmMfaDto, EnrolMfaDto, LoginDto, MfaVerifyDto, RefreshDto } from '../dto/admin-auth.dto';
 import { AdminJwtGuard } from '../guards/admin-jwt.guard';
 
 /** In-house admin identity (superadmin + brand admin share one identity store). */
@@ -48,9 +48,10 @@ export class AdminAuthController {
 
   @Post('mfa/enrol')
   @UseGuards(AdminJwtGuard)
-  @ApiOperation({ summary: 'Begin TOTP enrolment; returns the secret + otpauth URI.' })
-  enrol(@CurrentTenant() tenant: TenantContext) {
-    return this.auth.enrolMfa(tenant.actor.id);
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Begin TOTP enrolment (re-authenticates with the current password).' })
+  enrol(@CurrentTenant() tenant: TenantContext, @Body() dto: EnrolMfaDto) {
+    return this.auth.enrolMfaReauth(tenant.actor.id, dto.password);
   }
 
   @Post('mfa/confirm')
@@ -59,5 +60,14 @@ export class AdminAuthController {
   @ApiOperation({ summary: 'Confirm TOTP enrolment with a code; enables MFA.' })
   confirm(@CurrentTenant() tenant: TenantContext, @Body() dto: ConfirmMfaDto) {
     return this.auth.confirmMfa(tenant.actor.id, dto.code);
+  }
+
+  @Post('password')
+  @HttpCode(200)
+  @UseGuards(AdminJwtGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Change the signed-in admin password; revokes existing sessions.' })
+  changePassword(@CurrentTenant() tenant: TenantContext, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(tenant.actor.id, dto.currentPassword, dto.newPassword);
   }
 }

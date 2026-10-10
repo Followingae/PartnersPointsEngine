@@ -149,7 +149,7 @@ export interface ChurnReport {
   atRisk: Array<{ membershipId: string; loyaltyId: string; lastActivity: string | null; daysSince: number | null }>;
 }
 export type LiabilityAging = Array<{ bucket: string; points: string }>;
-export type BranchBreakdown = Array<{ branchId: string; name: string; earned: string; redeemed: string; members: number }>;
+export type BranchBreakdown = Array<{ branchId: string; name: string; earned: string; redeemed: string; loaded: string; spent: string; members: number }>;
 export interface EngagementReport { funnel: Array<{ stage: string; count: number }>; repeatRate: number }
 
 export const getClv = () => api<ClvReport>('/manage/reports/clv');
@@ -214,6 +214,8 @@ export interface CustomerActivityEvent {
   voucherCode: string | null;
   brandId: string | null;
   brandName: string | null;
+  /** Where it happened — the stall, the counter, the ride. Null off-premises. */
+  branchName: string | null;
 }
 export interface CustomerVoucher {
   id: string;

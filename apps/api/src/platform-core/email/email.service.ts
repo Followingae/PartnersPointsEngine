@@ -83,4 +83,26 @@ export class EmailService {
   ) {
     return this.send(to, welcomeEmail(data));
   }
+
+  /** Fraud-detection alert to a brand or platform fraud inbox. */
+  sendFraudAlert(
+    to: string,
+    data: { brandName: string; ruleKey: string; severity: string; subject: string; metric: string; threshold: string; detail?: string },
+  ) {
+    const subject = `[Partners Points] ${data.severity.toUpperCase()} fraud alert — ${data.ruleKey}`;
+    const lines = [
+      `A fraud-detection rule fired for ${data.brandName}.`,
+      ``,
+      `Rule:      ${data.ruleKey}`,
+      `Severity:  ${data.severity}`,
+      `Subject:   ${data.subject}`,
+      `Observed:  ${data.metric} (threshold ${data.threshold})`,
+      ...(data.detail ? [`Detail:    ${data.detail}`] : []),
+      ``,
+      `Review it in the console under Fraud.`,
+    ];
+    const text = lines.join('\n');
+    const html = `<pre style="font:14px ui-monospace,monospace">${text.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] as string)}</pre>`;
+    return this.send(to, { subject, html, text });
+  }
 }

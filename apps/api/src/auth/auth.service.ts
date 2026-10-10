@@ -48,12 +48,46 @@ export class AuthService {
 
   // ── Admin (superadmin + brand admin) ────────────────────────────────────────
 
-  async adminLogin(email: string, password: string): Promise<{ mfaRequired: true } | TokenPair> {
+  async adminLogin(
+    email: string,
+    password: string,
+  ): Promise<{ mfaRequired: true } | { mfaEnrolmentRequired: true } | TokenPair> {
     const user = await this.findActiveAdmin(email);
     const ok = await this.passwords.verify(user.passwordHash, password);
     if (!ok) throw new UnauthorizedException('invalid credentials');
     if (user.totpEnabled) return { mfaRequired: true };
+    // When MFA is mandatory (set REQUIRE_ADMIN_MFA=true once the consoles ship
+    // their enrolment UI), an admin without a second factor cannot get a full
+    // session — they must enrol first. The password-authenticated caller gets a
+    // short enrolment token via the normal /mfa/enrol → /mfa/confirm flow.
+    if (this.config.get<string>('REQUIRE_ADMIN_MFA') === 'true') {
+      return { mfaEnrolmentRequired: true };
+    }
     return this.issueAdminTokens(user.id);
+  }
+
+  /** Re-authenticated TOTP (re)enrolment. Requires the current password so a
+   *  stolen access token cannot silently disable an enrolled factor. */
+  async enrolMfaReauth(userId: string, password: string): Promise<{ secret: string; keyUri: string }> {
+    const user = await this.db.userAccount.findUniqueOrThrow({ where: { id: userId } });
+    const ok = await this.passwords.verify(user.passwordHash, password);
+    if (!ok) throw new UnauthorizedException('invalid credentials');
+    return this.enrolMfa(userId);
+  }
+
+  /** Change the signed-in admin's password; revokes all their refresh tokens. */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ ok: true }> {
+    const user = await this.db.userAccount.findUniqueOrThrow({ where: { id: userId } });
+    const ok = await this.passwords.verify(user.passwordHash, currentPassword);
+    if (!ok) throw new UnauthorizedException('invalid credentials');
+    const passwordHash = await this.passwords.hash(newPassword);
+    await this.db.userAccount.update({ where: { id: userId }, data: { passwordHash } });
+    // Invalidate every existing session for this user.
+    await this.db.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { ok: true };
   }
 
   async adminMfa(email: string, password: string, code: string): Promise<TokenPair> {

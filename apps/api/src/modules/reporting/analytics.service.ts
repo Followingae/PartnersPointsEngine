@@ -183,21 +183,48 @@ export class AnalyticsService {
     });
   }
 
-  /** Per-branch earn / redeem / active-member breakdown. */
+  /**
+   * Per-branch breakdown: what each location earned, redeemed, loaded and took.
+   *
+   * Every total counts the member's side of the journal only. A journal has two
+   * legs of equal size, and summing the rows as they come back counts each event
+   * twice — the figures here were exactly double what the branches actually did.
+   * Filtering on the liability account and the direction that moves it is what
+   * makes "earned" mean points that reached a customer.
+   *
+   * Loads and spends are their own columns rather than being folded into earn
+   * and redeem. For a brand running a membership card this table is the report
+   * each location is owed: what was collected, where. Rolling a location's
+   * takings into "redeemed" would leave that question unanswerable.
+   */
   async byBranch(ctx: TenantContext) {
     return this.tenants.run(ctx, async (tx) => {
-      const rows = await tx.$queryRaw<{ branch_id: string; name: string; earned: bigint; redeemed: bigint; members: number }[]>`
+      const rows = await tx.$queryRaw<{ branch_id: string; name: string; earned: bigint; redeemed: bigint; loaded: bigint; spent: bigint; members: number }[]>`
         SELECT b.id AS branch_id, b.name,
-               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'earn'), 0)::bigint AS earned,
-               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'redeem_capture'), 0)::bigint AS redeemed,
+               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'earn' AND la.id IS NOT NULL AND e.direction = 'credit'), 0)::bigint AS earned,
+               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'redeem_capture' AND la.id IS NOT NULL AND e.direction = 'debit'), 0)::bigint AS redeemed,
+               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'load' AND la.id IS NOT NULL AND e.direction = 'credit'), 0)::bigint AS loaded,
+               coalesce(sum(e.amount_minor) FILTER (WHERE j.kind = 'spend' AND la.id IS NOT NULL AND e.direction = 'debit'), 0)::bigint AS spent,
                count(DISTINCT la.customer_id)::int AS members
           FROM branch b
           LEFT JOIN journal j ON j.branch_id = b.id
           LEFT JOIN entry e ON e.journal_id = j.id
           LEFT JOIN ledger_account la ON la.id = e.account_id AND la.account_type = 'points_liability'
          WHERE b.brand_id = ${ctx.brandId}
-         GROUP BY b.id, b.name ORDER BY earned DESC`;
-      return rows.map((r) => ({ branchId: r.branch_id, name: r.name, earned: r.earned.toString(), redeemed: r.redeemed.toString(), members: r.members }));
+         GROUP BY b.id, b.name
+         -- Busiest first, whatever kind of busy. Ordering on earnings alone put
+         -- a counter that took AED 40,000 below a shop that gave away nine
+         -- points.
+         ORDER BY (coalesce(sum(e.amount_minor) FILTER (WHERE la.id IS NOT NULL), 0)) DESC, b.name ASC`;
+      return rows.map((r) => ({
+        branchId: r.branch_id,
+        name: r.name,
+        earned: r.earned.toString(),
+        redeemed: r.redeemed.toString(),
+        loaded: r.loaded.toString(),
+        spent: r.spent.toString(),
+        members: r.members,
+      }));
     });
   }
 

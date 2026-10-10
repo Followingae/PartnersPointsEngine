@@ -39,6 +39,8 @@ export const JournalKind = z.enum([
   'expiry',
   'adjust',
   'fee',
+  'load', // membership card: points sold for cash at the counter
+  'spend', // membership card: points handed over as payment at a stall
 ]);
 export type JournalKind = z.infer<typeof JournalKind>;
 

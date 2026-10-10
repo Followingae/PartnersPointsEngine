@@ -21,6 +21,8 @@
 export type CustomerActivityType =
   | 'earn'
   | 'redeem'
+  | 'load'
+  | 'spend'
   | 'expiry'
   | 'adjust'
   | 'void'
@@ -43,6 +45,17 @@ export interface CustomerActivityEvent {
   voucherCode: string | null;
   brandId: string | null;
   brandName: string | null;
+  /**
+   * Where it happened — which branch.
+   *
+   * A loyalty card barely needs this: points are earned at "the shop" and the
+   * brand name says enough. A membership card does. When one balance is drawn
+   * on by a dozen locations under one brand, "Points spent −67" with no place
+   * attached is unreadable, and "where was that" is the first question anyone
+   * asks of the history. Null for events that happened nowhere in particular —
+   * an expiry sweep, a back-office adjustment.
+   */
+  branchName: string | null;
 }
 
 export interface ActivityJournalRow {
@@ -53,6 +66,7 @@ export interface ActivityJournalRow {
   occurredAt: Date;
   brandId?: string | null;
   brandName?: string | null;
+  branchName?: string | null;
 }
 
 export interface ActivityVoucherRow {
@@ -80,6 +94,12 @@ const JOURNAL_TITLES: Record<string, string> = {
   topup: 'Points added',
   drawdown: 'Points removed',
   fee: 'Fee',
+  // A membership card's two everyday events. "Points loaded" rather than
+  // "earned" because the customer paid for these, and "Points spent" rather
+  // than "redeemed" because they bought something with them — a member reading
+  // their own history should recognise the moment they were standing in.
+  load: 'Points loaded',
+  spend: 'Points spent',
 };
 
 const JOURNAL_TYPES: Record<string, CustomerActivityType> = {
@@ -93,6 +113,8 @@ const JOURNAL_TYPES: Record<string, CustomerActivityType> = {
   topup: 'adjust',
   drawdown: 'adjust',
   fee: 'adjust',
+  load: 'load',
+  spend: 'spend',
 };
 
 /** Signed points with a true minus sign, matching how the consoles render amounts. */
@@ -131,6 +153,7 @@ export function buildCustomerActivity(input: {
       voucherCode: paidFor?.code ?? null,
       brandId: j.brandId ?? null,
       brandName: j.brandName ?? null,
+      branchName: j.branchName ?? null,
     });
   }
 
@@ -150,6 +173,7 @@ export function buildCustomerActivity(input: {
         voucherCode: v.code,
         brandId: v.brandId ?? null,
         brandName: v.brandName ?? null,
+        branchName: null,
       });
     }
 
@@ -165,6 +189,7 @@ export function buildCustomerActivity(input: {
         voucherCode: v.code,
         brandId: v.brandId ?? null,
         brandName: v.brandName ?? null,
+        branchName: null,
       });
     }
 
@@ -180,6 +205,7 @@ export function buildCustomerActivity(input: {
         voucherCode: v.code,
         brandId: v.brandId ?? null,
         brandName: v.brandName ?? null,
+        branchName: null,
       });
     }
   }

@@ -153,6 +153,11 @@ enum JournalKind {
   expiry
   adjust
   fee
+  // Membership card: points sold for cash at the counter, and points handed
+  // over as payment at a stall. Neither is an earn or a redemption — see
+  // 2026-08-06_membership_load_spend.sql.
+  load
+  spend
 
   @@map("journal_kind")
 }
@@ -198,6 +203,10 @@ enum VoucherStatus {
 enum TerminalIntent {
   earn
   redeem
+  // Membership card: staff selling points at the counter (amountMinor carries
+  // the money taken), and a stall charging points (branchId carries who).
+  load
+  spend
 
   @@map("terminal_intent")
 }
@@ -1500,4 +1509,63 @@ model AllowanceTopupRequest {
   @@index([brandId, createdAt])
   @@index([partnerId, status])
   @@map("allowance_topup_request")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fraud protection (2026-10-10 remediation). Tables created by the raw SQL
+// migration 2026-10-10_fraud_module.sql; these models give the client typed
+// access and carry the standard tenant columns for RLS.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FraudRule {
+  id            String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  platformId    String   @map("platform_id")
+  groupId       String   @map("group_id")
+  brandId       String   @map("brand_id")
+  ruleKey       String   @map("rule_key")
+  enabled       Boolean  @default(true)
+  thresholdNum  BigInt   @map("threshold_num")
+  windowSeconds Int      @default(86400) @map("window_seconds")
+  severity      String   @default("medium")
+  action        String   @default("alert")
+  updatedBy     String?  @map("updated_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  @@unique([brandId, ruleKey])
+  @@index([brandId])
+  @@index([groupId])
+  @@index([platformId])
+  @@map("fraud_rule")
+}
+
+model FraudAlert {
+  id             String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  platformId     String    @map("platform_id")
+  groupId        String    @map("group_id")
+  brandId        String    @map("brand_id")
+  ruleKey        String    @map("rule_key")
+  severity       String    @default("medium")
+  subjectType    String    @map("subject_type")
+  subjectId      String    @map("subject_id")
+  membershipId   String?   @map("membership_id")
+  terminalId     String?   @map("terminal_id")
+  branchId       String?   @map("branch_id")
+  windowStart    DateTime  @map("window_start")
+  windowEnd      DateTime  @map("window_end")
+  metricValue    BigInt    @map("metric_value")
+  thresholdValue BigInt    @map("threshold_value")
+  detail         Json      @default("{}")
+  status         String    @default("open")
+  acknowledgedBy String?   @map("acknowledged_by")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  resolvedBy     String?   @map("resolved_by")
+  resolvedAt     DateTime? @map("resolved_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([brandId, ruleKey, subjectId, windowStart])
+  @@index([brandId, status, createdAt])
+  @@index([groupId])
+  @@index([platformId, status, createdAt])
+  @@map("fraud_alert")
 }

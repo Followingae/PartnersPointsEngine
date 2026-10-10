@@ -14,10 +14,20 @@ export class EnvelopeCryptoService {
 
   constructor(config: ConfigService) {
     const b64 = config.get<string>('PII_MASTER_KEY_BASE64');
-    let key = b64 ? Buffer.from(b64, 'base64') : Buffer.alloc(0);
+    const key = b64 ? Buffer.from(b64, 'base64') : Buffer.alloc(0);
     if (key.length !== 32) {
-      this.logger.warn('PII_MASTER_KEY_BASE64 missing/invalid; deriving a DEV key. Do not use in prod.');
-      key = createHash('sha256').update('rfm-loyalty-dev-key').digest();
+      // Never silently fall back to a derived key in production. The old
+      // fallback (sha256 of a constant in source) meant a prod instance missing
+      // its key would boot and encrypt phones, TOTP seeds, terminal HMAC
+      // secrets and webhook secrets under a key that was effectively public —
+      // and a later real key would make that ciphertext undecryptable. Boot
+      // must fail loudly instead.
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('PII_MASTER_KEY_BASE64 missing or not a 32-byte base64 key');
+      }
+      this.logger.warn('PII_MASTER_KEY_BASE64 missing/invalid; deriving a DEV key. Never used in production.');
+      this.key = createHash('sha256').update('rfm-loyalty-dev-key').digest();
+      return;
     }
     this.key = key;
   }

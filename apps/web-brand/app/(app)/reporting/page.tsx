@@ -223,21 +223,34 @@ function BranchesTab() {
     getByBranch().then(setRows).catch((e) => toast('error', e instanceof Error ? e.message : 'Failed')).finally(() => setLoading(false));
   }, [toast]);
   if (loading) return <Loading />;
+  // Loaded and spent only mean something for a brand running a membership card.
+  // Two columns of zeroes on every other brand's table would be a worse report
+  // than the one this replaces.
+  const card = rows.some((r) => Number(r.loaded) > 0 || Number(r.spent) > 0);
   return (
     <Card className="p-6">
       <SectionTitle>Per-branch performance</SectionTitle>
       {rows.length === 0 ? (
         <EmptyState title="No branches" hint="Branches with terminal activity appear here." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border/70">
+        <div className="overflow-x-auto rounded-2xl border border-border/70">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-4 py-3 font-semibold">Branch</th><th className="px-4 py-3 font-semibold">Earned</th><th className="px-4 py-3 font-semibold">Redeemed</th><th className="px-4 py-3 font-semibold">Members</th></tr>
+              <tr>
+                <th className="px-4 py-3 font-semibold">Branch</th>
+                {card ? <th className="px-4 py-3 font-semibold">Loaded</th> : null}
+                {card ? <th className="px-4 py-3 font-semibold">Spent</th> : null}
+                <th className="px-4 py-3 font-semibold">Earned</th>
+                <th className="px-4 py-3 font-semibold">Redeemed</th>
+                <th className="px-4 py-3 font-semibold">Members</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
               {rows.map((r) => (
                 <tr key={r.branchId} className="hover:bg-muted/40">
                   <td className="px-4 py-3 font-medium">{r.name}</td>
+                  {card ? <td className="px-4 py-3 font-display font-semibold">{fmt(r.loaded)}</td> : null}
+                  {card ? <td className="px-4 py-3 font-display font-semibold">{fmt(r.spent)}</td> : null}
                   <td className="px-4 py-3 font-display font-semibold">{fmt(r.earned)}</td>
                   <td className="px-4 py-3">{fmt(r.redeemed)}</td>
                   <td className="px-4 py-3"><Badge tone="teal">{r.members}</Badge></td>

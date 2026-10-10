@@ -26,6 +26,17 @@ export const ACCOUNT_TYPES = {
   pointsLiability: 'points_liability',
   pointsExpense: 'points_expense',
   pointsRevenue: 'points_revenue',
+  /**
+   * Points issued in exchange for money, as opposed to given away.
+   *
+   * Separate from `points_expense` because the two are not the same fact: an
+   * earn costs the brand something, a load was paid for. Booking a sold point as
+   * an expense would understate what was taken at the counter and overstate
+   * what the programme cost, and the outstanding liability — the number that
+   * actually matters when a brand holds customers' money as points — would
+   * have no way to say how much of it was bought.
+   */
+  pointsSold: 'points_sold',
   breakageIncome: 'breakage_income',
   walletLiability: 'wallet_liability',
   cashClearing: 'cash_clearing',
@@ -34,6 +45,17 @@ export const ACCOUNT_TYPES = {
 } as const;
 
 const hash = (parts: unknown) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+
+/**
+ * Checked before the idempotency key is reserved, not after.
+ *
+ * `postJournal` rejects a non-positive leg too, but by then the key is already
+ * written — and a key that exists for a request that never happened will replay
+ * a success the next time the till retries it.
+ */
+function assertPositiveAmount(points: bigint): void {
+  if (points <= 0n) throw new LedgerError('invalid_amount', `points must be > 0 (got ${points})`);
+}
 
 interface Idem {
   actorId: string;
@@ -362,6 +384,201 @@ export async function voidRedeem(tx: Tx, a: RedeemArgs): Promise<{ journalId: st
   });
   await completeIdempotency(tx, idem.keyId, { journalId });
   return { journalId };
+}
+
+// ── Membership card: load + spend ─────────────────────────────────────────────
+//
+// A membership card is not a loyalty card with a bigger balance. On a loyalty
+// card points arrive as a thank-you for money spent elsewhere; on a membership
+// card the points *are* the money — bought at a counter, handed over at the
+// till. That difference is why these are two intents and not two flavours of
+// earn and redeem: an earn has no cash behind it to reconcile, and a redemption
+// is a reward being claimed rather than a purchase being paid for.
+//
+// Available to any brand that wants to run one. Nothing here is specific to a
+// kind of business: a leisure venue whose stalls are branches, a campus, a
+// members' club and a chain selling prepaid credit are the same two movements.
+// Both post through the same double-entry engine as everything else, so the
+// brand's outstanding liability stays provable from the ledger alone.
+
+export interface LoadArgs {
+  scope: BrandCustomerScope;
+  points: bigint;
+  /**
+   * Money taken by the terminal's own payment flow, in minor units. Recorded
+   * because whoever sold them reconciles against the till at close: the ledger
+   * knows how many points went out, and this is what came in for them.
+   */
+  amountPaidMinor: bigint;
+  occurredAt: Date;
+  sourceEvent?: string;
+  idem: Idem;
+  expiryBucket?: Date | null;
+  channel?: 'online' | 'in_store' | null;
+}
+
+/**
+ * Staff sell points to a member.
+ *
+ * Credits the member and debits `points_sold` rather than `points_expense` —
+ * these points were bought, not given, and the two must not add up together.
+ * Subject to expiry like any other points: the sweep reads `expiry_bucket` on
+ * the credit leg and neither knows nor cares which intent wrote it.
+ */
+export async function loadPoints(
+  tx: Tx,
+  a: LoadArgs,
+): Promise<{ journalId: string; balance: Balance }> {
+  assertPositiveAmount(a.points);
+  const idem = await reserveIdempotency(tx, {
+    ...a.idem,
+    requestHash: hash([
+      'load',
+      a.scope.brandId,
+      a.scope.customerId,
+      a.points.toString(),
+      a.amountPaidMinor.toString(),
+      a.sourceEvent,
+    ]),
+    scope: a.scope,
+  });
+  const asset = pointsAsset(a.scope.brandId);
+  const liability = await getOrCreateAccount(tx, {
+    ledger: 'points',
+    accountType: ACCOUNT_TYPES.pointsLiability,
+    normalSide: 'credit',
+    assetCode: asset,
+    platformId: a.scope.platformId,
+    groupId: a.scope.groupId,
+    brandId: a.scope.brandId,
+    customerId: a.scope.customerId,
+  });
+  if (idem.state === 'replay') {
+    return {
+      journalId: (idem.response as { journalId: string }).journalId,
+      balance: await getBalance(tx, liability.id),
+    };
+  }
+  const sold = await getOrCreateAccount(tx, {
+    ledger: 'points',
+    accountType: ACCOUNT_TYPES.pointsSold,
+    normalSide: 'debit',
+    assetCode: asset,
+    platformId: a.scope.platformId,
+    groupId: a.scope.groupId,
+    brandId: a.scope.brandId,
+  });
+
+  const journalId = await postJournal(tx, {
+    ledger: 'points',
+    kind: 'load',
+    occurredAt: a.occurredAt,
+    sourceEvent: a.sourceEvent,
+    channel: a.channel ?? null,
+    scope: a.scope,
+    idempotencyKeyId: idem.keyId,
+    legs: [
+      { accountId: sold.id, normalSide: 'debit', direction: 'debit', amountMinor: a.points, assetCode: asset },
+      {
+        accountId: liability.id,
+        normalSide: 'credit',
+        direction: 'credit',
+        amountMinor: a.points,
+        assetCode: asset,
+        pointState: 'active',
+        expiryBucket: a.expiryBucket ?? null,
+      },
+    ],
+  });
+  await completeIdempotency(tx, idem.keyId, {
+    journalId,
+    amountPaidMinor: a.amountPaidMinor.toString(),
+  });
+  return { journalId, balance: await getBalance(tx, liability.id) };
+}
+
+export interface SpendArgs {
+  scope: BrandCustomerScope;
+  points: bigint;
+  occurredAt: Date;
+  sourceEvent?: string;
+  idem: Idem;
+  channel?: 'online' | 'in_store' | null;
+}
+
+/**
+ * A branch charges a member's points as payment.
+ *
+ * Single-step: there is no authorize/capture pair because there is nothing to
+ * hold — the customer is standing at the till and the transaction is over
+ * before they walk away. The overdraw guard in `applyPosted` is what makes
+ * "fails when the balance is short" true rather than hoped for; no branch can
+ * push a member negative, however many devices charge at once.
+ *
+ * Earning back on the spend is deliberately *not* done here. What a spend earns
+ * is a question for the brand's earn rules, which live a layer up — the caller
+ * posts an `earnPoints` alongside this in the same transaction, so the debit and
+ * the credit it produces either both happen or neither does.
+ */
+export async function spendPoints(
+  tx: Tx,
+  a: SpendArgs,
+): Promise<{ journalId: string; balance: Balance }> {
+  assertPositiveAmount(a.points);
+  const idem = await reserveIdempotency(tx, {
+    ...a.idem,
+    requestHash: hash(['spend', a.scope.brandId, a.scope.customerId, a.points.toString(), a.sourceEvent]),
+    scope: a.scope,
+  });
+  const asset = pointsAsset(a.scope.brandId);
+  const liability = await getOrCreateAccount(tx, {
+    ledger: 'points',
+    accountType: ACCOUNT_TYPES.pointsLiability,
+    normalSide: 'credit',
+    assetCode: asset,
+    platformId: a.scope.platformId,
+    groupId: a.scope.groupId,
+    brandId: a.scope.brandId,
+    customerId: a.scope.customerId,
+  });
+  if (idem.state === 'replay') {
+    return {
+      journalId: (idem.response as { journalId: string }).journalId,
+      balance: await getBalance(tx, liability.id),
+    };
+  }
+  const revenue = await getOrCreateAccount(tx, {
+    ledger: 'points',
+    accountType: ACCOUNT_TYPES.pointsRevenue,
+    normalSide: 'credit',
+    assetCode: asset,
+    platformId: a.scope.platformId,
+    groupId: a.scope.groupId,
+    brandId: a.scope.brandId,
+  });
+
+  const journalId = await postJournal(tx, {
+    ledger: 'points',
+    kind: 'spend',
+    occurredAt: a.occurredAt,
+    sourceEvent: a.sourceEvent,
+    channel: a.channel ?? null,
+    scope: a.scope,
+    idempotencyKeyId: idem.keyId,
+    legs: [
+      {
+        accountId: liability.id,
+        normalSide: 'credit',
+        direction: 'debit',
+        amountMinor: a.points,
+        assetCode: asset,
+        pointState: 'redeemed',
+      },
+      { accountId: revenue.id, normalSide: 'credit', direction: 'credit', amountMinor: a.points, assetCode: asset },
+    ],
+  });
+  await completeIdempotency(tx, idem.keyId, { journalId });
+  return { journalId, balance: await getBalance(tx, liability.id) };
 }
 
 // ── Wallet: top-up + hybrid drawdown ──────────────────────────────────────────

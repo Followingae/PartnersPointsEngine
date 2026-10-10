@@ -29,6 +29,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { PartnershipsModule } from './modules/partnerships/partnerships.module';
 import { CustomerWalletModule } from './modules/customer-wallet/customer-wallet.module';
 import { WalletPassModule } from './modules/wallet-pass/wallet-pass.module';
+import { FraudModule } from './modules/fraud/fraud.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { WalletPassModule } from './modules/wallet-pass/wallet-pass.module';
     PartnershipsModule,
     CustomerWalletModule,
     WalletPassModule,
+    FraudModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

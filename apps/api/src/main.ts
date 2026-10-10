@@ -39,13 +39,29 @@ async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(PinoLogger));
   app.use(helmet());
-  // Lock CORS to the configured console origins in production; reflect any origin
-  // when CORS_ORIGINS is unset (local dev).
+
+  // Behind the DigitalOcean load balancer there is exactly one proxy hop. Honour
+  // its X-Forwarded-For so req.ip is the real client, not the LB address — the
+  // whole platform shared one rate-limit bucket keyed on the LB otherwise, and a
+  // handful of requests a minute locked everyone out of OTP and login.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
+  // Run in-flight requests and worker teardown to completion on SIGTERM instead
+  // of being killed mid-transaction on every rolling deploy.
+  app.enableShutdownHooks();
+
+  // CORS: the configured console origins. In production we NEVER reflect an
+  // arbitrary origin with credentials — an unset CORS_ORIGINS there means
+  // same-origin only, not "trust everyone". Reflect-any stays a dev convenience.
+  const isProd = process.env.NODE_ENV === 'production';
   const corsOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  app.enableCors({ origin: corsOrigins.length ? corsOrigins : true, credentials: true });
+  app.enableCors({
+    origin: corsOrigins.length ? corsOrigins : isProd ? false : true,
+    credentials: true,
+  });
 
   // Path-versioned API; health/readiness/docs live outside the version prefix.
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready', 'metrics', 'docs', 'docs-json'] });

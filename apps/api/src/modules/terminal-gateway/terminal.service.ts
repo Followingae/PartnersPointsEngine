@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ledger, type Prisma } from '@rfm-loyalty/db';
 import { EarnRule, evaluateEarn, type CustomerIdentifierType, type TenantContext } from '@rfm-loyalty/shared';
 import { EnvelopeCryptoService } from '../../auth/crypto/envelope-crypto.service';
@@ -717,6 +717,33 @@ export class TerminalService {
 
       // redeem → authorize a hold (captured later)
       if (!dto.points || dto.points <= 0) throw new BadRequestException('redeem requires points > 0');
+
+      // Server-owned redemption valuation. The device sends the points and the
+      // bill, but the SERVER decides whether that redemption is allowed: the
+      // configured minimum, and a cap as a percentage of the bill. Previously
+      // the quote was advisory and the transaction enforced neither, so a till
+      // could burn 1000 points against a AED 1.00 bill.
+      const cfg = await this.loyalty.getRedemptionConfig(ctx);
+      if (!cfg.enabled) throw new BadRequestException('redemption is disabled for this brand');
+      if (BigInt(dto.points) < BigInt(cfg.minRedeemPoints)) {
+        throw new BadRequestException(`minimum redemption is ${cfg.minRedeemPoints} points`);
+      }
+      if (dto.amountMinor == null || dto.amountMinor <= 0) {
+        throw new BadRequestException('redeem requires the bill amount');
+      }
+      // Cap the POINTS that may be burned, not just the money value. The value
+      // helper already clamps the discount to the bill cap, but the hold was
+      // taken for the full dto.points, so a till could still burn 1000 points
+      // for AED 0.50 of value. Convert the bill's cap back into points at the
+      // configured rate and reject anything above it.
+      const capMinor = (BigInt(dto.amountMinor) * BigInt(cfg.maxPercentOfBillBps)) / 10000n;
+      const ratePoints = BigInt(cfg.ratePoints);
+      const rateValueMinor = BigInt(cfg.rateValueMinor);
+      const maxPoints = rateValueMinor > 0n ? (capMinor * ratePoints) / rateValueMinor : 0n;
+      if (BigInt(dto.points) > maxPoints) {
+        throw new BadRequestException('redemption exceeds the maximum share of the bill');
+      }
+
       const auth = await ledger.authorizeRedeem(tx, {
         scope: { platformId: ctx.platformId, groupId: ctx.groupId!, brandId: ctx.brandId!, customerId: claims.membershipId },
         points: BigInt(dto.points),
@@ -746,9 +773,18 @@ export class TerminalService {
     return this.tenants.run(ctx, async (tx) => {
       const t = await tx.terminalTransaction.findFirst({ where: { id: txnId, brandId: ctx.brandId! } });
       if (!t) throw new NotFoundException('transaction not found');
-      if (t.intent !== 'redeem' || t.state !== 'authorized' || !t.membershipId || !t.points) {
+      if (t.intent !== 'redeem' || !t.membershipId || !t.points) {
         throw new BadRequestException(`cannot capture in state ${t.state}`);
       }
+      // Atomically claim the authorized→captured transition BEFORE touching the
+      // ledger. A concurrent capture or void blocks on this row and then sees a
+      // non-authorized state, so exactly one of them proceeds. This is what
+      // stopped the capture∥void race that drove pending_debits negative.
+      const claimed = await tx.terminalTransaction.updateMany({
+        where: { id: t.id, state: 'authorized' },
+        data: { state: 'captured' },
+      });
+      if (claimed.count !== 1) throw new ConflictException(`cannot capture in state ${t.state}`);
       const cap = await ledger.captureRedeem(tx, {
         scope: { platformId: ctx.platformId, groupId: ctx.groupId!, brandId: ctx.brandId!, customerId: t.membershipId },
         points: t.points,
@@ -759,7 +795,7 @@ export class TerminalService {
       });
       const updated = await tx.terminalTransaction.update({
         where: { id: t.id },
-        data: { state: 'captured', captureJournalId: cap.journalId },
+        data: { captureJournalId: cap.journalId },
       });
       // The sale is real, so any rewards held for it are now genuinely spent.
       await this.confirmVoucherHolds(tx, ctx.brandId!, t.membershipId);
@@ -797,16 +833,23 @@ export class TerminalService {
     return this.tenants.run(ctx, async (tx) => {
       const t = await tx.terminalTransaction.findFirst({ where: { id: txnId, brandId: ctx.brandId! } });
       if (!t) throw new NotFoundException('transaction not found');
-      if (t.intent !== 'redeem' || t.state !== 'authorized' || !t.membershipId || !t.points) {
+      if (t.intent !== 'redeem' || !t.membershipId || !t.points) {
         throw new BadRequestException(`cannot void in state ${t.state}`);
       }
+      // Claim the authorized→voided transition atomically, as capture does, so a
+      // capture racing this void cannot both succeed.
+      const claimed = await tx.terminalTransaction.updateMany({
+        where: { id: t.id, state: 'authorized' },
+        data: { state: 'voided' },
+      });
+      if (claimed.count !== 1) throw new ConflictException(`cannot void in state ${t.state}`);
       await ledger.voidRedeem(tx, {
         scope: { platformId: ctx.platformId, groupId: ctx.groupId!, brandId: ctx.brandId!, customerId: t.membershipId },
         points: t.points,
         occurredAt: new Date(),
         idem: { actorId: ctx.actor.id, key: `term:${t.idempotencyKey}:void` },
       });
-      const updated = await tx.terminalTransaction.update({ where: { id: t.id }, data: { state: 'voided' } });
+      const updated = await tx.terminalTransaction.findFirstOrThrow({ where: { id: t.id } });
       // Sale abandoned — hand the customer their rewards back immediately
       // rather than making them wait out the hold.
       await tx.voucher.updateMany({

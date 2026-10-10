@@ -21,7 +21,8 @@ export class LedgerError extends Error {
       | 'insufficient_balance'
       | 'idempotency_conflict'
       | 'unbalanced'
-      | 'invalid_amount',
+      | 'invalid_amount'
+      | 'hold_not_releasable',
     message?: string,
   ) {
     super(message ?? code);
@@ -156,13 +157,24 @@ export async function holdPending(tx: Tx, accountId: string, amount: bigint): Pr
   return n > 0;
 }
 
+/**
+ * Release a hold (reduce pending_debits). Guarded so it can NEVER drive
+ * pending_debits negative: the UPDATE only applies when enough pending remains.
+ * Zero rows affected means the hold was already captured or released (e.g. a
+ * capture∥void race, or a double void) — we raise rather than silently
+ * underflowing the balance, which previously left pending_debits negative and
+ * the ledger permanently out of reconciliation.
+ */
 export async function releasePending(tx: Tx, accountId: string, amount: bigint): Promise<void> {
-  await tx.$executeRaw`
+  assertPositive(amount);
+  const n = await tx.$executeRaw`
     UPDATE account_balance
        SET pending_debits = pending_debits - ${amount}::bigint,
            lock_version = lock_version + 1,
            updated_at = now()
-     WHERE account_id = ${accountId}`;
+     WHERE account_id = ${accountId}
+       AND pending_debits >= ${amount}::bigint`;
+  if (n === 0) throw new LedgerError('hold_not_releasable', 'no matching pending hold to release');
 }
 
 export interface Balance {

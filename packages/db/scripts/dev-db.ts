@@ -11,17 +11,18 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import EmbeddedPostgres from 'embedded-postgres';
 import { Client } from 'pg';
+import { INCREMENTAL_MIGRATIONS } from '../src/migrations';
 
 const DATA_DIR = join(process.cwd(), '.dev-pgdata');
 const PORT = 5432;
 const URL = `postgresql://postgres:postgres@localhost:${PORT}/postgres`;
 
-async function applySchema(): Promise<void> {
+async function applySchema(files: readonly string[]): Promise<void> {
   const sqlDir = join(process.cwd(), 'prisma', 'sql');
   const client = new Client({ connectionString: URL });
   await client.connect();
   try {
-    for (const f of ['0001_baseline.sql', 'rls.sql', 'ledger.sql']) {
+    for (const f of files) {
       await client.query(readFileSync(join(sqlDir, f), 'utf8'));
     }
   } finally {
@@ -46,7 +47,20 @@ async function main(): Promise<void> {
 
   if (freshCluster) {
     console.log('Fresh cluster — applying schema + RLS + ledger…');
-    await applySchema();
+    await applySchema(['0001_baseline.sql', 'rls.sql', 'ledger.sql']);
+
+    // The incremental list, which this script used to skip entirely — leaving a
+    // brand-new dev database on the baseline schema and the seed failing on
+    // columns and enum values that exist everywhere else. The API's boot
+    // migrator would eventually apply them, but the seed runs first.
+    //
+    // Fresh clusters only. The list is ordered against the current baseline,
+    // not against whatever a months-old `.dev-pgdata` happens to contain, so
+    // replaying it over an aged cluster fails on the first file whose function
+    // body references a column a later file adds. Reset the data dir instead.
+    console.log('Applying incremental migrations…');
+    await applySchema(INCREMENTAL_MIGRATIONS);
+
     console.log('Seeding demo data…');
     spawnSync('pnpm', ['exec', 'tsx', 'prisma/seed.ts'], {
       cwd: process.cwd(),
