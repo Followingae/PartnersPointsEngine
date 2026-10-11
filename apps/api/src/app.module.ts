@@ -30,6 +30,7 @@ import { PartnershipsModule } from './modules/partnerships/partnerships.module';
 import { CustomerWalletModule } from './modules/customer-wallet/customer-wallet.module';
 import { WalletPassModule } from './modules/wallet-pass/wallet-pass.module';
 import { FraudModule } from './modules/fraud/fraud.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { FraudModule } from './modules/fraud/fraud.module';
     CustomerWalletModule,
     WalletPassModule,
     FraudModule,
+    NotificationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

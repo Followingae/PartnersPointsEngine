@@ -408,3 +408,53 @@ export async function manageBrand(brandId: string): Promise<void> {
   const { token } = await actAsBrand(brandId);
   window.open(`${BRAND_CONSOLE_URL}/act?token=${encodeURIComponent(token)}`, '_blank', 'noopener');
 }
+
+// ── Notifications + fraud (platform operator alerting) ──────────────────────────
+export type NotificationSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface NotificationRow {
+  id: string;
+  audience: string;
+  source: string;
+  category: string;
+  severity: NotificationSeverity;
+  title: string;
+  body: string;
+  link: string | null;
+  data: Record<string, unknown>;
+  brandId: string | null;
+  relatedId: string | null;
+  createdAt: string;
+  read: boolean;
+}
+
+export const getNotifications = (status: 'unread' | 'all' = 'all', limit = 50) =>
+  api<NotificationRow[]>(`/admin/notifications?status=${status}&limit=${limit}`);
+export const getNotificationUnreadCount = () =>
+  api<{ count: number }>(`/admin/notifications/unread-count`);
+export const markNotificationRead = (id: string) =>
+  api<{ ok: true }>(`/admin/notifications/${id}/read`, { method: 'POST' });
+export const markAllNotificationsRead = () =>
+  api<{ marked: number }>(`/admin/notifications/read-all`, { method: 'POST' });
+
+export interface FraudAlertRow {
+  id: string;
+  ruleKey: string;
+  severity: NotificationSeverity;
+  subjectType: string;
+  subjectId: string;
+  membershipId: string | null;
+  terminalId: string | null;
+  metricValue: string;
+  thresholdValue: string;
+  detail: Record<string, unknown>;
+  status: 'open' | 'acknowledged' | 'resolved' | 'dismissed';
+  createdAt: string;
+}
+
+export const getFraudAlerts = (status?: string, limit = 100) =>
+  api<FraudAlertRow[]>(`/admin/fraud/alerts?${status ? `status=${status}&` : ''}limit=${limit}`);
+export const acknowledgeFraudAlert = (id: string) =>
+  api<FraudAlertRow>(`/admin/fraud/alerts/${id}/acknowledge`, { method: 'POST' });
+export const resolveFraudAlert = (id: string, dismiss = false) =>
+  api<FraudAlertRow>(`/admin/fraud/alerts/${id}/resolve${dismiss ? '?dismiss=true' : ''}`, { method: 'POST' });

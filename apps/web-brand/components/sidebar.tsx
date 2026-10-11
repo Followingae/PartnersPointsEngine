@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { BarChart3, ChevronLeft, ChevronsUpDown, Coins, Gift, GitPullRequestArrow, History, KeyRound, Layers, LayoutDashboard, LineChart, LogOut, Mail, Megaphone, Settings, Sparkles, Target, Ticket, Trophy, Users, UsersRound, Webhook } from 'lucide-react';
+import { BarChart3, Bell, ChevronLeft, ChevronsUpDown, Coins, Gift, GitPullRequestArrow, History, KeyRound, Layers, LayoutDashboard, LineChart, LogOut, Mail, Megaphone, Settings, ShieldAlert, Sparkles, Target, Ticket, Trophy, Users, UsersRound, Webhook } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -41,6 +41,8 @@ const NAV_GROUPS: NavGroup[] = [
     { href: '/api-keys', label: 'API keys', icon: KeyRound, module: 'api-keys' },
   ] },
   { title: 'Operations', items: [
+    { href: '/fraud', label: 'Fraud protection', icon: ShieldAlert },
+    { href: '/notifications', label: 'Notifications', icon: Bell },
     { href: '/change-requests', label: 'Change requests', icon: GitPullRequestArrow },
     { href: '/activity', label: 'Activity log', icon: History },
   ] },

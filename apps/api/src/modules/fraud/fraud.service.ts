@@ -4,6 +4,7 @@ import type { Prisma } from '@rfm-loyalty/db';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { EmailService } from '../../platform-core/email/email.service';
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
+import { NotificationService } from '../notifications/notification.service';
 import { FRAUD_RULES, FRAUD_RULE_KEYS, type FraudRuleDef } from './fraud.constants';
 
 type Tx = Prisma.TransactionClient;
@@ -11,6 +12,14 @@ type Tx = Prisma.TransactionClient;
 interface EffectiveRule extends FraudRuleDef {
   enabled: boolean;
   overridden: boolean;
+}
+
+interface Hit {
+  subjectId: string;
+  membershipId: string | null;
+  terminalId: string | null;
+  metric: bigint;
+  detail: Record<string, unknown>;
 }
 
 /**
@@ -28,6 +37,7 @@ export class FraudService {
     private readonly tenants: TenantService,
     private readonly email: EmailService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationService,
   ) {}
 
   // ── Configuration ───────────────────────────────────────────────────────────
@@ -144,22 +154,27 @@ export class FraudService {
     const rules = await this.effectiveRules(ctx);
     const windowStart = startOfUtcDay();
     const windowEnd = new Date(windowStart.getTime() + 86_400_000);
-    let raised = 0;
 
+    // Detect + persist inside one transaction; collect the newly-raised alerts.
+    // Dispatch (email + notification centre) happens AFTER the transaction commits
+    // — a notification insert runs under a different RLS scope, and an email is an
+    // outbound HTTP call that should never hold a database transaction open.
+    const fresh: Array<{ rule: EffectiveRule; hit: Hit; alertId: string }> = [];
     await this.tenants.run(ctx, async (tx) => {
       for (const rule of rules) {
         if (!rule.enabled) continue;
         const hits = await this.detect(tx, ctx.brandId!, rule, windowStart);
         for (const hit of hits) {
-          const isNew = await this.raise(tx, ctx, rule, hit, windowStart, windowEnd);
-          if (isNew) {
-            raised++;
-            await this.notify(ctx, rule, hit);
-          }
+          const alertId = await this.raise(tx, ctx, rule, hit, windowStart, windowEnd);
+          if (alertId) fresh.push({ rule, hit, alertId });
         }
       }
     });
-    return { raised };
+
+    for (const { rule, hit, alertId } of fresh) {
+      await this.dispatch(ctx, rule, hit, alertId);
+    }
+    return { raised: fresh.length };
   }
 
   private async detect(
@@ -167,7 +182,7 @@ export class FraudService {
     brandId: string,
     rule: EffectiveRule,
     windowStart: Date,
-  ): Promise<Array<{ subjectId: string; membershipId: string | null; terminalId: string | null; metric: bigint; detail: Record<string, unknown> }>> {
+  ): Promise<Hit[]> {
     const t = rule.thresholdNum;
     switch (rule.key) {
       case 'member_velocity_daily': {
@@ -216,15 +231,15 @@ export class FraudService {
     }
   }
 
-  /** Insert an alert, ignoring the duplicate for a window already alerted. Returns true if newly created. */
+  /** Insert an alert, ignoring the duplicate for a window already alerted. Returns the new id, or null if it already existed. */
   private async raise(
     tx: Tx,
     ctx: TenantContext,
     rule: EffectiveRule,
-    hit: { subjectId: string; membershipId: string | null; terminalId: string | null; metric: bigint; detail: Record<string, unknown> },
+    hit: Hit,
     windowStart: Date,
     windowEnd: Date,
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     const rows = await tx.$queryRaw<{ id: string }[]>`
       INSERT INTO fraud_alert
         (platform_id, group_id, brand_id, rule_key, severity, subject_type, subject_id,
@@ -235,30 +250,84 @@ export class FraudService {
          ${JSON.stringify(hit.detail)}::jsonb, 'open')
       ON CONFLICT (brand_id, rule_key, subject_id, window_start) DO NOTHING
       RETURNING id`;
-    return rows.length > 0;
+    return rows[0]?.id ?? null;
   }
 
-  private async notify(
-    ctx: TenantContext,
-    rule: EffectiveRule,
-    hit: { subjectId: string; metric: bigint },
-  ): Promise<void> {
-    const to = this.config.get<string>('FRAUD_ALERT_EMAIL');
+  /**
+   * Surface a newly-raised alert. Runs after the detection transaction commits.
+   * Three channels, none of which hold a DB transaction open: the operator
+   * notification centre (brand feed + platform feed), and an email to the
+   * configured fraud inbox. All three are best-effort — a failure to notify must
+   * not lose the alert, which is already persisted.
+   */
+  private async dispatch(ctx: TenantContext, rule: EffectiveRule, hit: Hit, alertId: string): Promise<void> {
     const line = `${rule.title} — subject ${hit.subjectId}, observed ${hit.metric} (threshold ${rule.thresholdNum})`;
+    const data = {
+      brandId: ctx.brandId,
+      ruleKey: rule.key,
+      subject: hit.subjectId,
+      metric: hit.metric.toString(),
+      threshold: rule.thresholdNum.toString(),
+      ...hit.detail,
+    };
+
+    // Notification centre — one row for the brand, one for the platform feed.
+    try {
+      await this.notifications.publish(ctx, {
+        audience: 'brand',
+        source: 'fraud',
+        category: 'fraud_alert',
+        severity: rule.severity,
+        title: rule.title,
+        body: `${rule.description} (${hit.metric} vs threshold ${rule.thresholdNum})`,
+        link: '/fraud',
+        data,
+        dedupeKey: `fraud:${alertId}`,
+        relatedId: alertId,
+      });
+      const platformCtx: TenantContext = {
+        ...ctx,
+        scopeLevel: 'platform',
+        groupId: null,
+        brandId: null,
+        branchId: null,
+      };
+      await this.notifications.publish(platformCtx, {
+        audience: 'platform',
+        source: 'fraud',
+        category: 'fraud_alert',
+        severity: rule.severity,
+        title: rule.title,
+        body: `Brand ${ctx.brandId}: ${rule.description} (${hit.metric} vs threshold ${rule.thresholdNum})`,
+        link: '/fraud',
+        data,
+        dedupeKey: `fraud:${alertId}`,
+        relatedId: alertId,
+      });
+    } catch (e) {
+      this.logger.error(`[fraud] notification publish failed for alert ${alertId}: ${(e as Error).message}`);
+    }
+
+    // Email — to the configured fraud inbox, across all severities.
+    const to = this.config.get<string>('FRAUD_ALERT_EMAIL');
     if (!to) {
       this.logger.warn(`[fraud] ${rule.severity} ${rule.key} brand=${ctx.brandId} ${line} (no FRAUD_ALERT_EMAIL set)`);
       return;
     }
-    await this.email.sendFraudAlert(to, {
-      brandName: ctx.brandId ?? 'unknown',
-      ruleKey: rule.key,
-      severity: rule.severity,
-      subject: hit.subjectId,
-      metric: hit.metric.toString(),
-      threshold: rule.thresholdNum.toString(),
-      detail: rule.description,
-    });
-    this.logger.log(`[fraud] ${rule.severity} ${rule.key} brand=${ctx.brandId} ${line}`);
+    try {
+      await this.email.sendFraudAlert(to, {
+        brandName: ctx.brandId ?? 'unknown',
+        ruleKey: rule.key,
+        severity: rule.severity,
+        subject: hit.subjectId,
+        metric: hit.metric.toString(),
+        threshold: rule.thresholdNum.toString(),
+        detail: rule.description,
+      });
+      this.logger.log(`[fraud] ${rule.severity} ${rule.key} brand=${ctx.brandId} ${line}`);
+    } catch (e) {
+      this.logger.error(`[fraud] email failed for alert ${alertId}: ${(e as Error).message}`);
+    }
   }
 
   // ── serialization (bigint → string) ──────────────────────────────────────────

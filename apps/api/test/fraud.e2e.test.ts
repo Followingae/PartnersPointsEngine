@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EmailService } from '../src/platform-core/email/email.service';
 import { TenantService } from '../src/platform-core/tenancy/tenant.service';
 import { FraudService } from '../src/modules/fraud/fraud.service';
+import { NotificationService } from '../src/modules/notifications/notification.service';
 
 const fakeConfig = { get: () => undefined, getOrThrow: () => '' } as never;
 
@@ -42,7 +43,7 @@ describe('Fraud detection', () => {
     prisma = new PrismaClient({ datasourceUrl: inject('DATABASE_URL') });
     await prisma.$connect();
     const tenants = new TenantService(prisma as never);
-    fraud = new FraudService(tenants, new EmailService(fakeConfig), fakeConfig);
+    fraud = new FraudService(tenants, new EmailService(fakeConfig), fakeConfig, new NotificationService(tenants));
 
     await prisma.platform.create({ data: { id: platformId, name: 'A' } });
     await prisma.group.create({ data: { id: groupId, platformId, name: 'G' } });

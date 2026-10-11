@@ -8,6 +8,7 @@ import { getToken } from '@/lib/api';
 import { CommandPalette } from '@/components/command-palette';
 import { Sidebar } from '@/components/sidebar';
 import { ToastProvider } from '@/components/toast';
+import { NotificationBell } from '@/components/notification-bell';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -45,9 +46,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/partners-points.png" alt="Partners Points" className="h-6 w-auto object-contain" />
+          <div className="ml-auto"><NotificationBell /></div>
         </header>
 
-        <main className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8 lg:py-9">{children}</main>
+        {/* Desktop notification bell: a right-aligned strip above the content. */}
+        <div className="mx-auto hidden max-w-[1240px] items-center justify-end px-4 pt-5 sm:px-6 lg:flex lg:px-8">
+          <NotificationBell />
+        </div>
+
+        <main className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 lg:px-8 lg:pt-4 lg:pb-9">{children}</main>
       </div>
     </ToastProvider>
   );

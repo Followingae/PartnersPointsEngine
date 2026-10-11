@@ -518,3 +518,68 @@ export interface BrandSettings {
 export const getSettings = () => api<BrandSettings>('/manage/settings');
 export const updateSettings = (body: Partial<{ name: string; pointsCurrencyCode: string; currency: string; branding: Record<string, unknown> }>) =>
   api('/manage/settings', { method: 'PATCH', body: JSON.stringify(body) });
+
+// ── Notifications + fraud (operator alerting) ───────────────────────────────────
+export type NotificationSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface NotificationRow {
+  id: string;
+  audience: string;
+  source: string;
+  category: string;
+  severity: NotificationSeverity;
+  title: string;
+  body: string;
+  link: string | null;
+  data: Record<string, unknown>;
+  brandId: string | null;
+  relatedId: string | null;
+  createdAt: string;
+  read: boolean;
+}
+
+export const getNotifications = (status: 'unread' | 'all' = 'all', limit = 50) =>
+  api<NotificationRow[]>(`/manage/notifications?status=${status}&limit=${limit}`);
+export const getNotificationUnreadCount = () =>
+  api<{ count: number }>(`/manage/notifications/unread-count`);
+export const markNotificationRead = (id: string) =>
+  api<{ ok: true }>(`/manage/notifications/${id}/read`, { method: 'POST' });
+export const markAllNotificationsRead = () =>
+  api<{ marked: number }>(`/manage/notifications/read-all`, { method: 'POST' });
+
+export interface FraudRuleRow {
+  key: string;
+  title: string;
+  description: string;
+  subjectType: string;
+  thresholdNum: string;
+  windowSeconds: number;
+  severity: NotificationSeverity;
+  action: string;
+  enabled: boolean;
+  overridden: boolean;
+}
+export interface FraudAlertRow {
+  id: string;
+  ruleKey: string;
+  severity: NotificationSeverity;
+  subjectType: string;
+  subjectId: string;
+  membershipId: string | null;
+  terminalId: string | null;
+  metricValue: string;
+  thresholdValue: string;
+  detail: Record<string, unknown>;
+  status: 'open' | 'acknowledged' | 'resolved' | 'dismissed';
+  createdAt: string;
+}
+
+export const getFraudRules = () => api<FraudRuleRow[]>(`/manage/fraud/rules`);
+export const setFraudRule = (key: string, patch: { enabled?: boolean; thresholdNum?: string; severity?: string }) =>
+  api<FraudRuleRow>(`/manage/fraud/rules/${key}`, { method: 'PATCH', body: JSON.stringify(patch) });
+export const getFraudAlerts = (status?: string, limit = 100) =>
+  api<FraudAlertRow[]>(`/manage/fraud/alerts?${status ? `status=${status}&` : ''}limit=${limit}`);
+export const acknowledgeFraudAlert = (id: string) =>
+  api<FraudAlertRow>(`/manage/fraud/alerts/${id}/acknowledge`, { method: 'POST' });
+export const resolveFraudAlert = (id: string, dismiss = false) =>
+  api<FraudAlertRow>(`/manage/fraud/alerts/${id}/resolve${dismiss ? '?dismiss=true' : ''}`, { method: 'POST' });

@@ -1569,3 +1569,45 @@ model FraudAlert {
   @@index([platformId, status, createdAt])
   @@map("fraud_alert")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Operator notification centre (2026-10-11). Tables created by the raw SQL
+// migration 2026-10-11_notifications.sql; these models give the client typed
+// access. `brand_id` NULL marks a platform-audience row (superadmin-only under
+// RLS); the concerned brand, if any, travels in `data`. Read state is per-user.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  platformId String   @map("platform_id")
+  groupId    String?  @map("group_id")
+  brandId    String?  @map("brand_id")
+  audience   String
+  source     String
+  category   String   @default("alert")
+  severity   String   @default("info")
+  title      String
+  body       String   @default("")
+  link       String?
+  data       Json     @default("{}")
+  dedupeKey  String?  @map("dedupe_key")
+  relatedId  String?  @map("related_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([brandId, createdAt])
+  @@index([platformId, audience, createdAt])
+  @@map("notification")
+}
+
+model NotificationRead {
+  notificationId String   @map("notification_id")
+  userId         String   @map("user_id")
+  platformId     String   @map("platform_id")
+  groupId        String?  @map("group_id")
+  brandId        String?  @map("brand_id")
+  readAt         DateTime @default(now()) @map("read_at")
+
+  @@id([notificationId, userId])
+  @@index([userId])
+  @@map("notification_read")
+}
