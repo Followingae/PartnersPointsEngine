@@ -10,6 +10,7 @@ import type { ReceiptEmailData } from '../../platform-core/email/email.templates
 import { TenantService } from '../../platform-core/tenancy/tenant.service';
 import { GamificationService } from '../loyalty-rules/gamification.service';
 import { LoyaltyService, redemptionValueMinor, scheduleContext } from '../loyalty-rules/loyalty.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
@@ -68,6 +69,8 @@ export class TerminalService {
     private readonly outbox?: OutboxService,
     /** Optional likewise; without it the till simply shows no challenge progress. */
     private readonly gamification?: GamificationService,
+    /** Optional; without it a new signup simply raises no brand notification. */
+    private readonly notifications?: NotificationService,
   ) {}
 
   /**
@@ -220,7 +223,7 @@ export class TerminalService {
     if (!/^\+[0-9]{8,15}$/.test(phone)) throw new BadRequestException('phone must be E.164 (+9715xxxxxxxx)');
     const valueHash = sha256(phone);
     const phoneEnc = Buffer.from(this.crypto.encrypt(phone));
-    return this.tenants.run(ctx, async (tx) => {
+    const result = await this.tenants.run(ctx, async (tx) => {
       const existing = await tx.customerIdentifier.findUnique({
         where: { brandId_type_valueHash: { brandId: ctx.brandId!, type: 'phone', valueHash } },
         select: { membershipId: true },
@@ -257,8 +260,35 @@ export class TerminalService {
         groupId: ctx.groupId!,
         platformId: ctx.platformId,
       });
-      return { memberToken, created };
+      return { memberToken, created, membershipId };
     });
+
+    // A genuinely new member — tell the brand, in its notification centre. Fired
+    // after the enrolment commits and best-effort: a signup must never fail
+    // because a notification could not be written.
+    if (result.created && this.notifications) {
+      const name = dto.fullName?.trim();
+      try {
+        await this.notifications.publish(ctx, {
+          audience: 'brand',
+          source: 'enrollment',
+          category: 'signup',
+          severity: 'info',
+          title: 'New member joined',
+          body: name
+            ? `${name} just signed up to your loyalty programme at the till.`
+            : 'A new customer just signed up to your loyalty programme at the till.',
+          link: `/customers/${result.membershipId}`,
+          data: { membershipId: result.membershipId },
+          relatedId: result.membershipId,
+          dedupeKey: `signup:${result.membershipId}`,
+        });
+      } catch {
+        // swallow — enrolment already succeeded
+      }
+    }
+
+    return { memberToken: result.memberToken, created: result.created };
   }
 
   /**

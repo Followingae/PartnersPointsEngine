@@ -1556,11 +1556,19 @@ model FraudAlert {
   metricValue    BigInt    @map("metric_value")
   thresholdValue BigInt    @map("threshold_value")
   detail         Json      @default("{}")
+  // Lifecycle: open → acknowledged → (brand) review_requested → resolved | dismissed.
+  // Brands can no longer resolve a case directly; they request a review, which the
+  // superadmin acts on. `request_expires_at` makes that request time-bound.
   status         String    @default("open")
   acknowledgedBy String?   @map("acknowledged_by")
   acknowledgedAt DateTime? @map("acknowledged_at")
+  requestReason    String?   @map("request_reason")
+  requestedBy      String?   @map("requested_by")
+  requestedAt      DateTime? @map("requested_at")
+  requestExpiresAt DateTime? @map("request_expires_at")
   resolvedBy     String?   @map("resolved_by")
   resolvedAt     DateTime? @map("resolved_at")
+  resolutionNote String?   @map("resolution_note")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   @@unique([brandId, ruleKey, subjectId, windowStart])

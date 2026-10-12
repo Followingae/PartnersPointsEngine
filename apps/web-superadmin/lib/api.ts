@@ -437,6 +437,7 @@ export const markNotificationRead = (id: string) =>
 export const markAllNotificationsRead = () =>
   api<{ marked: number }>(`/admin/notifications/read-all`, { method: 'POST' });
 
+export type FraudAlertStatus = 'open' | 'acknowledged' | 'review_requested' | 'resolved' | 'dismissed';
 export interface FraudAlertRow {
   id: string;
   ruleKey: string;
@@ -448,13 +449,51 @@ export interface FraudAlertRow {
   metricValue: string;
   thresholdValue: string;
   detail: Record<string, unknown>;
-  status: 'open' | 'acknowledged' | 'resolved' | 'dismissed';
+  status: FraudAlertStatus;
+  requestReason: string | null;
+  requestedBy: string | null;
+  requestedAt: string | null;
+  requestExpiresAt: string | null;
+  resolutionNote: string | null;
   createdAt: string;
 }
 
-export const getFraudAlerts = (status?: string, limit = 100) =>
-  api<FraudAlertRow[]>(`/admin/fraud/alerts?${status ? `status=${status}&` : ''}limit=${limit}`);
+// Fraud rules are a platform-only power: the superadmin configures each brand's
+// protections, sees cases across every brand, and is the only authority that
+// closes a case (resolve/dismiss) or decides a brand's review request.
+export interface FraudRuleRow {
+  key: string;
+  title: string;
+  description: string;
+  subjectType: string;
+  thresholdNum: string;
+  windowSeconds: number;
+  severity: NotificationSeverity;
+  action: string;
+  enabled: boolean;
+  overridden: boolean;
+}
+export interface FraudBrandRow { id: string; name: string; overrides: number; openAlerts: number }
+
+export const getFraudBrands = () => api<FraudBrandRow[]>('/admin/fraud/brands');
+export const getBrandFraudRules = (brandId: string) =>
+  api<FraudRuleRow[]>(`/admin/fraud/brands/${brandId}/rules`);
+export const setBrandFraudRule = (
+  brandId: string,
+  key: string,
+  patch: { enabled?: boolean; thresholdNum?: string; windowSeconds?: number; severity?: string; action?: string },
+) => api(`/admin/fraud/brands/${brandId}/rules/${key}`, { method: 'PATCH', body: JSON.stringify(patch) });
+
+export const getFraudAlerts = (status?: string, brandId?: string, limit = 100) =>
+  api<FraudAlertRow[]>(
+    `/admin/fraud/alerts?${status ? `status=${status}&` : ''}${brandId ? `brandId=${brandId}&` : ''}limit=${limit}`,
+  );
 export const acknowledgeFraudAlert = (id: string) =>
   api<FraudAlertRow>(`/admin/fraud/alerts/${id}/acknowledge`, { method: 'POST' });
-export const resolveFraudAlert = (id: string, dismiss = false) =>
-  api<FraudAlertRow>(`/admin/fraud/alerts/${id}/resolve${dismiss ? '?dismiss=true' : ''}`, { method: 'POST' });
+export const resolveFraudAlert = (id: string, dismiss = false, note?: string) =>
+  api<FraudAlertRow>(`/admin/fraud/alerts/${id}/resolve${dismiss ? '?dismiss=true' : ''}`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
+export const rejectFraudReview = (id: string, note?: string) =>
+  api<FraudAlertRow>(`/admin/fraud/alerts/${id}/reject-review`, { method: 'POST', body: JSON.stringify({ note }) });

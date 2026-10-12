@@ -114,6 +114,25 @@ export interface TrendPoint {
   earned: string;
   redeemed: string;
 }
+export interface CustomerDirectoryRow {
+  membershipId: string;
+  loyaltyId: string;
+  fullName: string | null;
+  status: string;
+  joinedAt: string;
+  available: string;
+  lifetime: string;
+  tierName: string | null;
+  lastActivityAt: string | null;
+  recencyDays: number | null;
+  frequency: number;
+  monetary: string;
+  r: number | null;
+  f: number | null;
+  m: number | null;
+  segment: string | null;
+}
+export const getCustomerDirectory = () => api<CustomerDirectoryRow[]>('/manage/customers');
 
 export const login = (email: string, password: string) =>
   api<{ accessToken?: string; refreshToken?: string; expiresIn?: number; mfaRequired?: boolean }>('/auth/login', {
@@ -559,6 +578,7 @@ export interface FraudRuleRow {
   enabled: boolean;
   overridden: boolean;
 }
+export type FraudAlertStatus = 'open' | 'acknowledged' | 'review_requested' | 'resolved' | 'dismissed';
 export interface FraudAlertRow {
   id: string;
   ruleKey: string;
@@ -570,16 +590,22 @@ export interface FraudAlertRow {
   metricValue: string;
   thresholdValue: string;
   detail: Record<string, unknown>;
-  status: 'open' | 'acknowledged' | 'resolved' | 'dismissed';
+  status: FraudAlertStatus;
+  requestReason: string | null;
+  requestedBy: string | null;
+  requestedAt: string | null;
+  requestExpiresAt: string | null;
+  resolutionNote: string | null;
   createdAt: string;
 }
 
+// Fraud rules are owned by the platform — a brand reads its active protections but
+// cannot change them. A brand acknowledges a case or requests a review; only the
+// superadmin closes a case.
 export const getFraudRules = () => api<FraudRuleRow[]>(`/manage/fraud/rules`);
-export const setFraudRule = (key: string, patch: { enabled?: boolean; thresholdNum?: string; severity?: string }) =>
-  api<FraudRuleRow>(`/manage/fraud/rules/${key}`, { method: 'PATCH', body: JSON.stringify(patch) });
 export const getFraudAlerts = (status?: string, limit = 100) =>
   api<FraudAlertRow[]>(`/manage/fraud/alerts?${status ? `status=${status}&` : ''}limit=${limit}`);
 export const acknowledgeFraudAlert = (id: string) =>
   api<FraudAlertRow>(`/manage/fraud/alerts/${id}/acknowledge`, { method: 'POST' });
-export const resolveFraudAlert = (id: string, dismiss = false) =>
-  api<FraudAlertRow>(`/manage/fraud/alerts/${id}/resolve${dismiss ? '?dismiss=true' : ''}`, { method: 'POST' });
+export const requestFraudReview = (id: string, reason: string) =>
+  api<FraudAlertRow>(`/manage/fraud/alerts/${id}/request-review`, { method: 'POST', body: JSON.stringify({ reason }) });

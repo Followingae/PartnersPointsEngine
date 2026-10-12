@@ -277,6 +277,13 @@ export class ManageController {
     return this.loyalty.listMembers(ctx, query);
   }
 
+  @Get('customers')
+  @RequirePermissions('brand.customer.read')
+  @ApiOperation({ summary: 'Customer directory — identity, points, tier, recency and RFM segment per member.' })
+  customerDirectory(@CurrentTenant() ctx: TenantContext) {
+    return this.loyalty.customerDirectory(ctx);
+  }
+
   @Get('customers/:id/profile')
   @RequirePermissions('brand.customer.read')
   @ApiOperation({ summary: 'Customer 360 — balance, tier, transactions, badges, referrals.' })

@@ -9,6 +9,7 @@ import { CampaignService } from './campaign.service';
 import { buildCustomerActivity } from './customer-activity';
 import { GamificationService } from './gamification.service';
 import { sortClause, type ListQuery, type ListResult } from './list';
+import { rfmSegment } from '../reporting/reporting.service';
 
 export interface EarnInput {
   membershipId: string;
@@ -541,6 +542,84 @@ export class LoyaltyService {
         })),
         total: Number(totalRows[0]?.c ?? 0n),
       } satisfies ListResult<unknown>;
+    });
+  }
+
+  /**
+   * The customer directory behind the brand "Customers" tab: real people with
+   * their identity, points, tier, recency and RFM segment in one row — not opaque
+   * membership ids. Returns the whole active book (capped) so the console can
+   * search, sort, paginate and chart it client-side, the way the RFM view already
+   * loads. RFM scores use the same quintile method as the reporting service.
+   */
+  async customerDirectory(ctx: TenantContext, cap = 2000) {
+    return this.tenants.run(ctx, async (tx) => {
+      const rows = await tx.$queryRaw<
+        {
+          membership_id: string; loyalty_id: string; full_name: string | null; status: string; joined_at: Date;
+          available: bigint; lifetime: bigint; tier_name: string | null; last_activity: Date | null;
+          recency_days: number | null; frequency: number; monetary: bigint;
+          r_score: number | null; f_score: number | null; m_score: number | null;
+        }[]
+      >`
+        WITH base AS (
+          SELECT la.customer_id AS membership_id,
+                 EXTRACT(DAY FROM (now() - max(j.occurred_at) FILTER (WHERE j.kind = 'earn')))::int AS recency_days,
+                 count(DISTINCT j.id) FILTER (WHERE j.kind = 'earn')::int AS frequency,
+                 ab.posted_credits AS monetary,
+                 max(j.occurred_at) AS last_activity,
+                 coalesce(ab.posted_credits - ab.posted_debits - ab.pending_debits, 0)::bigint AS available,
+                 coalesce(ab.posted_credits, 0)::bigint AS lifetime
+            FROM ledger_account la
+            JOIN account_balance ab ON ab.account_id = la.id
+            LEFT JOIN entry e ON e.account_id = la.id
+            LEFT JOIN journal j ON j.id = e.journal_id
+           WHERE la.brand_id = ${ctx.brandId} AND la.account_type = 'points_liability'
+           GROUP BY la.customer_id, ab.posted_credits, ab.posted_debits, ab.pending_debits
+        ), scored AS (
+          SELECT membership_id, recency_days, frequency, monetary, last_activity, available, lifetime,
+                 ntile(5) OVER (ORDER BY recency_days DESC NULLS FIRST)::int AS r_score,
+                 ntile(5) OVER (ORDER BY frequency ASC)::int AS f_score,
+                 ntile(5) OVER (ORDER BY monetary ASC)::int AS m_score
+            FROM base
+        )
+        SELECT m.id AS membership_id, m.loyalty_id, m.status, m.joined_at, p.full_name,
+               coalesce(s.available, 0)::bigint AS available,
+               coalesce(s.lifetime, 0)::bigint AS lifetime,
+               s.last_activity, s.recency_days, coalesce(s.frequency, 0) AS frequency,
+               coalesce(s.monetary, 0)::bigint AS monetary, s.r_score, s.f_score, s.m_score,
+               t.name AS tier_name
+          FROM customer_membership m
+          JOIN person p ON p.id = m.person_id
+          LEFT JOIN scored s ON s.membership_id = m.id
+          LEFT JOIN LATERAL (
+            SELECT name FROM tier
+             WHERE brand_id = m.brand_id AND threshold <= coalesce(s.lifetime, 0)
+             ORDER BY threshold DESC LIMIT 1
+          ) t ON true
+         WHERE m.brand_id = ${ctx.brandId}
+         ORDER BY coalesce(s.lifetime, 0) DESC
+         LIMIT ${cap}`;
+      return rows.map((r) => ({
+        membershipId: r.membership_id,
+        loyaltyId: r.loyalty_id,
+        fullName: r.full_name,
+        status: r.status,
+        joinedAt: r.joined_at,
+        available: r.available.toString(),
+        lifetime: r.lifetime.toString(),
+        tierName: r.tier_name,
+        lastActivityAt: r.last_activity,
+        recencyDays: r.recency_days,
+        frequency: r.frequency,
+        monetary: r.monetary.toString(),
+        r: r.r_score,
+        f: r.f_score,
+        m: r.m_score,
+        segment: r.r_score != null && r.f_score != null && r.m_score != null
+          ? rfmSegment(r.r_score, r.f_score, r.m_score)
+          : null,
+      }));
     });
   }
 

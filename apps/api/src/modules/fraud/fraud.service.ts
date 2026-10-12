@@ -108,13 +108,75 @@ export class FraudService {
     });
   }
 
+  // ── Admin: per-brand rule configuration ──────────────────────────────────────
+  // Rule config is a SUPERADMIN power. A brand can no longer write its own rules;
+  // the superadmin console sets them per brand through these methods, which run
+  // the existing brand-scoped upsert under a brand context derived from the brand
+  // row — the same shape the fraud worker uses to write a brand's alerts.
+
+  /** Resolve a brand → a brand-scoped context carrying the admin's actor (for audit). */
+  private async brandCtx(adminCtx: TenantContext, brandId: string): Promise<TenantContext> {
+    const brand = await this.tenants.run(adminCtx, (tx) =>
+      tx.brand.findFirst({ where: { id: brandId }, select: { id: true, groupId: true, platformId: true } }),
+    );
+    if (!brand) throw new NotFoundException('brand not found');
+    return {
+      platformId: brand.platformId,
+      groupId: brand.groupId,
+      brandId: brand.id,
+      branchId: null,
+      scopeLevel: 'brand',
+      surface: 'superadmin',
+      actor: adminCtx.actor,
+    };
+  }
+
+  /** Active brands with their open-case count and how many rules they override. */
+  async brandsOverview(adminCtx: TenantContext) {
+    return this.tenants.run(adminCtx, async (tx) => {
+      const brands = await tx.brand.findMany({
+        where: { status: 'active' },
+        select: { id: true, name: true, groupId: true },
+        orderBy: { name: 'asc' },
+      });
+      const [overrides, openAlerts] = await Promise.all([
+        tx.fraudRule.groupBy({ by: ['brandId'], _count: { _all: true } }),
+        tx.fraudAlert.groupBy({ by: ['brandId'], where: { status: { in: ['open', 'acknowledged', 'review_requested'] } }, _count: { _all: true } }),
+      ]);
+      const ov = new Map(overrides.map((o) => [o.brandId, o._count._all]));
+      const oa = new Map(openAlerts.map((o) => [o.brandId, o._count._all]));
+      return brands.map((b) => ({
+        id: b.id,
+        name: b.name,
+        overrides: ov.get(b.id) ?? 0,
+        openAlerts: oa.get(b.id) ?? 0,
+      }));
+    });
+  }
+
+  effectiveRulesForBrand(adminCtx: TenantContext, brandId: string) {
+    return this.brandCtx(adminCtx, brandId).then((ctx) => this.effectiveRules(ctx));
+  }
+
+  setRuleForBrand(
+    adminCtx: TenantContext,
+    brandId: string,
+    ruleKey: string,
+    patch: { enabled?: boolean; thresholdNum?: string; windowSeconds?: number; severity?: string; action?: string },
+  ) {
+    return this.brandCtx(adminCtx, brandId).then((ctx) => this.setRule(ctx, ruleKey, patch));
+  }
+
   // ── Alerts (read / act) ──────────────────────────────────────────────────────
 
-  async listAlerts(ctx: TenantContext, opts: { status?: string; limit?: number }) {
+  async listAlerts(ctx: TenantContext, opts: { status?: string; limit?: number; brandId?: string }) {
     const take = Math.min(Math.max(opts.limit ?? 50, 1), 200);
     const rows = await this.tenants.run(ctx, (tx) =>
       tx.fraudAlert.findMany({
-        where: opts.status ? { status: opts.status } : undefined,
+        where: {
+          ...(opts.status ? { status: opts.status } : {}),
+          ...(opts.brandId ? { brandId: opts.brandId } : {}),
+        },
         orderBy: { createdAt: 'desc' },
         take,
       }),
@@ -126,11 +188,42 @@ export class FraudService {
     return this.transition(ctx, id, { status: 'acknowledged', acknowledgedBy: ctx.actor.id, acknowledgedAt: new Date() });
   }
 
-  async resolve(ctx: TenantContext, id: string, dismiss = false) {
+  /**
+   * A brand asks the platform to review a case (usually "this is a false alarm").
+   * The brand cannot close a case itself — this records a time-bound request the
+   * superadmin then approves (resolve/dismiss) or rejects. Default window 72h.
+   */
+  async requestReview(ctx: TenantContext, id: string, reason: string, windowHours = 72) {
+    const now = new Date();
+    return this.transition(ctx, id, {
+      status: 'review_requested',
+      requestReason: reason?.trim() ? reason.trim().slice(0, 2000) : null,
+      requestedBy: ctx.actor.id,
+      requestedAt: now,
+      requestExpiresAt: new Date(now.getTime() + windowHours * 3_600_000),
+    });
+  }
+
+  /** Superadmin closes a case (resolve = acted, dismiss = false alarm), clearing any pending request. */
+  async resolve(ctx: TenantContext, id: string, dismiss = false, note?: string) {
     return this.transition(ctx, id, {
       status: dismiss ? 'dismissed' : 'resolved',
       resolvedBy: ctx.actor.id,
       resolvedAt: new Date(),
+      resolutionNote: note?.trim() ? note.trim().slice(0, 2000) : null,
+      requestExpiresAt: null,
+    });
+  }
+
+  /** Superadmin declines a brand's review request; the case returns to acknowledged. */
+  async rejectReview(ctx: TenantContext, id: string, note?: string) {
+    return this.transition(ctx, id, {
+      status: 'acknowledged',
+      resolutionNote: note?.trim() ? note.trim().slice(0, 2000) : null,
+      requestReason: null,
+      requestedBy: null,
+      requestedAt: null,
+      requestExpiresAt: null,
     });
   }
 
@@ -260,8 +353,27 @@ export class FraudService {
    * configured fraud inbox. All three are best-effort — a failure to notify must
    * not lose the alert, which is already persisted.
    */
+  /** A shop-owner-readable sentence for a detection — no rule keys, no UUIDs, no "metric vs threshold". */
+  private plainLine(rule: EffectiveRule, hit: Hit): string {
+    const n = Number(hit.metric);
+    const t = Number(rule.thresholdNum);
+    switch (rule.key) {
+      case 'member_velocity_daily':
+        return `One member earned points on ${n} separate transactions today — more than your limit of ${t}. This can mean a card is being reused or a till is scanning the same number repeatedly.`;
+      case 'member_points_daily':
+        return `One member collected ${n.toLocaleString()} points today — above your limit of ${t.toLocaleString()}. Worth checking the sales behind it are real.`;
+      case 'terminal_self_earn':
+        return `One till credited the same member ${n} times today (your limit is ${t}). This is the usual sign of a cashier earning on their own number.`;
+      case 'referral_burst':
+        return `One member claimed ${n} referral rewards today — above your limit of ${t}. Could be invented referrals.`;
+      default:
+        return `${rule.description} (${n} vs your limit of ${t}).`;
+    }
+  }
+
   private async dispatch(ctx: TenantContext, rule: EffectiveRule, hit: Hit, alertId: string): Promise<void> {
     const line = `${rule.title} — subject ${hit.subjectId}, observed ${hit.metric} (threshold ${rule.thresholdNum})`;
+    const plain = this.plainLine(rule, hit);
     const data = {
       brandId: ctx.brandId,
       ruleKey: rule.key,
@@ -279,7 +391,7 @@ export class FraudService {
         category: 'fraud_alert',
         severity: rule.severity,
         title: rule.title,
-        body: `${rule.description} (${hit.metric} vs threshold ${rule.thresholdNum})`,
+        body: plain,
         link: '/fraud',
         data,
         dedupeKey: `fraud:${alertId}`,
@@ -298,7 +410,7 @@ export class FraudService {
         category: 'fraud_alert',
         severity: rule.severity,
         title: rule.title,
-        body: `Brand ${ctx.brandId}: ${rule.description} (${hit.metric} vs threshold ${rule.thresholdNum})`,
+        body: plain,
         link: '/fraud',
         data,
         dedupeKey: `fraud:${alertId}`,
@@ -342,6 +454,7 @@ export class FraudService {
     id: string; ruleKey: string; severity: string; subjectType: string; subjectId: string; membershipId: string | null; terminalId: string | null;
     windowStart: Date; windowEnd: Date; metricValue: bigint; thresholdValue: bigint; detail: unknown; status: string; createdAt: Date;
     acknowledgedBy: string | null; acknowledgedAt: Date | null; resolvedBy: string | null; resolvedAt: Date | null;
+    requestReason?: string | null; requestedBy?: string | null; requestedAt?: Date | null; requestExpiresAt?: Date | null; resolutionNote?: string | null;
   }) {
     return {
       id: r.id,
@@ -359,8 +472,13 @@ export class FraudService {
       status: r.status,
       acknowledgedBy: r.acknowledgedBy,
       acknowledgedAt: r.acknowledgedAt,
+      requestReason: r.requestReason ?? null,
+      requestedBy: r.requestedBy ?? null,
+      requestedAt: r.requestedAt ?? null,
+      requestExpiresAt: r.requestExpiresAt ?? null,
       resolvedBy: r.resolvedBy,
       resolvedAt: r.resolvedAt,
+      resolutionNote: r.resolutionNote ?? null,
       createdAt: r.createdAt,
     };
   }

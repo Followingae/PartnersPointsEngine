@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import type { TenantContext } from '@rfm-loyalty/shared';
 import { RequirePermissions } from '../../auth/authz/permissions.decorator';
 import { AdminJwtGuard } from '../../auth/guards/admin-jwt.guard';
@@ -8,15 +8,16 @@ import { PermissionsGuard } from '../../auth/authz/permissions.guard';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { FraudService } from './fraud.service';
 
-class SetFraudRuleDto {
-  @IsOptional() @IsBoolean() enabled?: boolean;
-  @IsOptional() @IsString() @Matches(/^\d+$/) thresholdNum?: string;
-  @IsOptional() @IsInt() @Min(60) windowSeconds?: number;
-  @IsOptional() @IsIn(['low', 'medium', 'high', 'critical']) severity?: string;
-  @IsOptional() @IsIn(['alert', 'flag', 'block']) action?: string;
+class RequestReviewDto {
+  @IsOptional() @IsString() @MaxLength(2000) reason?: string;
 }
 
-/** Brand-facing fraud console: a brand admin sees and manages ONLY their brand. */
+/**
+ * Brand-facing fraud console: a brand admin sees ONLY their brand. Fraud rules are
+ * owned by the platform — a brand cannot set its own thresholds, and cannot close a
+ * case directly. It can see its protection status and recent cases, acknowledge a
+ * case, and *request a review* (a time-bound ask the superadmin then acts on).
+ */
 @ApiTags('fraud')
 @Controller('manage/fraud')
 @UseGuards(AdminJwtGuard, PermissionsGuard)
@@ -25,34 +26,29 @@ export class BrandFraudController {
 
   @Get('rules')
   @RequirePermissions('brand.report.read')
-  @ApiOperation({ summary: 'List fraud rules (defaults merged with this brand overrides).' })
+  @ApiOperation({ summary: 'List the protections active for this brand (read-only; the platform owns the thresholds).' })
   rules(@CurrentTenant() ctx: TenantContext) {
     return this.fraud.effectiveRules(ctx);
   }
 
-  @Patch('rules/:key')
-  @RequirePermissions('brand.manage')
-  @ApiOperation({ summary: 'Override a fraud rule threshold for this brand.' })
-  setRule(@CurrentTenant() ctx: TenantContext, @Param('key') key: string, @Body() dto: SetFraudRuleDto) {
-    return this.fraud.setRule(ctx, key, dto);
-  }
-
   @Get('alerts')
   @RequirePermissions('brand.report.read')
-  @ApiOperation({ summary: 'List fraud alerts for this brand.' })
+  @ApiOperation({ summary: 'List fraud cases for this brand.' })
   alerts(@CurrentTenant() ctx: TenantContext, @Query('status') status?: string, @Query('limit') limit?: string) {
     return this.fraud.listAlerts(ctx, { status, limit: limit ? Number(limit) : undefined });
   }
 
   @Post('alerts/:id/acknowledge')
   @RequirePermissions('brand.manage')
+  @ApiOperation({ summary: 'Mark that this brand has seen a case.' })
   acknowledge(@CurrentTenant() ctx: TenantContext, @Param('id') id: string) {
     return this.fraud.acknowledge(ctx, id);
   }
 
-  @Post('alerts/:id/resolve')
+  @Post('alerts/:id/request-review')
   @RequirePermissions('brand.manage')
-  resolve(@CurrentTenant() ctx: TenantContext, @Param('id') id: string, @Query('dismiss') dismiss?: string) {
-    return this.fraud.resolve(ctx, id, dismiss === 'true');
+  @ApiOperation({ summary: 'Ask the platform to review a case (e.g. a suspected false alarm). Time-bound.' })
+  requestReview(@CurrentTenant() ctx: TenantContext, @Param('id') id: string, @Body() dto: RequestReviewDto) {
+    return this.fraud.requestReview(ctx, id, dto.reason ?? '');
   }
 }

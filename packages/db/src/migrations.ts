@@ -53,4 +53,6 @@ export const INCREMENTAL_MIGRATIONS = [
   '2026-10-10_fraud_module.sql',
   // Operator notification centre (2026-10-11).
   '2026-10-11_notifications.sql',
+  // Fraud case review-requests + superadmin-owned governance (2026-10-12).
+  '2026-10-12_fraud_review_requests.sql',
 ] as const;
